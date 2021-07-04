@@ -1,0 +1,9 @@
+*.o
+__pycache__
+bin
+lib
+lib-static
+
+python/cufinufft/docs/_build
+python/cufinufft/docs/_static
+python/cufinufft/docs/_templates

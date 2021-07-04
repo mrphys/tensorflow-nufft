@@ -1,0 +1,291 @@
+% finufft.mw
+% MWrap MEX interface descriptor file for FINUFFT, using the new guru interface.
+% This provides an object-oriented style interface to the guru interface, by
+% mirroring the finufft_plan C++ object with a matlab object "finufft_plan".
+% The OO use makes it compatible only with MATLAB R2008a or later, and octave
+% version 4.4 or later.
+%
+% To match the object name, generated matlab interface is (and must be) called
+% finufft_plan.m; see Path Folders here:
+% https://www.mathworks.com/help/matlab/matlab_oop/organizing-classes-in-folders.html
+%
+% Hints for linux/GNU build (see ../makefile for definitive build):
+% To generate the MEX C++ file, run these both:
+%
+% mwrap -list -mex finufft -cppcomplex -mb finufft.mw
+% mwrap -mex finufft -c finufft.cpp -cppcomplex finufft.mw
+%
+% Then to compile for matlab:
+% mex finufft.cpp ../lib/libfinufft.a -largeArrayDims -DR2008OO -lfftw3_omp -lfftw3 -lgomp -lm
+% Although you may have to replace -lgomp w/ Matlab's libiomp5 to prevent crashes.
+% And to compile for octave:
+% mkoctfile --mex finufft.cpp ../lib/libfinufft.a -DR2008OO -lfftw3_omp -lfftw3 -lgomp -lm
+% Don't forget to add this directory to your matlab/octave path.
+%
+% See also: finufft?d?.m in this directory for the simple/many interfaces which
+% call finufft_plan.m, or test/guru1dtest.m for direct example.
+%
+% Notes:
+%  0) see mwrap's documentation for how this type of .mw file works:
+%     https://github.com/zgimbutas/mwrap
+%  1) Double and single precision (via floatprec opt).
+%  2) in the FINUFFT library, BIGINT type must be int64_t, as is default.
+%     Since int64_t is hardwired in the below, MEX will break otherwise.
+%  3) only compatible with FINUFFT version>=1.2; supercedes old simple/many
+%     interfaces.
+%  4) after mwrap generates finufft_plan.m from this file, documentation is
+%     prepended to finufft_plan.m (etc) by running ./addmhelp.sh
+%
+% Main author: Libin Lu, started May 2020; edits, ier, docs etc by Alex Barnett.
+% 7/14/20 switched finufft{f}_plan to be ptr to struct.
+% 7/19/20 Alex made opaque C++ plan version storing param info on matlab side.
+
+% both precisions...
+$ #include <finufft.h>
+
+$ #include <mex.h>
+$ #include <iostream>
+$ #include <cstring>
+$ #include <math.h>
+
+
+% .........................................................................
+% This C++ code overwrites any properties of nufft_opts *oc with any valid
+% fields in the matlab struct *om.
+%
+$ void copy_nufft_opts(const mxArray* om, nufft_opts *oc) {
+$   if(!mxIsStruct(om))
+$     mexErrMsgIdAndTxt("FINUFFT:inputNotStruct","opts input must be a structure.");
+$   mwIndex idx = 0;
+$   int ifield, nfields;
+$   const char **fname;
+$   nfields = mxGetNumberOfFields(om);
+$   fname = (const char**)mxCalloc(nfields, sizeof(*fname));
+$   for(ifield=0; ifield<nfields; ifield++) {
+$     fname[ifield] = mxGetFieldNameByNumber(om,ifield);
+$     if (strcmp(fname[ifield],"debug") == 0) {
+$       oc->debug = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else if (strcmp(fname[ifield],"spread_debug") == 0) {
+$       oc->spread_debug = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else if (strcmp(fname[ifield],"spread_sort") == 0) {
+$       oc->spread_sort = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else if (strcmp(fname[ifield],"spread_kerevalmeth") == 0) {
+$       oc->spread_kerevalmeth = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else if (strcmp(fname[ifield],"spread_kerpad") == 0) {
+$       oc->spread_kerpad = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else if (strcmp(fname[ifield],"chkbnds") == 0) {
+$       oc->chkbnds = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else if (strcmp(fname[ifield],"fftw") == 0) {
+$       oc->fftw = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else if (strcmp(fname[ifield],"modeord") == 0) {
+$       oc->modeord = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else if (strcmp(fname[ifield],"upsampfac") == 0) {
+$       oc->upsampfac = (double)*mxGetPr(mxGetFieldByNumber(om,idx,ifield));
+$     }
+$     else if (strcmp(fname[ifield],"spread_thread") == 0) {
+$       oc->spread_thread = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else if (strcmp(fname[ifield],"maxbatchsize") == 0) {
+$       oc->maxbatchsize = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else if (strcmp(fname[ifield],"nthreads") == 0) {
+$       oc->nthreads = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else if (strcmp(fname[ifield],"spread_nthr_atomic") == 0) {
+$       oc->spread_nthr_atomic = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else if (strcmp(fname[ifield],"spread_max_sp_size") == 0) {
+$       oc->spread_max_sp_size = (int)round(*mxGetPr(mxGetFieldByNumber(om,idx,ifield)));
+$     }
+$     else
+$       continue;
+$   }
+$   mxFree(fname);
+$ }
+
+$ void finufft_mex_setup() {
+$   /* Forces MATLAB to properly initialize their FFTW library. */
+$   mexEvalString("fft(1:8);");
+$ }
+
+
+@ finufft_plan.m --------------------------------------------
+
+classdef finufft_plan < handle
+
+  properties
+    % this is a special property that MWrap uses as an opaque pointer to C++
+    % object (mwptr = MWrap-pointer, not MathWorks! see MWrap manual)...
+    mwptr
+    % track what prec C++ library is being called ('single' or 'double')...
+    floatprec
+    % track other properties we'd rather not have to query the C++ plan for...
+    type
+    dim
+    n_modes         % 3-element array, 1's in the unused dims
+    n_trans
+    nj              % number of NU pts (type 1,2), or input NU pts (type 3)
+    nk              % number of output NU pts (type 3)
+    xj
+    yj
+    zj
+  end
+
+  methods
+
+    function plan = finufft_plan(type, n_modes_or_dim, iflag, n_trans, tol, opts)
+    % FINUFFT_PLAN   create guru plan object for one/many general nonuniform FFTs.
+
+      plan.floatprec='double';                      % set precision: default
+      if nargin<6, opts = []; end
+      if isfield(opts,'floatprec')                  % a matlab-only option
+        if ~strcmp(opts.floatprec,'single') && ~strcmp(opts.floatprec,'double')
+          error('FINUFFT:badFloatPrec','FINUFFT plan opts.floatprec must be single or double');
+        else
+          plan.floatprec = opts.floatprec;
+        end
+      end
+      
+      n_modes = ones(3,1);         % is dummy for type 3
+      if type==3
+        if length(n_modes_or_dim)~=1
+          error('FINUFFT:badT3dim', 'FINUFFT type 3 plan n_modes_or_dim must be one number, the dimension');
+        end
+        dim = n_modes_or_dim;      % interpret as dim
+      else
+        dim = length(n_modes_or_dim);    % allows any ms,mt,mu to be 1 (weird..)
+        n_modes(1:dim) = n_modes_or_dim;   % unused dims left as 1
+      end
+      % (checks of type, dim will occur in the C++ library, so omit them above)
+
+      # finufft_mex_setup();
+      # nufft_opts* o = new nufft_opts();
+      if strcmp(plan.floatprec,'double')
+        # finufft_plan* p = new finufft_plan();
+        # finufft_default_opts(nufft_opts* o);
+      else
+        # finufftf_plan* p = new finufftf_plan();
+        # finufftf_default_opts(nufft_opts* o);
+      end
+      plan.mwptr = p;   % crucial: save the opaque ptr (p.12 of MWrap manual)
+      plan.dim = dim;   % save other stuff to avoid having to access via C++...
+      plan.type = type;
+      plan.n_modes = n_modes;
+      plan.n_trans = n_trans;
+      % Note the peculiarity that mwrap only accepts a double for n_trans, even
+      % though it's declared int. It complains, also with int64 for nj, etc :(
+      
+      % replace in nufft_opts struct whichever fields are in incoming opts...
+      # copy_nufft_opts(mxArray opts, nufft_opts* o);
+      if strcmp(plan.floatprec,'double')
+        tol = double(tol);   % scalar type must match for mwrap>=0.33.11
+        # int ier = finufft_makeplan(int type, int dim, int64_t[3] n_modes, int iflag, int n_trans, double tol, finufft_plan* plan, nufft_opts* o);
+      else
+        tol = single(tol);   % ditto
+        # int ier = finufftf_makeplan(int type, int dim, int64_t[3] n_modes, int iflag, int n_trans, float tol, finufftf_plan* plan, nufft_opts* o);
+      end
+      # delete(nufft_opts* o);
+      errhandler(ier);             % convert C++ codes to matlab-style errors
+    end
+
+    function setpts(plan, xj, yj, zj, s, t, u)
+    % SETPTS   process nonuniform points for general FINUFFT transform(s).
+
+      % fill missing inputs with empties of correct type
+      if strcmp(plan.floatprec,'double')
+        emp = double([]);
+      else
+        emp = single([]);
+      end
+      if nargin<3, yj=emp; end
+      if nargin<4, zj=emp; end
+      if nargin<5, s=emp; end
+      if nargin<6, t=emp; end
+      if nargin<7, u=emp; end
+      % get number(s) of NU pts (also validates the NU pt array sizes)...
+      [nj, nk] = valid_setpts(plan.type, plan.dim, xj, yj, zj, s, t, u);
+      plan.nj = nj;            % save to avoid having to query the C++ plan
+      plan.nk = nk;            % "
+      % Force MATLAB to preserve the memory of xj/yj/zj by storing them as class
+      % properties (see issue #185). Ideally, we would pass plan.xj/yj/zj to the
+      % MWrap call below, but MWrap fails to parse the "." syntax. However,
+      % simply storing xj/yj/zj ensures that the memory will be preserved.
+      plan.xj = xj;
+      plan.yj = yj;
+      plan.zj = zj;
+      if strcmp(plan.floatprec,'double')
+        # int ier = finufft_setpts(finufft_plan plan, int64_t nj, double[] xj, double[] yj, double[] zj, int64_t nk, double[] s, double[] t, double[] u);
+      else
+        # int ier = finufftf_setpts(finufftf_plan plan, int64_t nj, float[] xj, float[] yj, float[] zj, int64_t nk, float[] s, float[] t, float[] u);
+      end
+      errhandler(ier);
+    end
+
+    function result = execute(plan, data_in)
+    % EXECUTE   execute single or many-vector FINUFFT transforms in a plan.
+
+      % get shape info from the matlab-side plan (since can't pass "dot"
+      % variables like a.b as mwrap sizes, too)...
+      ms = plan.n_modes(1); mt = plan.n_modes(2); mu = plan.n_modes(3);
+      nj = plan.nj; nk = plan.nk; n_trans = plan.n_trans;
+
+      % check data input length...
+      if plan.type==1 || plan.type==2
+        ncoeffs = ms*mt*mu*n_trans;    % total # Fourier coeffs
+      end
+      if plan.type==2
+        ninputs = ncoeffs;
+      else
+        ninputs = n_trans*nj;
+      end
+      if numel(data_in)~=ninputs
+        error('FINUFFT:badDataInSize','FINUFFT numel(data_in) must be n_trans times number of NU pts (type 1, 3) or Fourier modes (type 2)');
+      end
+      if plan.type == 1
+        if strcmp(plan.floatprec,'double')
+          # int ier = finufft_execute(finufft_plan plan, dcomplex[] data_in, output dcomplex[ncoeffs] result);
+        else
+          # int ier = finufftf_execute(finufftf_plan plan, fcomplex[] data_in, output fcomplex[ncoeffs] result);
+        end
+        % make modes output correct shape; when d<3 squeeze removes unused dims...
+        result = squeeze(reshape(result, [ms mt mu n_trans]));
+      elseif plan.type == 2
+        if strcmp(plan.floatprec,'double')
+          # int ier = finufft_execute(finufft_plan plan, output dcomplex[nj, n_trans] result, dcomplex[] data_in);
+        else
+          # int ier = finufftf_execute(finufftf_plan plan, output fcomplex[nj, n_trans] result, fcomplex[] data_in);
+        end
+      elseif plan.type == 3
+        if strcmp(plan.floatprec,'double')
+          # int ier = finufft_execute(finufft_plan plan, dcomplex[] data_in, output dcomplex[nk, n_trans] result);
+        else
+          # int ier = finufftf_execute(finufftf_plan plan, fcomplex[] data_in, output fcomplex[nk, n_trans] result);
+        end
+      end
+      errhandler(ier);
+    end
+
+    function delete(plan)
+    % This does clean-up (deallocation) of the C++ struct before the matlab
+    % object deletes. It is automatically called by MATLAB and octave if the
+    % plan goes out of scope.
+      if ~isempty(plan.mwptr)    % catch octave's allowance of >1 deletings!
+        if strcmp(plan.floatprec,'double')
+          # finufft_destroy(finufft_plan plan);
+        else
+          # finufftf_destroy(finufftf_plan plan);
+        end
+        plan.mwptr = '';         % we use to mean "destroyed on the C++ side"
+      end
+    end
+
+  end
+end

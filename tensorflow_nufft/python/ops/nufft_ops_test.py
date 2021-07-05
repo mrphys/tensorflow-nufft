@@ -21,11 +21,10 @@ import time
 import numpy as np
 import tensorflow as tf
 
-from dlex.ops import signal_ops
-from dlex.ops import spectral_ops
+import nufft_ops
 
 
-class SpectralOpsTest(tf.test.TestCase): # pylint: disable=missing-class-docstring
+class NUFFTOpsTest(tf.test.TestCase):
 
     def test_nufft(self):
         """Test NUFFT."""
@@ -80,7 +79,7 @@ class SpectralOpsTest(tf.test.TestCase): # pylint: disable=missing-class-docstri
                     # result_legacy = signal_ops.nufft(source, points / (2.0 * np.pi))
                     # time_legacy = time.time() - start
                     start = time.time()
-                    result_nudft = spectral_ops.nudft(
+                    result_nudft = nufft_ops.nudft(
                         source, points,
                         transform_type=transform_type,
                         j_sign=j_sign,
@@ -93,7 +92,7 @@ class SpectralOpsTest(tf.test.TestCase): # pylint: disable=missing-class-docstri
                         source_t = tf.transpose(source) # TODO: build into op
 
                     start = time.time()
-                    result_nufft_t = spectral_ops.nufft(
+                    result_nufft_t = nufft_ops.nufft(
                         source_t, points,
                         transform_type=transform_type,
                         j_sign=j_sign,
@@ -113,7 +112,7 @@ class SpectralOpsTest(tf.test.TestCase): # pylint: disable=missing-class-docstri
                 self.assertAllClose(result_nudft, result_nufft, rtol=epsilon, atol=epsilon)
                 self.assertAllClose(grad_nufft, grad_nudft, rtol=epsilon, atol=epsilon)
 
-                # help(spectral_ops.nufft)
+                # help(nufft_ops.nufft)
 
         # print(grad_nudft)
         # print(grad_nufft)
@@ -166,3 +165,6 @@ class SpectralOpsTest(tf.test.TestCase): # pylint: disable=missing-class-docstri
         # print(time_legacy, time_nudft, time_fi, time_cufi)
         # self.assertAllClose(result_nudft, result_fi, atol=1e-5, rtol=1e-5)
         # self.assertAllClose(result_nudft, result_cufi, atol=1e-5, rtol=1e-5)
+
+if __name__ == '__main__':
+    tf.test.main()

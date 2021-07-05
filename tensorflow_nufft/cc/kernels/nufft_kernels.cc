@@ -19,7 +19,7 @@ limitations under the License.
 #include "tensorflow/core/framework/tensor_util.h"
 #include "tensorflow/core/kernels/transpose_functor.h"
 
-#include "finufft/finufft.h"
+#include "third_party/finufft/include/finufft.h"
 
 using namespace tensorflow;
 

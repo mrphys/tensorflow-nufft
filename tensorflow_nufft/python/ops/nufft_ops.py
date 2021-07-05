@@ -15,32 +15,12 @@
 # ==============================================================================
 """NUFFT ops."""
 
-import numpy as np
 import tensorflow as tf
 
-from dlex.utils import check_utils, generic_utils
-from dlex.utils import type_utils
 
-
-cc_lib = tf.load_op_library("dlex/libdlex.so")
-
-nufft = cc_lib.nufft
-
-
-# def nufft(source,
-#           points,
-#           transform_type=2,
-#           j_sign=-1,
-#           epsilon=1e-6,
-#           grid_shape=-1):
-
-#     return generic_utils.call_dlex_library('nufft',
-#                                            source,
-#                                            points,
-#                                            transform_type,
-#                                            j_sign,
-#                                            epsilon,
-#                                            grid_shape)
+nufft_ops = tf.load_op_library(
+    tf.compat.v1.resource_loader.get_path_to_datafile('_nufft_ops.so'))
+nufft = nufft_ops.nufft
 
 
 @tf.RegisterGradient("NUFFT")
@@ -171,7 +151,7 @@ def _nudft_matrix(points, grid_shape, j_sign):
         [rank, tf.reduce_prod(grid_shape)]), points.dtype)
 
     points_grid = tf.cast(tf.matmul(
-        points, r_grid), type_utils.complex_dtype(points.dtype))
+        points, r_grid), _complex_dtype(points.dtype))
 
     if j_sign == 'positive':
         nudft_matrix = tf.exp(1j * points_grid)
@@ -218,9 +198,9 @@ def _validate_nudft_inputs(source,
         ValueError: If the batch shapes of `source` and `points` are not broadcastable.
     """
     # Check flags.
-    transform_type = check_utils.validate_enum(
+    transform_type = _validate_enum(
         transform_type, {'type_1', 'type_2'}, 'transform_type')
-    j_sign = check_utils.validate_enum(
+    j_sign = _validate_enum(
         j_sign, {'positive', 'negative'}, 'j_sign')
 
     # Check rank.
@@ -305,3 +285,46 @@ def _validate_nudft_inputs(source,
     points = tf.broadcast_to(points, batch_shape + points_shape)
 
     return source, points, transform_type, j_sign, grid_shape
+
+
+def _validate_enum(value, valid_values, name):
+    """Validates that value is in a list of valid values.
+
+    Args:
+        value: The value to validate.
+        valid_values: The list of valid values.
+        name: The name of the argument being validated. This is only used to
+            format error messages.
+
+    Returns:
+        A valid enum value.
+
+    Raises:
+        ValueError: If a value not in the list of valid values was passed.
+    """
+    if value not in valid_values:
+        raise ValueError((
+            "The `{}` argument must be one of {}. "
+            "Received: {}").format(name, valid_values, value))
+    return value
+
+
+def _complex_dtype(dtype):
+    """Returns the corresponding complex dtype for a given real dtype.
+
+    Args:
+        dtype: A floating-point dtype, i.e. float32 or float64. Can be a
+            string or a `tf.dtypes.DType`.
+
+    Returns:
+        The complex dtype corresponding to the given real dtype.
+    """
+    dtypes = {
+        'float32': tf.dtypes.complex64,
+        'float64': tf.dtypes.complex128,
+        'complex64': tf.dtypes.complex64,
+        'complex128': tf.dtypes.complex128
+    }
+    if isinstance(dtype, tf.dtypes.DType):
+        dtype = dtype.name
+    return dtypes[dtype]

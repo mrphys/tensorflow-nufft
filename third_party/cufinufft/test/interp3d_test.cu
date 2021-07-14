@@ -144,7 +144,7 @@ int main(int argc, char* argv[])
 	checkCudaErrors(cudaMemcpy(d_z,y,M*sizeof(FLT),cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_fw,fw,nf1*nf2*nf3*sizeof(CUCPX),cudaMemcpyHostToDevice));
 
-	CNTime timer;
+	cuCNTime timer;
 	timer.restart();
 	ier = CUFINUFFT_INTERP3D(nf1, nf2, nf3, d_fw, M, d_x, d_y, d_z, d_c, dplan);
 	if(ier != 0 ){

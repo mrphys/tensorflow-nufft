@@ -130,7 +130,7 @@ int main(int argc, char* argv[])
 	checkCudaErrors(cudaMemcpy(d_y,y,M*sizeof(FLT),cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_c,c,M*sizeof(CUCPX),cudaMemcpyHostToDevice));
 
-	CNTime timer;
+	cuCNTime timer;
 	/*warm up gpu*/
 	timer.restart();
 	ier = CUFINUFFT_SPREAD2D(nf1, nf2, d_fw, M, d_x, d_y, d_c, dplan);

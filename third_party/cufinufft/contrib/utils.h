@@ -44,7 +44,7 @@ BIGINT next235beven(BIGINT n, BIGINT b);
 
 // jfm timer class
 #include <sys/time.h>
-class CNTime {
+class cuCNTime {
  public:
   void start();
   double restart();

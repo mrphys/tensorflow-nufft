@@ -69,7 +69,7 @@ void onedim_fseries_kernel(BIGINT nf, FLT *fwkerhalf, SPREAD_OPTS opts)
   dcomplex a[MAX_NQUAD];
   for (int n=0;n<q;++n) {               // set up nodes z_n and vals f_n
     z[n] *= J2;                         // rescale nodes
-    f[n] = J2*(FLT)w[n] * evaluate_kernel((FLT)z[n], opts); // vals & quadr wei
+    f[n] = J2*(FLT)w[n] * cu_evaluate_kernel((FLT)z[n], opts); // vals & quadr wei
     a[n] = exp(2*PI*IMA*(FLT)(nf/2-z[n])/(FLT)nf);  // phase winding rates
   }
   BIGINT nout=nf/2+1;                   // how many values we're writing to

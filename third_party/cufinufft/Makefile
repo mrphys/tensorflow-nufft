@@ -27,9 +27,9 @@ NVARCH ?= -arch=sm_70 \
 	  -gencode=arch=compute_52,code=sm_52 \
 	  -gencode=arch=compute_60,code=sm_60 \
 	  -gencode=arch=compute_61,code=sm_61 \
-	  -gencode=arch=compute_70,code=sm_70 \
-	  -gencode=arch=compute_75,code=sm_75 \
-	  -gencode=arch=compute_75,code=compute_75
+	  -gencode=arch=compute_70,code=sm_70
+	#   -gencode=arch=compute_75,code=sm_75 \
+	#   -gencode=arch=compute_75,code=compute_75
 
 CFLAGS    ?= -fPIC -O3 -funroll-loops -march=native
 CXXFLAGS  ?= $(CFLAGS) -std=c++14
@@ -63,7 +63,7 @@ ifdef NVCC_STUBS
     NVCC_LIBS_PATH += -L$(NVCC_STUBS)
 endif
 
-LIBS += -lm -lcudart -lstdc++ -lnvToolsExt -lcufft -lcuda
+LIBS += -lm -lcudart -lstdc++ -lnvToolsExt -lcufft -lcuda -lcudadevrt
 
 
 #############################################################
@@ -167,7 +167,7 @@ lib: $(STATICLIB) $(DYNAMICLIB)
 
 $(STATICLIB): $(CUFINUFFTOBJS) $(CUFINUFFTOBJS_64) $(CUFINUFFTOBJS_32) $(CONTRIBOBJS)
 	mkdir -p lib-static
-	ar rcs $(STATICLIB) $^
+	$(NVCC) -lib $(NVCCFLAGS) $^ -o $(STATICLIB) $(LIBS)
 $(DYNAMICLIB): $(CUFINUFFTOBJS) $(CUFINUFFTOBJS_64) $(CUFINUFFTOBJS_32) $(CONTRIBOBJS)
 	mkdir -p lib
 	$(NVCC) -shared $(NVCCFLAGS) $^ -o $(DYNAMICLIB) $(LIBS)

@@ -11,7 +11,7 @@ This folder contains functions/files from FINUFFT that cuFINUFFT used. Following
   setup_spreader_for_nufft, set_nf_type12, onedim_fseries_kernel are called in cufinufft_makeplan.
   
 - spreadinterp.h
-  cufinufft plan contains the spread_opts struct where nspread, spread_direction, pirange, upsampfac, ES_beta, ES_c are used. 
+  cufinufft plan contains the cu_spread_opts struct where nspread, spread_direction, pirange, upsampfac, ES_beta, ES_c are used. 
   
 - ker_horner_allw_loop.c
 - ker_lowupsampfac_horner_allw_loop.c

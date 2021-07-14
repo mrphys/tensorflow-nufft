@@ -6,68 +6,87 @@ PYTHON_BIN_PATH = python
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 # Dependencies.
-FINUFFT_DIR := third_party/finufft
-FINUFFT_LIB = $(FINUFFT_DIR)/lib-static/libfinufft.a
+FINUFFT_DIR_CPU := third_party/finufft
+FINUFFT_LIB_CPU = $(FINUFFT_DIR_CPU)/lib-static/libfinufft.a
+FINUFFT_DIR_GPU := third_party/cufinufft
+FINUFFT_LIB_GPU = $(FINUFFT_DIR_GPU)/lib-static/libcufinufft.a
 
-NUFFT_SRCS = $(wildcard tensorflow_nufft/cc/kernels/*.cc) $(wildcard tensorflow_nufft/cc/ops/*.cc)
-TIME_TWO_SRCS = tensorflow_time_two/cc/kernels/time_two_kernels.cc $(wildcard tensorflow_time_two/cc/kernels/*.h) $(wildcard tensorflow_time_two/cc/ops/*.cc)
+NUFFT_SRCS_GPU = $(wildcard tensorflow_nufft/cc/kernels/*.cu.cc)
+NUFFT_OBJS_GPU = $(patsubst %.cu.cc, %.cu.o, $(NUFFT_SRCS_GPU))
+NUFFT_SRCS = $(filter-out $(NUFFT_SRCS_GPU), $(wildcard tensorflow_nufft/cc/kernels/*.cc)) $(wildcard tensorflow_nufft/cc/ops/*.cc)
 
 TF_CFLAGS := $(shell $(PYTHON_BIN_PATH) -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))')
 TF_LFLAGS := $(shell $(PYTHON_BIN_PATH) -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))')
 
-CFLAGS = ${TF_CFLAGS} -fPIC -O2 -std=c++11 
-LDFLAGS = -shared ${TF_LFLAGS}
+# GCC-specific compilation flags.
+CCFLAGS = ${TF_CFLAGS} -fPIC -O2 -std=c++11
+CCFLAGS += -I$(ROOT_DIR)/$(FINUFFT_DIR_CPU)/include
+CCFLAGS += -I$(ROOT_DIR)/$(FINUFFT_DIR_GPU)/include
+CCFLAGS += -DGOOGLE_CUDA=1
+CCFLAGS += -I/usr/local/cuda/targets/x86_64-linux/include
+CCFLAGS += -L/usr/local/cuda/targets/x86_64-linux/lib
 
-# Additional include directories.
-CFLAGS += -I$(ROOT_DIR) # This Makefile's directory.
-CFLAGS += -I$(ROOT_DIR)/$(FINUFFT_DIR)/include # For FINUFFT's relative includes
-# CFLAGS += -Ithird_party/finufft/include
+# NVCC-specific compilation flags.
+CUFLAGS = $(TF_CFLAGS) -std=c++11 -DGOOGLE_CUDA=1 -x cu -Xcompiler "-fPIC" -DNDEBUG --expt-relaxed-constexpr
+CUFLAGS += -I$(ROOT_DIR)/$(FINUFFT_DIR_GPU)/include
+
+# Include this Makefile's directory.
+CCFLAGS += -I$(ROOT_DIR)
+CUFLAGS += -I$(ROOT_DIR)
+
+# Linker flags.
+LDFLAGS = -shared ${TF_LFLAGS}
 
 # Additional dynamic linking.
 LDFLAGS += -lfftw3 -lfftw3_omp -lfftw3f -lfftw3f_omp
+LDFLAGS += -lcudadevrt -lcudart -lnvToolsExt
 
 # Additional static linking.
-LDFLAGS += $(FINUFFT_LIB)
-
+# LDFLAGS += $(FINUFFT_LIB_CPU)
+# LDFLAGS += $(FINUFFT_LIB_GPU)
 
 TARGET_LIB = tensorflow_nufft/python/ops/_nufft_ops.so
-# TIME_TWO_GPU_ONLY_TARGET_LIB = tensorflow_time_two/python/ops/_time_two_ops.cu.o
-# TIME_TWO_TARGET_LIB = tensorflow_time_two/python/ops/_time_two_ops.so
+TARGET_LIB_GPU = tensorflow_nufft/python/ops/_nufft_ops.cu.o
+# TARGET_OBJ_GPU = tensorflow_nufft/python/ops/_nufft_kernels.cu.o
 
 
 # nufft op for CPU
-ops: $(TARGET_LIB) 
+op: $(TARGET_LIB)
 
-$(TARGET_LIB): $(NUFFT_SRCS) $(FINUFFT_LIB)
-	$(CXX) $(CFLAGS) -o $@ $^ ${LDFLAGS}
+$(TARGET_LIB): $(NUFFT_SRCS) $(TARGET_LIB_GPU) $(FINUFFT_LIB_CPU) $(FINUFFT_LIB_GPU)
+	$(CXX) $(CCFLAGS) -o $@ $^ $(NUFFT_OBJS_GPU) ${LDFLAGS}
 
-$(FINUFFT_LIB):
-	$(MAKE) lib -C $(FINUFFT_DIR)
+$(TARGET_LIB_GPU): $(NUFFT_SRCS_GPU)
+# $(NVCC) -std=c++11 -c -o $@ $^  $(CUFLAGS)
+	mkdir -p $(ROOT_DIR)/third_party/gpus/cuda
+	cp -r /usr/local/cuda/include/ $(ROOT_DIR)/third_party/gpus/cuda/
+	$(NVCC) -dc $^ $(CUFLAGS) -odir tensorflow_nufft/cc/kernels -Xcompiler "-fPIC" -lcudadevrt -lcudart
+	$(NVCC) -dlink $(NUFFT_OBJS_GPU) $(FINUFFT_LIB_GPU) -o $(TARGET_LIB_GPU) -Xcompiler "-fPIC" -lcudadevrt -lcudart
 
-test: tensorflow_nufft/python/ops/nufft_ops_test.py tensorflow_nufft/python/ops/nufft_ops.py $(TARGET_LIB)
+# $(TARGET_LIB_GPU_LINK): $(TARGET_LIB_GPU)
+# # $(NVCC) -std=c++11 -c -o $@ $^  $(CUFLAGS)
+	
+$(FINUFFT_LIB_CPU):
+	$(MAKE) lib -C $(FINUFFT_DIR_CPU)
+
+$(FINUFFT_LIB_GPU):
+	$(MAKE) lib -C $(FINUFFT_DIR_GPU)
+
+test: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)
 	$(PYTHON_BIN_PATH) tensorflow_nufft/python/ops/nufft_ops_test.py
 
 pip_pkg: $(TARGET_LIB)
 	./build_pip_pkg.sh make artifacts
 
-clean:
-	$(MAKE) clean -C $(FINUFFT_DIR)
+clean: mostlyclean
+	$(MAKE) clean -C $(FINUFFT_DIR_CPU)
+	$(MAKE) clean -C $(FINUFFT_DIR_GPU)
+
+mostlyclean:
 	rm -f $(TARGET_LIB)
+	rm -f $(TARGET_LIB_GPU)
+	rm -f $(NUFFT_OBJS_GPU)
+# rm -f $(TARGET_LIB_GPU_LINK)
+# rm -f $(TARGET_OBJ_GPU)
 
-.PHONY: clean
-
-# # time_two op for GPU
-# time_two_gpu_only: $(TIME_TWO_GPU_ONLY_TARGET_LIB)
-
-# $(TIME_TWO_GPU_ONLY_TARGET_LIB): tensorflow_time_two/cc/kernels/time_two_kernels.cu.cc
-# 	$(NVCC) -std=c++11 -c -o $@ $^  $(TF_CFLAGS) -D GOOGLE_CUDA=1 -x cu -Xcompiler -fPIC -DNDEBUG --expt-relaxed-constexpr
-
-# time_two_op: $(TIME_TWO_TARGET_LIB)
-# $(TIME_TWO_TARGET_LIB): $(TIME_TWO_SRCS) $(TIME_TWO_GPU_ONLY_TARGET_LIB)
-# 	$(CXX) $(CFLAGS) -o $@ $^ ${LDFLAGS}  -D GOOGLE_CUDA=1  -I/usr/local/cuda/targets/x86_64-linux/include -L/usr/local/cuda/targets/x86_64-linux/lib -lcudart
-
-# time_two_test: tensorflow_time_two/python/ops/time_two_ops_test.py tensorflow_time_two/python/ops/time_two_ops.py $(TIME_TWO_TARGET_LIB)
-# 	$(PYTHON_BIN_PATH) tensorflow_time_two/python/ops/time_two_ops_test.py
-
-# clean:
-# 	rm -f $(TARGET_LIB) $(TIME_TWO_GPU_ONLY_TARGET_LIB) $(TIME_TWO_TARGET_LIB)
+.PHONY: clean mostlyclean

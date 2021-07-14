@@ -14,134 +14,140 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#if GOOGLE_CUDA
+#define EIGEN_USE_GPU
+#endif  // GOOGLE_CUDA
+
+#include "nufft.h"
+
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_util.h"
-#include "tensorflow/core/kernels/transpose_functor.h"
 
 #include "third_party/finufft/include/finufft.h"
 
-using namespace tensorflow;
+
+namespace tensorflow {
 
 typedef Eigen::ThreadPoolDevice CPUDevice;
 typedef Eigen::GpuDevice GPUDevice;
 
 namespace finufft {
-    
-    // Template the float/double interfaces of fiNUFFT.
 
-    template<typename T>
-    struct plan_type { };
+template<>
+struct plan_type<CPUDevice, float> {
+    typedef finufftf_plan type;
+};
 
-    template<>
-    struct plan_type<float> {
-        typedef finufftf_plan type;
-    };
+template<>
+struct plan_type<CPUDevice, double> {
+    typedef finufft_plan type;
+};
 
-    template<>
-    struct plan_type<double> {
-        typedef finufft_plan type;
-    };
+template<>
+struct opts_type<CPUDevice, float> {
+    typedef nufft_opts type;
+};
 
-    template<typename T>
-    void default_opts(nufft_opts* opts) { };
+template<>
+struct opts_type<CPUDevice, double> {
+    typedef nufft_opts type;
+};
 
-    template<>
-    void default_opts<float>(nufft_opts* opts) {
-        finufftf_default_opts(opts);
-    };
+template<>
+void default_opts<CPUDevice, float>(
+        int type, int dim, typename opts_type<CPUDevice, float>::type* opts) {
+    finufftf_default_opts(opts);
+};
 
-    template<>
-    void default_opts<double>(nufft_opts* opts) {
-        finufft_default_opts(opts);
-    };
+template<>
+void default_opts<CPUDevice, double>(
+        int type, int dim, typename opts_type<CPUDevice, double>::type* opts) {
+    finufft_default_opts(opts);
+};
 
-    template<typename T>
-    int makeplan(
-            int type, int dim, int64_t* nmodes, int iflag, int ntr, T eps,
-            typename plan_type<T>::type* plan, nufft_opts* opts) { 
-        return -1;
-    };
+template<>
+int makeplan<CPUDevice, float>(
+        int type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
+        typename plan_type<CPUDevice, float>::type* plan,
+        typename opts_type<CPUDevice, float>::type* opts) {
+    return finufftf_makeplan(
+        type, dim, nmodes, iflag, ntr, eps, plan, opts);
+};
 
-    template<>
-    int makeplan<float>(
-            int type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
-            typename plan_type<float>::type* plan, nufft_opts* opts) {
-        return finufftf_makeplan(
-            type, dim, nmodes, iflag, ntr, eps, plan, opts);
-    };
+template<>
+int makeplan<CPUDevice, double>(
+        int type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
+        typename plan_type<CPUDevice, double>::type* plan,
+        typename opts_type<CPUDevice, double>::type* opts) {
+    return finufft_makeplan(
+        type, dim, nmodes, iflag, ntr, eps, plan, opts);
+};
 
-    template<>
-    int makeplan<double>(
-            int type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
-            plan_type<double>::type* plan, nufft_opts* opts) {
-        return finufft_makeplan(
-            type, dim, nmodes, iflag, ntr, eps, plan, opts);
-    };
-    
-    template<typename T>
-    int setpts(
-            typename plan_type<T>::type plan,
-            int64_t M, T* x, T* y, T* z,
-            int64_t N, T* s, T* t, T* u) {
-        return -1;
-    };
+template<>
+int setpts<CPUDevice, float>(
+        typename plan_type<CPUDevice, float>::type plan,
+        int64_t M, float* x, float* y, float* z,
+        int64_t N, float* s, float* t, float* u) {
+    return finufftf_setpts(plan, M, x, y, z, N, s, t, u);
+};
 
-    template<>
-    int setpts<float>(
-            typename plan_type<float>::type plan,
-            int64_t M, float* x, float* y, float* z,
-            int64_t N, float* s, float* t, float* u) {
-        return finufftf_setpts(plan, M, x, y, z, N, s, t, u);
-    };
+template<>
+int setpts<CPUDevice, double>(
+        typename plan_type<CPUDevice, double>::type plan,
+        int64_t M, double* x, double* y, double* z,
+        int64_t N, double* s, double* t, double* u) {
+    return finufft_setpts(plan, M, x, y, z, N, s, t, u);
+};
 
-    template<>
-    int setpts<double>(
-            typename plan_type<double>::type plan,
-            int64_t M, double* x, double* y, double* z,
-            int64_t N, double* s, double* t, double* u) {
-        return finufft_setpts(plan, M, x, y, z, N, s, t, u);
-    };
+template<>
+int execute<CPUDevice, float>(
+        typename plan_type<CPUDevice, float>::type plan,
+        std::complex<float>* c, std::complex<float>* f) {
+    return finufftf_execute(plan, c, f);
+};
 
-    template<typename T>
-    int execute(
-            typename plan_type<T>::type plan,
-            std::complex<T>* c, std::complex<T>* f) {
-        return -1;
-    };
+template<>
+int execute<CPUDevice, double>(
+        typename plan_type<CPUDevice, double>::type plan,
+        std::complex<double>* c, std::complex<double>* f) {
+    return finufft_execute(plan, c, f);
+};
 
-    template<>
-    int execute<float>(
-            typename plan_type<float>::type plan,
-            std::complex<float>* c, std::complex<float>* f) {
-        return finufftf_execute(plan, c, f);
-    };
+template<>
+int destroy<CPUDevice, float>(
+        typename plan_type<CPUDevice, float>::type plan) {
+    return finufftf_destroy(plan);
+};
 
-    template<>
-    int execute<double>(
-            typename plan_type<double>::type plan,
-            std::complex<double>* c, std::complex<double>* f) {
-        return finufft_execute(plan, c, f);
-    };
+template<>
+int destroy<CPUDevice, double>(
+        typename plan_type<CPUDevice, double>::type plan) {
+    return finufft_destroy(plan);
+};
 
-    template<typename T>
-    int destroy(typename plan_type<T>::type plan) {
-        return -1;
-    };
-
-    template<>
-    int destroy<float>(typename plan_type<float>::type plan) {
-        return finufftf_destroy(plan);
-    };
-
-    template<>
-    int destroy<double>(typename plan_type<double>::type plan) {
-        return finufft_destroy(plan);
-    };
-}
-
+}   // namespace finufft
 
 template<typename T>
+struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
+    Status operator()(OpKernelContext* ctx,
+                      int type,
+                      int rank,
+                      int iflag,
+                      int ntr,
+                      T epsilon,
+                      int64_t* nmodes,
+                      int64_t npts,
+                      T* points,
+                      std::complex<T>* source,
+                      std::complex<T>* target) {
+        return this->compute(
+            ctx, type, rank, iflag, ntr, epsilon,
+            nmodes, npts, points, source, target);
+    }
+};
+
+template <typename Device, typename T>
 class NUFFT : public OpKernel {
 
   public:
@@ -243,101 +249,32 @@ class NUFFT : public OpKernel {
         OP_REQUIRES_OK(ctx, ctx->allocate_output(0, target_shape, &target));
 
         // Transpose points to obtain single-dimension arrays.
-        Tensor transposed_points;
+        Tensor tpoints;
         OP_REQUIRES_OK(ctx,
                        ctx->allocate_temp(
-                           real_dtype,
+                           DataTypeToEnum<T>::value,
                            TensorShape({nufft_rank, num_points}),
-                           &transposed_points));
+                           &tpoints));
         std::vector<int32> perm = {1, 0};
-        OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<CPUDevice>(
-            ctx->eigen_device<CPUDevice>(),
+        OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
+            ctx->eigen_device<Device>(),
             points,
             perm,
-            &transposed_points));
+            &tpoints));
 
-        T* points_x = NULL;
-        T* points_y = NULL;
-        T* points_z = NULL;
-        
-        switch (nufft_rank) {
-            case 1:
-                points_x = (T*) transposed_points.SubSlice(0).data();
-                break;
-            case 2:
-                points_x = (T*) transposed_points.SubSlice(0).data();
-                points_y = (T*) transposed_points.SubSlice(1).data();
-                break;
-            case 3:
-                points_x = (T*) transposed_points.SubSlice(0).data();
-                points_y = (T*) transposed_points.SubSlice(1).data();
-                points_z = (T*) transposed_points.SubSlice(2).data();
-                break;
-        }
-
-        // Obtain pointers to non-uniform strengths and Fourier mode
-        // coefficients.
-        std::complex<T>* strengths = nullptr;
-        std::complex<T>* coeffs = nullptr;
-        switch (transform_type_) {
-            case 1: // nonuniform to uniform
-                strengths = (std::complex<T>*) source.data();
-                coeffs = (std::complex<T>*) target->data();
-                break;
-            case 2: // uniform to nonuniform
-                strengths = (std::complex<T>*) target->data();
-                coeffs = (std::complex<T>*) source.data();
-                break;
-        }
-
-        // NUFFT options.
-        nufft_opts opts;
-        finufft::default_opts<T>(&opts);
-
-        // Make the NUFFT plan.
-        int err;
-        typename finufft::plan_type<T>::type plan;
-        err = finufft::makeplan<T>(transform_type_,
-                                   static_cast<int>(nufft_rank),
-                                   (int64_t*) grid_shape_.dim_sizes().data(),
-                                   j_sign_,
-                                   1,
-                                   epsilon_,
-                                   &plan,
-                                   &opts);
-
-        OP_REQUIRES(ctx, err <= 1,
-                    errors::Internal(
-                        "Failed during `finufft::makeplan`: ", err));
-        
-        // Set the point coordinates.
-        err = finufft::setpts<T>(plan,
-                                 num_points,
-                                 points_x,
-                                 points_y,
-                                 points_z,
-                                 0,
-                                 NULL,
-                                 NULL,
-                                 NULL);
-            
-        OP_REQUIRES(ctx, err <= 1,
-                    errors::Internal(
-                        "Failed during `finufft::setpts`: ", err));
-
-        // Execute the NUFFT.
-        err = finufft::execute<T>(plan, strengths, coeffs);
-
-        OP_REQUIRES(ctx, err <= 1,
-                    errors::Internal(
-                        "Failed during `finufft::execute`: ", err));
-
-        // Clean up the plan.
-        err = finufft::destroy<T>(plan);
-
-        OP_REQUIRES(ctx, err <= 1,
-                    errors::Internal(
-                        "Failed during `finufft::destroy`: ", err));
+        // Perform operation.
+        OP_REQUIRES_OK(ctx, DoNUFFT<Device, T>()(
+            ctx,
+            transform_type_,
+            static_cast<int>(nufft_rank),
+            j_sign_,
+            1,
+            static_cast<T>(epsilon_),
+            (int64_t*) grid_shape_.dim_sizes().data(),
+            num_points,
+            (T*) tpoints.data(),
+            (std::complex<T>*) source.data(),
+            (std::complex<T>*) target->data()));
     }
 
   private:
@@ -349,25 +286,28 @@ class NUFFT : public OpKernel {
 
 };
 
-// namespace functor {
-
-//     template <typename T>
-//     struct Nufft<CPUDevice, T> {
-
-//         void operator()(const CPUDevice& d, int size, const T* in, T* out) {
-
-//             for (int i = 0; i < size; ++i) {
-//             out[i] = 2 * in[i];
-//             }
-//     }
-// };
-
+// Register the CPU kernels.
 REGISTER_KERNEL_BUILDER(Name("NUFFT")
                             .Device(DEVICE_CPU)
                             .TypeConstraint<float>("Treal"),
-                            NUFFT<float>);
+                            NUFFT<CPUDevice, float>);
 
 REGISTER_KERNEL_BUILDER(Name("NUFFT")
                             .Device(DEVICE_CPU)
                             .TypeConstraint<double>("Treal"),
-                            NUFFT<double>);
+                            NUFFT<CPUDevice, double>);
+
+// Register the GPU kernels.
+#ifdef GOOGLE_CUDA
+REGISTER_KERNEL_BUILDER(Name("NUFFT")
+                            .Device(DEVICE_GPU)
+                            .TypeConstraint<float>("Treal"),
+                            NUFFT<GPUDevice, float>);
+
+REGISTER_KERNEL_BUILDER(Name("NUFFT")
+                            .Device(DEVICE_GPU)
+                            .TypeConstraint<double>("Treal"),
+                            NUFFT<GPUDevice, double>);
+#endif  // GOOGLE_CUDA
+
+}  // namespace tensorflow

@@ -159,7 +159,7 @@ This performs:
 	if(d_plan->type == 2)
 		d_plan->spopts.spread_direction = 2;
 	// this may move to gpu
-	CNTime timer; timer.start();
+	cuCNTime timer; timer.start();
 	FLT *fwkerhalf1, *fwkerhalf2, *fwkerhalf3;
 
 	fwkerhalf1 = (FLT*)malloc(sizeof(FLT)*(nf1/2+1));

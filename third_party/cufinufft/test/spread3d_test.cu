@@ -165,7 +165,7 @@ int main(int argc, char* argv[])
 	checkCudaErrors(cudaMemcpy(d_z,z,M*sizeof(FLT),cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(d_c,c,M*sizeof(CUCPX),cudaMemcpyHostToDevice));
 
-	CNTime timer;
+	cuCNTime timer;
 	/*warm up gpu*/
 	char *a;
 	timer.restart();

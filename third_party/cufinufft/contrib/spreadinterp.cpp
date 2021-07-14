@@ -66,7 +66,7 @@ int setup_spreader(SPREAD_OPTS &opts,FLT eps, FLT upsampfac, int kerevalmeth)
   return ier;
 }
 
-FLT evaluate_kernel(FLT x, const SPREAD_OPTS &opts)
+FLT cu_evaluate_kernel(FLT x, const SPREAD_OPTS &opts)
 /* ES ("exp sqrt") kernel evaluation at single real argument:
       phi(x) = exp(beta.sqrt(1 - (2x/n_s)^2)),    for |x| < nspread/2
    related to an asymptotic approximation to the Kaiser--Bessel, itself an

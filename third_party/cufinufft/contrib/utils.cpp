@@ -24,12 +24,12 @@ BIGINT next235beven(BIGINT n, BIGINT b)
 // ----------------------- helpers for timing (always stay double prec)...
 using namespace std;
 
-void CNTime::start()
+void cuCNTime::start()
 {
   gettimeofday(&initial, 0);
 }
 
-double CNTime::restart()
+double cuCNTime::restart()
 // Barnett changed to returning in sec
 {
   double delta = this->elapsedsec();
@@ -37,7 +37,7 @@ double CNTime::restart()
   return delta;
 }
 
-double CNTime::elapsedsec()
+double cuCNTime::elapsedsec()
 // returns answers as double, in seconds, to microsec accuracy. Barnett 5/22/18
 {
   struct timeval now;

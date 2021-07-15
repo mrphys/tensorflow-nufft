@@ -92,79 +92,79 @@ void TransposeSimple(const GPUDevice& d, const Tensor& in,
 // TransposeUsingTile tries to reduce the dimension of the input tensor to 3 and
 // then call special kernels to swap either dimension 1 and dimension 2 or
 // dimension 0 and dimension 2. It returns true if the operation is success,
-// false otherwise.
-template <typename T, bool conjugate = false>
-struct TransposeUsingTile {
-  static bool run(const Eigen::GpuDevice& d, const Tensor& in,
-                  const gtl::ArraySlice<int32> perm, Tensor* out) {
-    // First try to reduce the dimensions of the input tensor.
-    TransposePermsVec new_perm;
-    TransposeDimsVec new_dims;
-    ReduceTransposeDimensions(in.shape(), perm, &new_perm, &new_dims);
+// // false otherwise.
+// template <typename T, bool conjugate = false>
+// struct TransposeUsingTile {
+//   static bool run(const Eigen::GpuDevice& d, const Tensor& in,
+//                   const gtl::ArraySlice<int32> perm, Tensor* out) {
+//     // First try to reduce the dimensions of the input tensor.
+//     TransposePermsVec new_perm;
+//     TransposeDimsVec new_dims;
+//     ReduceTransposeDimensions(in.shape(), perm, &new_perm, &new_dims);
 
-    // Only use special GPU kernel when dimension is 2 or 3.
-    int dims = new_dims.size();
-    if (dims < 2 || dims > 3) return false;
-    auto in_data = reinterpret_cast<const T*>(in.tensor_data().data());
-    auto out_data =
-        reinterpret_cast<T*>(const_cast<char*>(out->tensor_data().data()));
-    switch (dims) {
-      case 2:
-        if (new_perm[0] == 1 && new_perm[1] == 0) {
-          // Add the first dimension size as 1.
-          new_dims.insert(new_dims.begin(), 1);
-          tensorflow::functor::SwapDimension1And2InTensor3<GPUDevice, T,
-                                                           conjugate>()(
-              d, in_data, new_dims, out_data);
-          return true;
-        }
-        break;
-      case 3:
-        if (new_perm == TransposePermsVec({0, 2, 1})) {
-          tensorflow::functor::SwapDimension1And2InTensor3<GPUDevice, T,
-                                                           conjugate>()(
-              d, in_data, new_dims, out_data);
-          return true;
-        } else if (new_perm == TransposePermsVec({2, 1, 0})) {
-          tensorflow::functor::SwapDimension0And2InTensor3<GPUDevice, T,
-                                                           conjugate>()(
-              d, in_data, new_dims, out_data);
-          return true;
-        } else {
-          // do not handle other 3D permutations
-          return false;
-        }
-        break;
-      default:
-        return false;
-    }
-    return false;
-  }
-};
+//     // Only use special GPU kernel when dimension is 2 or 3.
+//     int dims = new_dims.size();
+//     if (dims < 2 || dims > 3) return false;
+//     auto in_data = reinterpret_cast<const T*>(in.tensor_data().data());
+//     auto out_data =
+//         reinterpret_cast<T*>(const_cast<char*>(out->tensor_data().data()));
+//     switch (dims) {
+//       case 2:
+//         if (new_perm[0] == 1 && new_perm[1] == 0) {
+//           // Add the first dimension size as 1.
+//           new_dims.insert(new_dims.begin(), 1);
+//           tensorflow::functor::SwapDimension1And2InTensor3<GPUDevice, T,
+//                                                            conjugate>()(
+//               d, in_data, new_dims, out_data);
+//           return true;
+//         }
+//         break;
+//       case 3:
+//         if (new_perm == TransposePermsVec({0, 2, 1})) {
+//           tensorflow::functor::SwapDimension1And2InTensor3<GPUDevice, T,
+//                                                            conjugate>()(
+//               d, in_data, new_dims, out_data);
+//           return true;
+//         } else if (new_perm == TransposePermsVec({2, 1, 0})) {
+//           tensorflow::functor::SwapDimension0And2InTensor3<GPUDevice, T,
+//                                                            conjugate>()(
+//               d, in_data, new_dims, out_data);
+//           return true;
+//         } else {
+//           // do not handle other 3D permutations
+//           return false;
+//         }
+//         break;
+//       default:
+//         return false;
+//     }
+//     return false;
+//   }
+// };
 
-template <bool conjugate>
-struct TransposeUsingTile<complex64, conjugate> {
-  static bool run(const Eigen::GpuDevice& d, const Tensor& in,
-                  const gtl::ArraySlice<int32> perm, Tensor* out) {
-    if (!conjugate) {
-      return TransposeUsingTile<uint64>::run(d, in, perm, out);
-    } else {
-      return TransposeUsingTile<float2, true>::run(d, in, perm, out);
-    }
-  }
-};
+// template <bool conjugate>
+// struct TransposeUsingTile<complex64, conjugate> {
+//   static bool run(const Eigen::GpuDevice& d, const Tensor& in,
+//                   const gtl::ArraySlice<int32> perm, Tensor* out) {
+//     if (!conjugate) {
+//       return TransposeUsingTile<uint64>::run(d, in, perm, out);
+//     } else {
+//       return TransposeUsingTile<float2, true>::run(d, in, perm, out);
+//     }
+//   }
+// };
 
-template <bool conjugate>
-struct TransposeUsingTile<complex128, conjugate> {
-  static bool run(const Eigen::GpuDevice& d, const Tensor& in,
-                  const gtl::ArraySlice<int32> perm, Tensor* out) {
-    if (!conjugate) {
-      return TransposeUsingTile<float4>::run(d, in, perm, out);
-    } else {
-      return TransposeUsingTile<double2, true>::run(d, in, perm, out);
-    }
-  }
-};
+// template <bool conjugate>
+// struct TransposeUsingTile<complex128, conjugate> {
+//   static bool run(const Eigen::GpuDevice& d, const Tensor& in,
+//                   const gtl::ArraySlice<int32> perm, Tensor* out) {
+//     if (!conjugate) {
+//       return TransposeUsingTile<float4>::run(d, in, perm, out);
+//     } else {
+//       return TransposeUsingTile<double2, true>::run(d, in, perm, out);
+//     }
+//   }
+// };
 
 }  // namespace internal
 
@@ -180,9 +180,10 @@ struct Transpose<GPUDevice, T, conjugate> {
   static void run(const GPUDevice& d, const Tensor& in,
                   const gtl::ArraySlice<int32> perm, Tensor* out) {
     if (in.dims() < 2) return;
-    if (internal::TransposeUsingTile<T, conjugate>::run(d, in, perm, out)) {
-      return;
-    }
+    // if (internal::TransposeUsingTile<T, conjugate>::run(d, in, perm, out)) {
+    //   return;
+    // }
+    // TODO: reenable this transpose type
 
     switch (in.dims()) {
       HANDLE_DIM(2);

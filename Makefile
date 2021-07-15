@@ -41,14 +41,8 @@ LDFLAGS = -shared ${TF_LFLAGS}
 LDFLAGS += -lfftw3 -lfftw3_omp -lfftw3f -lfftw3f_omp
 LDFLAGS += -lcudadevrt -lcudart -lnvToolsExt
 
-# Additional static linking.
-# LDFLAGS += $(FINUFFT_LIB_CPU)
-# LDFLAGS += $(FINUFFT_LIB_GPU)
-
 TARGET_LIB = tensorflow_nufft/python/ops/_nufft_ops.so
 TARGET_LIB_GPU = tensorflow_nufft/python/ops/_nufft_ops.cu.o
-# TARGET_OBJ_GPU = tensorflow_nufft/python/ops/_nufft_kernels.cu.o
-
 
 # nufft op for CPU
 op: $(TARGET_LIB)
@@ -56,11 +50,10 @@ op: $(TARGET_LIB)
 $(TARGET_LIB): $(NUFFT_SRCS) $(TARGET_LIB_GPU) $(FINUFFT_LIB_CPU) $(FINUFFT_LIB_GPU)
 	$(CXX) $(CCFLAGS) -o $@ $^ $(NUFFT_OBJS_GPU) ${LDFLAGS}
 
-$(TARGET_LIB_GPU): $(NUFFT_SRCS_GPU)
-# $(NVCC) -std=c++11 -c -o $@ $^  $(CUFLAGS)
+$(TARGET_LIB_GPU): $(FINUFFT_LIB_GPU) $(NUFFT_SRCS_GPU)
 	mkdir -p $(ROOT_DIR)/third_party/gpus/cuda
 	cp -r /usr/local/cuda/include/ $(ROOT_DIR)/third_party/gpus/cuda/
-	$(NVCC) -dc $^ $(CUFLAGS) -odir tensorflow_nufft/cc/kernels -Xcompiler "-fPIC" -lcudadevrt -lcudart
+	$(NVCC) -dc $(filter-out $<, $^) $(CUFLAGS) -odir tensorflow_nufft/cc/kernels -Xcompiler "-fPIC" -lcudadevrt -lcudart
 	$(NVCC) -dlink $(NUFFT_OBJS_GPU) $(FINUFFT_LIB_GPU) -o $(TARGET_LIB_GPU) -Xcompiler "-fPIC" -lcudadevrt -lcudart
 
 # $(TARGET_LIB_GPU_LINK): $(TARGET_LIB_GPU)
@@ -86,7 +79,5 @@ mostlyclean:
 	rm -f $(TARGET_LIB)
 	rm -f $(TARGET_LIB_GPU)
 	rm -f $(NUFFT_OBJS_GPU)
-# rm -f $(TARGET_LIB_GPU_LINK)
-# rm -f $(TARGET_OBJ_GPU)
 
 .PHONY: clean mostlyclean

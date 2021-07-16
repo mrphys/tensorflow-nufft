@@ -153,15 +153,19 @@ struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
                       int type,
                       int rank,
                       int iflag,
-                      int ntr,
+                      int ntrans,
                       T epsilon,
+                      int64_t nbdims,
+                      int64_t* source_bdims,
+                      int64_t* points_bdims,
                       int64_t* nmodes,
                       int64_t npts,
                       T* points,
                       std::complex<T>* source,
                       std::complex<T>* target) {
         return this->compute(
-            ctx, type, rank, iflag, ntr, epsilon,
+            ctx, type, rank, iflag, ntrans, epsilon,
+            nbdims, source_bdims, points_bdims,
             nmodes, npts, points, source, target);
     }
 };

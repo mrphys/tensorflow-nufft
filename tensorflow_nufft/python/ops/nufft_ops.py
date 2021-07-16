@@ -37,7 +37,7 @@ def _nufft_grad(op, grad):
     source = op.inputs[0]
     points = op.inputs[1]
 
-    nufft_rank = points.shape[-1]
+    rank = points.shape[-1]
     transform_type = op.get_attr('transform_type')
     j_sign = op.get_attr('j_sign')
     epsilon = op.get_attr('epsilon')
@@ -48,7 +48,7 @@ def _nufft_grad(op, grad):
         grad_grid_shape = []
     elif transform_type == b'type_2':
         grad_transform_type = 'type_1'
-        grad_grid_shape = source.shape[-nufft_rank:]
+        grad_grid_shape = source.shape[-rank:]
 
     if j_sign == b'positive':
         grad_j_sign = 'negative'
@@ -61,6 +61,15 @@ def _nufft_grad(op, grad):
                         j_sign=grad_j_sign,
                         epsilon=epsilon,
                         grid_shape=grad_grid_shape)
+
+    # Handle broadcasting.
+    baxis = -1 if transform_type == b'type_1' else -rank
+    src_bshape = tf.shape(source)[:baxis]
+    pts_bshape = tf.shape(points)[:-2]
+    src_rax, _ = tf.raw_ops.BroadcastGradientArgs(s0=src_bshape,
+                                                        s1=pts_bshape)
+    grad_source = tf.reshape(
+        tf.math.reduce_sum(grad_source, src_rax), tf.shape(source))
 
     return [grad_source, None]
 

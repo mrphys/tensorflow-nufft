@@ -64,55 +64,87 @@ template<typename Device, typename T>
 struct DoNUFFTBase {
     
     Status compute(OpKernelContext* ctx,
-                      int type,
-                      int rank,
-                      int iflag,
-                      int ntr,
-                      T epsilon,
-                      int64_t* nmodes,
-                      int64_t npts,
-                      T* points,
-                      std::complex<T>* source,
-                      std::complex<T>* target) {
-        
-        T* points_x = NULL;
-        T* points_y = NULL;
-        T* points_z = NULL;
-        
-        switch (rank) {
-            case 1:
-                points_x = points;
-                break;
-            case 2:
-                points_x = points;
-                points_y = points + npts;
-                break;
-            case 3:
-                points_x = points;
-                points_y = points + npts;
-                points_z = points + npts * 2;
-                break;
+                   int type,
+                   int rank,
+                   int iflag,
+                   int ntrans,
+                   T epsilon,
+                   int64_t nbdims,
+                   int64_t* source_bdims,
+                   int64_t* points_bdims,
+                   int64_t* nmodes,
+                   int64_t npts,
+                   T* points,
+                   std::complex<T>* source,
+                   std::complex<T>* target) {
+
+        // Number of coefficients.
+        int ncoeffs = 1;
+        for (int d = 0; d < rank; d++) {
+            ncoeffs *= nmodes[d];
         }
 
+        // Number of calls to FINUFFT execute.
+        int ncalls = 1;
+        for (int d = 0; d < nbdims; d++) {
+            ncalls *= points_bdims[d];
+        }
+
+        std::cout << "ncoeffs: " << ncoeffs << std::endl;
+        std::cout << "nbdims: " << nbdims << std::endl;
+        std::cout << "ncalls: " << ncalls << std::endl;
+        std::cout << "ntrans: " << ntrans << std::endl;
+        std::cout << "npts: " << npts << std::endl;
+
+        // Factors to transform linear indices to subindices and viceversa.
+        gtl::InlinedVector<int, 8> source_bfactors(nbdims);
+        for (int d = 0; d < nbdims; d++) {
+            source_bfactors[d] = 1;
+            for (int j = d + 1; j < nbdims; j++) {
+                source_bfactors[d] *= source_bdims[j];
+            }
+            std::cout << "source_bfactors[d]: " << source_bfactors[d] << std::endl;
+        }
+
+        gtl::InlinedVector<int, 8> points_bfactors(nbdims);
+        for (int d = 0; d < nbdims; d++) {
+            points_bfactors[d] = 1;
+            for (int j = d + 1; j < nbdims; j++) {
+                points_bfactors[d] *= points_bdims[j];
+            }
+            std::cout << "points_bfactors[d]: " << points_bfactors[d] << std::endl;
+        }
+        
         // Obtain pointers to non-uniform strengths and Fourier mode
         // coefficients.
         std::complex<T>* strengths = nullptr;
         std::complex<T>* coeffs = nullptr;
+        int csrc;
+        int ctgt;
+        int* pcs;
+        int* pcc;
         switch (type) {
             case 1: // nonuniform to uniform
                 strengths = source;
                 coeffs = target;
+                pcs = &csrc;
+                pcc = &ctgt;
                 break;
             case 2: // uniform to nonuniform
                 strengths = target;
                 coeffs = source;
+                pcs = &ctgt;
+                pcc = &csrc;
                 break;
         }
+
+        std::cout << "opts" << std::endl;
 
         // NUFFT options.
         typename finufft::opts_type<Device, T>::type opts;
         finufft::default_opts<Device, T>(type, rank, &opts);
 
+        std::cout << "makeplan" << std::endl;        
         // Make the NUFFT plan.
         int err;
         typename finufft::plan_type<Device, T>::type plan;
@@ -121,37 +153,98 @@ struct DoNUFFTBase {
             rank,
             nmodes,
             iflag,
-            ntr,
+            ntrans,
             epsilon,
             &plan,
             &opts);
 
         if (err > 1) {
-            return errors::Internal("Failed during `finufft::makeplan`: ", err);
+            return errors::Internal(
+                "Failed during `finufft::makeplan`: ", err);
         }
-        
-        // Set the point coordinates.
-        err = finufft::setpts<Device, T>(
-            plan,
-            npts, points_x, points_y, points_z,
-            0, NULL, NULL, NULL);
+
+        // Pointers to a certain batch.
+        std::complex<T>* bstrengths = NULL;
+        std::complex<T>* bcoeffs = NULL;
+        T* bpoints = NULL;
+
+        T* points_x = NULL;
+        T* points_y = NULL;
+        T* points_z = NULL;
+
+        gtl::InlinedVector<int, 8> source_binds(nbdims);
+
+        for (int c = 0; c < ncalls; c++) {
             
-        if (err > 1) {
-            return errors::Internal("Failed during `finufft::setpts`: ", err);
-        }
+            bpoints = points + c * npts * rank;
 
-        // Execute the NUFFT.
-        err = finufft::execute<Device, T>(plan, strengths, coeffs);
+            switch (rank) {
+                case 1:
+                    points_x = bpoints;
+                    break;
+                case 2:
+                    points_x = bpoints;
+                    points_y = bpoints + npts;
+                    break;
+                case 3:
+                    points_x = bpoints;
+                    points_y = bpoints + npts;
+                    points_z = bpoints + npts * 2;
+                    break;
+            }
+            
+            std::cout << "setpts" << std::endl;    
 
-        if (err > 1) {
-            return errors::Internal("Failed during `finufft::execute`: ", err);
+            // Set the point coordinates.
+            err = finufft::setpts<Device, T>(
+                plan,
+                npts, points_x, points_y, points_z,
+                0, NULL, NULL, NULL);
+                
+            if (err > 1) {
+                return errors::Internal(
+                    "Failed during `finufft::setpts`: ", err);
+            }
+
+            // Compute indices.
+            csrc = 0;
+            ctgt = c;
+            int ctmp = c;
+            for (int d = 0; d < nbdims; d++) {
+                source_binds[d] = ctmp / points_bfactors[d];
+                ctmp %= points_bfactors[d];
+                if (source_bdims[d] == 1) {
+                    source_binds[d] = 0;
+                }
+                csrc += source_binds[d] * source_bfactors[d];
+            }
+
+            bstrengths = strengths + *pcs * ntrans * npts;
+            bcoeffs = coeffs + *pcc * ntrans * ncoeffs;
+            
+            std::cout << "c = " << c << std::endl;
+            std::cout << "*pcs = " << *pcs << std::endl;
+            std::cout << "*pcc = " << *pcc << std::endl;   
+
+            std::cout << "execute" << std::endl;
+
+            // Execute the NUFFT.
+            err = finufft::execute<Device, T>(plan, bstrengths, bcoeffs);
+
+            if (err > 1) {
+                return errors::Internal(
+                    "Failed during `finufft::execute`: ", err);
+            }
         }
 
         // Clean up the plan.
+        std::cout << "destroy" << std::endl;
+
         err = finufft::destroy<Device, T>(plan);
 
         if (err > 1) {
-            return errors::Internal("Failed during `finufft::destroy`: ", err);
+            return errors::Internal(
+                "Failed during `finufft::destroy`: ", err);
         }
 
         return Status::OK();
@@ -165,8 +258,11 @@ struct DoNUFFT : DoNUFFTBase<Device, T> {
                       int type,
                       int rank,
                       int iflag,
-                      int ntr,
+                      int ntrans,
                       T epsilon,
+                      int64_t nbdims,
+                      int64_t* source_bdims,
+                      int64_t* points_bdims,
                       int64_t* nmodes,
                       int64_t npts,
                       T* points,

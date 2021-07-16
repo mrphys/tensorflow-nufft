@@ -44,7 +44,8 @@ def parameterized(**params):
 class NUFFTOpsTest(tf.test.TestCase):
 
     @parameterized(grid_shape=[[16, 16], [16, 16, 16]],
-                   batch_shape=[[]],
+                   source_batch_shape=[[2, 4]],
+                   points_batch_shape=[[1, 1]],
                    transform_type=['type_1', 'type_2'],
                    j_sign=['negative', 'positive'],
                    dtype=[tf.dtypes.complex64, tf.dtypes.complex128],
@@ -52,7 +53,8 @@ class NUFFTOpsTest(tf.test.TestCase):
                    device=['/cpu:0', '/gpu:0'])
     def test_nufft(self,
                    grid_shape=None,
-                   batch_shape=None,
+                   source_batch_shape=None,
+                   points_batch_shape=None,
                    transform_type=None,
                    j_sign=None,
                    dtype=None,
@@ -74,9 +76,9 @@ class NUFFTOpsTest(tf.test.TestCase):
 
             # Generate random signal and points.
             if transform_type == 'type_1': # nonuniform to uniform
-                source_shape = batch_shape + [num_points]
+                source_shape = source_batch_shape + [num_points]
             elif transform_type == 'type_2': # uniform to nonuniform
-                source_shape = batch_shape + grid_shape
+                source_shape = source_batch_shape + grid_shape
 
             source = tf.Variable(tf.dtypes.complex(
                 tf.random.uniform(
@@ -84,7 +86,7 @@ class NUFFTOpsTest(tf.test.TestCase):
                 tf.random.uniform(
                     source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
 
-            points_shape = batch_shape + [num_points, rank]
+            points_shape = points_batch_shape + [num_points, rank]
             points = tf.Variable(tf.random.uniform(
                 points_shape, minval=-np.pi, maxval=np.pi,
                 dtype=dtype.real_dtype))
@@ -95,6 +97,16 @@ class NUFFTOpsTest(tf.test.TestCase):
                 # start = time.time()
                 # result_legacy = signal_ops.nufft(source, points / (2.0 * np.pi))
                 # time_legacy = time.time() - start
+                points_t = tf.reverse(points, axis=[-1])
+ 
+                start = time.time()
+                result_nufft = nufft_ops.nufft(
+                    source, points_t,
+                    transform_type=transform_type,
+                    j_sign=j_sign,
+                    grid_shape=grid_shape)
+                time_nufft = time.time() - start
+
                 start = time.time()
                 result_nudft = nufft_ops.nudft(
                     source, points,
@@ -103,23 +115,7 @@ class NUFFTOpsTest(tf.test.TestCase):
                     grid_shape=grid_shape)
                 time_nudft = time.time() - start
 
-                if transform_type == 'type_1':
-                    source_t = source
-                if transform_type == 'type_2':
-                    source_t = tf.transpose(source) # TODO: build into op
-
-                start = time.time()
-                result_nufft_t = nufft_ops.nufft(
-                    source_t, points,
-                    transform_type=transform_type,
-                    j_sign=j_sign,
-                    grid_shape=grid_shape)
-                time_nufft = time.time() - start
-
-                if transform_type == 'type_1':
-                    result_nufft = tf.transpose(result_nufft_t) # TODO: build into op
-                elif transform_type == 'type_2':
-                    result_nufft = result_nufft_t
+                
 
             # Compute gradients.
             grad_nufft = tape.gradient(result_nufft, source)

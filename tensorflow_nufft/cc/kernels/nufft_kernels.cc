@@ -23,6 +23,7 @@ limitations under the License.
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_util.h"
+#include "tensorflow/core/util/bcast.h"
 
 #include "third_party/finufft/include/finufft.h"
 
@@ -134,15 +135,19 @@ struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
                       int type,
                       int rank,
                       int iflag,
-                      int ntr,
+                      int ntrans,
                       T epsilon,
+                      int64_t nbdims,
+                      int64_t* source_bdims,
+                      int64_t* points_bdims,
                       int64_t* nmodes,
                       int64_t npts,
                       T* points,
                       std::complex<T>* source,
                       std::complex<T>* target) {
         return this->compute(
-            ctx, type, rank, iflag, ntr, epsilon,
+            ctx, type, rank, iflag, ntrans, epsilon,
+            nbdims, source_bdims, points_bdims,
             nmodes, npts, points, source, target);
     }
 };
@@ -181,6 +186,8 @@ class NUFFT : public OpKernel {
     }
 
     void Compute(OpKernelContext* ctx) override {
+
+        std::cout << "Op::Compute" << std::endl;
 
         const DataType real_dtype = DataTypeToEnum<T>::value;
         const DataType complex_dtype = DataTypeToEnum<std::complex<T>>::value;
@@ -233,34 +240,176 @@ class NUFFT : public OpKernel {
                 break;
         }
 
-        // Allocate output tensor.
-        Tensor* target = nullptr;
-        TensorShape target_shape;
+        std::cout << "Op::Bcast" << std::endl;
+
+        // Handle broadcasting.
+        gtl::InlinedVector<int64, 4> source_batch_shape;
+        gtl::InlinedVector<int64, 4> points_batch_shape;
 
         switch (transform_type_) {
             case 1: // nonuniform to uniform
-                target_shape = grid_shape_;
+                source_batch_shape.resize(source.dims() - 1);
                 break;
             case 2: // uniform to nonuniform
-                target_shape = TensorShape({num_points});
+                source_batch_shape.resize(source.dims() - nufft_rank);
                 break;
         }
+        points_batch_shape.resize(points.shape().dims() - 2);
 
+        for (int i = 0; i < source_batch_shape.size(); i++) {
+            source_batch_shape[i] = source.dim_size(i);
+        }
+        for (int i = 0; i < points_batch_shape.size(); i++) {
+            points_batch_shape[i] = points.dim_size(i);
+        }
+
+        BCast bcast(source_batch_shape, points_batch_shape);
+        OP_REQUIRES(ctx, bcast.IsValid(),
+                    errors::InvalidArgument(
+                        "Incompatible shapes: ", source.shape().DebugString(),
+                        " vs. ", points.shape().DebugString()));
+        
+        std::cout << "Op::AllocOutput" << std::endl;
+
+        // Allocate output tensor.
+        Tensor* target = nullptr;
+        TensorShape target_shape(bcast.output_shape());
+        switch (transform_type_) {
+            case 1: // nonuniform to uniform
+                target_shape.AppendShape(grid_shape_);
+                break;
+            case 2: // uniform to nonuniform
+                target_shape.AppendShape({num_points});
+                break;
+        }
         OP_REQUIRES_OK(ctx, ctx->allocate_output(0, target_shape, &target));
 
-        // Transpose points to obtain single-dimension arrays.
+        int64 num_batch_dims = source_batch_shape.size();
+        int64 num_transforms = 1;
+
+        gtl::InlinedVector<int32, 8> outer_dims;
+        gtl::InlinedVector<int32, 8> inner_dims;
+        outer_dims.reserve(num_batch_dims);
+        inner_dims.reserve(num_batch_dims);
+
+        for (int i = 0; i < num_batch_dims; i++) {
+            int32 points_dim_size = points_batch_shape[i];
+            if (points_batch_shape[i] == 1) {
+                inner_dims.push_back(i);
+                num_transforms *= source_batch_shape[i];
+            } else {
+                outer_dims.push_back(i);
+            }
+        }
+
+        std::cout << "Op::Perms" << std::endl;
+
+        gtl::InlinedVector<int32, 8> source_perm(source.dims());
+        gtl::InlinedVector<int32, 8> points_perm(points.dims());
+        gtl::InlinedVector<int32, 8> target_perm(target->dims());
+        std::iota(source_perm.begin(), source_perm.end(), 0);
+        std::iota(points_perm.begin(), points_perm.end(), 0);
+        std::iota(target_perm.begin(), target_perm.end(), 0);
+        std::swap(points_perm[points_perm.size() - 2],
+                  points_perm[points_perm.size() - 1]);
+
+        for (int i = 0; i < outer_dims.size(); i++) {
+            source_perm[i] = outer_dims[i];
+            points_perm[i] = outer_dims[i];
+            target_perm[i] = outer_dims[i];
+        }
+        for (int i = 0; i < inner_dims.size(); i++) {
+            source_perm[outer_dims.size() + i] = inner_dims[i];
+            points_perm[outer_dims.size() + i] = inner_dims[i];
+            target_perm[outer_dims.size() + i] = inner_dims[i];
+        }
+
+        gtl::InlinedVector<int32, 8> target_iperm(target_perm.size());
+        std::fill_n(target_iperm.begin(), target_perm.size(), -1);
+        for (int i = 0; i < target_perm.size(); i++) {
+            int d = target_perm[i];
+            target_iperm[d] = i;
+        }
+
+        bool transpose_source = false;
+        for (int i = 0; i < source_perm.size(); i++) {
+            if (source_perm[i] != i) {
+                transpose_source = true;
+            }
+        }
+        bool transpose_target = transpose_source;
+
+        std::cout << "transpose is " << transpose_source << std::endl;
+
+        // Reverse points.
+        // points.tensor<T, >
+
+        /// Transpose points to obtain single-dimension arrays.
+        std::cout << "Op::Transpose" << std::endl;
+
         Tensor tpoints;
+        TensorShape tpoints_shape = points.shape();
+        for (int i = 0; i < points.dims(); i++) {
+            tpoints_shape.set_dim(i, points.dim_size(points_perm[i]));
+        }
+        
         OP_REQUIRES_OK(ctx,
                        ctx->allocate_temp(
                            DataTypeToEnum<T>::value,
-                           TensorShape({nufft_rank, num_points}),
+                           tpoints_shape,
                            &tpoints));
-        std::vector<int32> perm = {1, 0};
+        
         OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
             ctx->eigen_device<Device>(),
             points,
-            perm,
+            points_perm,
             &tpoints));
+
+        Tensor tsource;
+        const Tensor* psource;
+        if (transpose_source) {
+            TensorShape tsource_shape = source.shape();
+            for (int i = 0; i < source.dims(); i++) {
+                tsource_shape.set_dim(i, source.dim_size(source_perm[i]));
+            }
+            
+            OP_REQUIRES_OK(ctx,
+                        ctx->allocate_temp(
+                            DataTypeToEnum<std::complex<T>>::value,
+                            tsource_shape,
+                            &tsource));
+            
+            OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
+                ctx->eigen_device<Device>(),
+                source,
+                source_perm,
+                &tsource));
+            
+            psource = &tsource;
+            
+        } else {
+            psource = &source;
+        }
+
+        Tensor ttarget;
+        Tensor* ptarget;
+        if (transpose_target) {
+            TensorShape ttarget_shape = target->shape();
+            for (int i = 0; i < target->dims(); i++) {
+                ttarget_shape.set_dim(i, target->dim_size(target_perm[i]));
+            }
+            
+            OP_REQUIRES_OK(ctx,
+                           ctx->allocate_temp(DataTypeToEnum<std::complex<T>>::value,
+                                              ttarget_shape,
+                                              &ttarget));
+                                
+            ptarget = &ttarget;
+        } else {
+            ptarget = target;
+        }
+
+        std::cout << "Op::Op" << std::endl;
 
         // Perform operation.
         OP_REQUIRES_OK(ctx, DoNUFFT<Device, T>()(
@@ -268,13 +417,26 @@ class NUFFT : public OpKernel {
             transform_type_,
             static_cast<int>(nufft_rank),
             j_sign_,
-            1,
+            num_transforms,
             static_cast<T>(epsilon_),
+            outer_dims.size(),
+            (int64_t*) psource->shape().dim_sizes().data(),
+            (int64_t*) tpoints.shape().dim_sizes().data(),
             (int64_t*) grid_shape_.dim_sizes().data(),
             num_points,
             (T*) tpoints.data(),
-            (std::complex<T>*) source.data(),
-            (std::complex<T>*) target->data()));
+            (std::complex<T>*) psource->data(),
+            (std::complex<T>*) ptarget->data()));
+
+        std::cout << "Op::Target" << std::endl;
+
+        if (transpose_target) {
+            OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
+                ctx->eigen_device<Device>(),
+                ttarget,
+                target_iperm,
+                target));
+        }
     }
 
   private:

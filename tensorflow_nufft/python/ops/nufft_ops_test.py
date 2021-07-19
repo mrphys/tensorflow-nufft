@@ -97,11 +97,10 @@ class NUFFTOpsTest(tf.test.TestCase):
                 # start = time.time()
                 # result_legacy = signal_ops.nufft(source, points / (2.0 * np.pi))
                 # time_legacy = time.time() - start
-                points_t = tf.reverse(points, axis=[-1])
  
                 start = time.time()
                 result_nufft = nufft_ops.nufft(
-                    source, points_t,
+                    source, points,
                     transform_type=transform_type,
                     j_sign=j_sign,
                     grid_shape=grid_shape)

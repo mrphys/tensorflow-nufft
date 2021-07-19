@@ -1,5 +1,4 @@
-/*==============================================================================
-Copyright 2021 University College London. All Rights Reserved.
+/* Copyright 2021 University College London. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,6 +25,9 @@ limitations under the License.
 #include "tensorflow/core/util/bcast.h"
 
 #include "third_party/finufft/include/finufft.h"
+
+#include "transpose_functor.h"
+#include "reverse_functor.h"
 
 
 namespace tensorflow {
@@ -343,6 +345,18 @@ class NUFFT : public OpKernel {
 
         // Reverse points.
         // points.tensor<T, >
+        Tensor rpoints;
+        OP_REQUIRES_OK(ctx,
+                       ctx->allocate_temp(
+                           DataTypeToEnum<T>::value,
+                           points.shape(),
+                           &rpoints));
+
+        OP_REQUIRES_OK(ctx, ::tensorflow::DoReverse<Device, T>(
+            ctx->eigen_device<Device>(),
+            points,
+            {points.dims() - 1},
+            &rpoints));
 
         /// Transpose points to obtain single-dimension arrays.
         std::cout << "Op::Transpose" << std::endl;
@@ -361,7 +375,7 @@ class NUFFT : public OpKernel {
         
         OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
             ctx->eigen_device<Device>(),
-            points,
+            rpoints,
             points_perm,
             &tpoints));
 

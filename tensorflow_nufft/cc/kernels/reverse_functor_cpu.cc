@@ -13,9 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#if GOOGLE_CUDA || TENSORFLOW_USE_ROCM
-
-#define EIGEN_USE_GPU
+#define EIGEN_USE_THREADS
 
 #include "reverse_functor.h"
 
@@ -24,7 +22,7 @@ limitations under the License.
 
 namespace tensorflow {
 
-typedef Eigen::GpuDevice GPUDevice;
+typedef Eigen::ThreadPoolDevice CPUDevice;
 
 template<typename Device, typename T>
 Status DoReverse(const Device& device, const Tensor& input,
@@ -32,16 +30,14 @@ Status DoReverse(const Device& device, const Tensor& input,
   return internal::DoReverseImpl<Device, T>(device, input, axes, output);
 }
 
-#define INSTANTIATE_GPU(TYPE)                                               \
-  template Status DoReverse<GPUDevice, TYPE>(                               \
-      const GPUDevice& device, const Tensor& in,                            \
+#define INSTANTIATE_CPU(TYPE)                                               \
+  template Status DoReverse<CPUDevice, TYPE>(                               \
+      const CPUDevice& device, const Tensor& in,                            \
       const gtl::ArraySlice<int32> perm, Tensor* out);              
 
-TF_CALL_float(INSTANTIATE_GPU);
-TF_CALL_double(INSTANTIATE_GPU);
-TF_CALL_complex64(INSTANTIATE_GPU);
-TF_CALL_complex128(INSTANTIATE_GPU);
+TF_CALL_float(INSTANTIATE_CPU);
+TF_CALL_double(INSTANTIATE_CPU);
+TF_CALL_complex64(INSTANTIATE_CPU);
+TF_CALL_complex128(INSTANTIATE_CPU);
 
 }  // namespace tensorflow
-
-#endif  // GOOGLE_CUDA || TENSORFLOW_USE_ROCM

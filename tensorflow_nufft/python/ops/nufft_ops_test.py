@@ -1,4 +1,3 @@
-# ==============================================================================
 # Copyright 2021 University College London. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Tests for signal ops."""
+"""Tests for NUFFT ops."""
 
 import functools
 import itertools
-import time
 
 import numpy as np
 import tensorflow as tf
@@ -26,105 +24,113 @@ import nufft_ops
 
 
 def parameterized(**params):
-    param_lists = params
-    def decorator(func):
-        @functools.wraps(func)
-        def run_tests(self):
-            # Create combinations of the parameters above.
-            values = itertools.product(*param_lists.values())
-            params = [dict(zip(param_lists.keys(), v)) for v in values]
-            # Now call decorated function with each 
-            for p in params:
-                with self.subTest(**p):
-                    func(self, **p)
-        return run_tests
-    return decorator
+  """Decorates a test to run with multiple parameter combinations.
+
+  All possible combinations (Cartesian product) of the parameters will be
+  tested.
+
+  Args:
+    params: The keyword parameters to be passed to the subtests. Each keyword
+      argument should be a list of values to be tested.
+
+  Returns:
+    A decorator which calls the decorated test with multiple parameter
+    combinations.
+  """
+  param_lists = params
+
+  def decorator(func):
+
+    @functools.wraps(func)
+    def run_tests(self):
+
+      # Create combinations of the parameters above.
+      values = itertools.product(*param_lists.values())
+      params = [dict(zip(param_lists.keys(), v)) for v in values]
+      # Now call decorated function with each set of parameters.
+      for i, p in enumerate(params):
+        with self.subTest(**p):
+          print(f"Subtest #{i + 1}/{len(params)}: {p}")
+          func(self, **p)
+
+    return run_tests
+  return decorator
 
 
 class NUFFTOpsTest(tf.test.TestCase):
+  """Test case for NUFFT functions."""
 
-    @parameterized(grid_shape=[[16, 16], [16, 16, 16]],
-                   source_batch_shape=[[], [2, 4]],
-                   points_batch_shape=[[], [2, 1], [1, 4]],
-                   transform_type=['type_1', 'type_2'],
-                   j_sign=['negative', 'positive'],
-                   dtype=[tf.dtypes.complex64, tf.dtypes.complex128],
-                   broadcast=[False],
-                   device=['/cpu:0', '/gpu:0'])
-    def test_nufft(self,
-                   grid_shape=None,
-                   source_batch_shape=None,
-                   points_batch_shape=None,
-                   transform_type=None,
-                   j_sign=None,
-                   dtype=None,
-                   broadcast=None,
-                   device=None):
+  @parameterized(grid_shape=[[16, 16], [16, 16, 16]],
+                 source_batch_shape=[[], [2, 4]],
+                 points_batch_shape=[[], [2, 1], [1, 4]],
+                 transform_type=['type_1', 'type_2'],
+                 j_sign=['negative', 'positive'],
+                 dtype=[tf.dtypes.complex64, tf.dtypes.complex128],
+                 device=['/cpu:0', '/gpu:0'])
+  def test_nufft(self,  # pylint: disable=missing-function-docstring
+                 grid_shape=None,
+                 source_batch_shape=None,
+                 points_batch_shape=None,
+                 transform_type=None,
+                 j_sign=None,
+                 dtype=None,
+                 device=None):
 
-        # Set random seed.
-        tf.random.set_seed(0)
+    # Set random seed.
+    tf.random.set_seed(0)
 
-        # Skip float64 GPU tests. Something's not quite right with those. Is it
-        # due to limited support on NVIDIA card used for testing or is anything
-        # else off?
-        if dtype == tf.dtypes.complex128 and device == '/gpu:0':
-            return
+    # Skip float64 GPU tests. Something's not quite right with those. Is it
+    # due to limited support on NVIDIA card used for testing or is anything
+    # else off?
+    if dtype == tf.dtypes.complex128 and device == '/gpu:0':
+      return
 
-        with tf.device(device):
+    with tf.device(device):
 
-            rank = len(grid_shape)
-            num_points = tf.math.reduce_prod(grid_shape)
+      rank = len(grid_shape)
+      num_points = tf.math.reduce_prod(grid_shape)
 
-            # Generate random signal and points.
-            if transform_type == 'type_1': # nonuniform to uniform
-                source_shape = source_batch_shape + [num_points]
-            elif transform_type == 'type_2': # uniform to nonuniform
-                source_shape = source_batch_shape + grid_shape
+      # Generate random signal and points.
+      if transform_type == 'type_1': # nonuniform to uniform
+        source_shape = source_batch_shape + [num_points]
+      elif transform_type == 'type_2': # uniform to nonuniform
+        source_shape = source_batch_shape + grid_shape
 
-            source = tf.Variable(tf.dtypes.complex(
-                tf.random.uniform(
-                    source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
-                tf.random.uniform(
-                    source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
+      source = tf.Variable(tf.dtypes.complex(
+        tf.random.uniform( # pylint: disable=unexpected-keyword-arg
+          source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
+        tf.random.uniform( # pylint: disable=unexpected-keyword-arg
+          source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
 
-            points_shape = points_batch_shape + [num_points, rank]
-            points = tf.Variable(tf.random.uniform(
-                points_shape, minval=-np.pi, maxval=np.pi,
-                dtype=dtype.real_dtype))
+      points_shape = points_batch_shape + [num_points, rank]
+      points = tf.Variable(tf.random.uniform( # pylint: disable=unexpected-keyword-arg
+        points_shape, minval=-np.pi, maxval=np.pi,
+        dtype=dtype.real_dtype))
 
-            with tf.GradientTape(persistent=True) as tape:
-                # result_legacy = signal_ops.nufft(source, points)
+      with tf.GradientTape(persistent=True) as tape:
 
-                # start = time.time()
-                # result_legacy = signal_ops.nufft(source, points / (2.0 * np.pi))
-                # time_legacy = time.time() - start
- 
-                start = time.time()
-                result_nufft = nufft_ops.nufft(
-                    source, points,
-                    transform_type=transform_type,
-                    j_sign=j_sign,
-                    grid_shape=grid_shape)
-                time_nufft = time.time() - start
+        result_nufft = nufft_ops.nufft(
+          source, points,
+          transform_type=transform_type,
+          j_sign=j_sign,
+          grid_shape=grid_shape)
 
-                start = time.time()
-                result_nudft = nufft_ops.nudft(
-                    source, points,
-                    transform_type=transform_type,
-                    j_sign=j_sign,
-                    grid_shape=grid_shape)
-                time_nudft = time.time() - start
+        result_nudft = nufft_ops.nudft(
+          source, points,
+          transform_type=transform_type,
+          j_sign=j_sign,
+          grid_shape=grid_shape)
 
-                
+      # Compute gradients.
+      grad_nufft = tape.gradient(result_nufft, source)
+      grad_nudft = tape.gradient(result_nudft, source)
 
-            # Compute gradients.
-            grad_nufft = tape.gradient(result_nufft, source)
-            grad_nudft = tape.gradient(result_nudft, source)
-
-            epsilon = 1.e-3
-            self.assertAllClose(result_nudft, result_nufft, rtol=epsilon, atol=epsilon)
-            self.assertAllClose(grad_nufft, grad_nudft, rtol=epsilon, atol=epsilon)
+      epsilon = 1.e-3
+      self.assertAllClose(result_nudft, result_nufft,
+                          rtol=epsilon, atol=epsilon)
+      self.assertAllClose(grad_nufft, grad_nudft,
+                          rtol=epsilon, atol=epsilon)
 
 
 if __name__ == '__main__':
-    tf.test.main()
+  tf.test.main()

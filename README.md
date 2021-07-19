@@ -1,16 +1,16 @@
 # tensorflow_nufft
 
-This package provides a native TensorFlow op for the non-uniform fast Fourier
-transform (NUFFT).
+This is a TensorFlow op implementing the non-uniform fast Fourier transform
+(NUFFT):
 
-The following functionality is available:
+ - Native C++/CUDA kernels for CPU/GPU.
+ - Python/TensorFlow interface.
+ - Automatic differentiation.
+ - Automatic shape inference.
 
- -  High performance type-1 and type-2 NUFFT with native C++/CUDA
-    implementations for CPU/GPU.
- -  Gradient definitions for automatic differentiation.
-
-This uses the NUFFT implementations by the Flatiron Institute FINUFFT and
-cuFINUFFT.
+The core NUFFT implementation is that of the Flatiron Institute. Please see the
+original [FINUFFT]() and [cuFINUFFT]() repositories for details. The main
+contribution of this package is the TensorFlow functionality.
 
 ## Installation
 
@@ -43,5 +43,7 @@ All contributions are welcome.
 
 
 
-###
+### Citations
+
+
 

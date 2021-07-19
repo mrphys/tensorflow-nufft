@@ -189,8 +189,6 @@ class NUFFT : public OpKernel {
 
     void Compute(OpKernelContext* ctx) override {
 
-        std::cout << "Op::Compute" << std::endl;
-
         const DataType real_dtype = DataTypeToEnum<T>::value;
         const DataType complex_dtype = DataTypeToEnum<std::complex<T>>::value;
 
@@ -242,8 +240,6 @@ class NUFFT : public OpKernel {
                 break;
         }
 
-        std::cout << "Op::Bcast" << std::endl;
-
         // Handle broadcasting.
         gtl::InlinedVector<int64, 4> source_batch_shape;
         gtl::InlinedVector<int64, 4> points_batch_shape;
@@ -265,14 +261,56 @@ class NUFFT : public OpKernel {
             points_batch_shape[i] = points.dim_size(i);
         }
 
+        // Reshaped input tensors if either is has batch shape and the other
+        // doesn't.
+        Tensor spoints;
+        if (points_batch_shape.size() == 0 && source_batch_shape.size() != 0) {
+            // Scalar points, non-scalar source. Add ones to points dimension.
+            points_batch_shape.resize(source_batch_shape.size());
+            std::fill(points_batch_shape.begin(), points_batch_shape.end(), 1);
+
+            TensorShape points_shape(points_batch_shape);
+            points_shape.AppendShape(points.shape());
+
+            OP_REQUIRES(
+                ctx, spoints.CopyFrom(points, points_shape),
+                errors::Internal(
+                    "Failed to reshape scalar points tensor."));
+        } else {
+
+            OP_REQUIRES(
+                ctx, spoints.CopyFrom(points, points.shape()),
+                errors::Internal(
+                    "Failed to copy non-scalar points tensor."));
+        }
+
+        Tensor ssource;
+        if (source_batch_shape.size() == 0 && points_batch_shape.size() != 0) {
+            // Scalar points, non-scalar source. Add ones to points dimension.
+            source_batch_shape.resize(points_batch_shape.size());
+            std::fill(source_batch_shape.begin(), source_batch_shape.end(), 1);
+
+            TensorShape source_shape(source_batch_shape);
+            source_shape.AppendShape(source.shape());
+
+            OP_REQUIRES(
+                ctx, ssource.CopyFrom(source, source_shape),
+                errors::Internal(
+                    "Failed to reshape scalar source tensor."));
+        } else {
+
+            OP_REQUIRES(
+                ctx, ssource.CopyFrom(source, source.shape()),
+                errors::Internal(
+                    "Failed to copy non-scalar source tensor."));
+        }
+
         BCast bcast(source_batch_shape, points_batch_shape);
         OP_REQUIRES(ctx, bcast.IsValid(),
                     errors::InvalidArgument(
                         "Incompatible shapes: ", source.shape().DebugString(),
                         " vs. ", points.shape().DebugString()));
         
-        std::cout << "Op::AllocOutput" << std::endl;
-
         // Allocate output tensor.
         Tensor* target = nullptr;
         TensorShape target_shape(bcast.output_shape());
@@ -304,10 +342,8 @@ class NUFFT : public OpKernel {
             }
         }
 
-        std::cout << "Op::Perms" << std::endl;
-
-        gtl::InlinedVector<int32, 8> source_perm(source.dims());
-        gtl::InlinedVector<int32, 8> points_perm(points.dims());
+        gtl::InlinedVector<int32, 8> source_perm(ssource.dims());
+        gtl::InlinedVector<int32, 8> points_perm(spoints.dims());
         gtl::InlinedVector<int32, 8> target_perm(target->dims());
         std::iota(source_perm.begin(), source_perm.end(), 0);
         std::iota(points_perm.begin(), points_perm.end(), 0);
@@ -344,27 +380,26 @@ class NUFFT : public OpKernel {
         std::cout << "transpose is " << transpose_source << std::endl;
 
         // Reverse points.
-        // points.tensor<T, >
         Tensor rpoints;
         OP_REQUIRES_OK(ctx,
                        ctx->allocate_temp(
                            DataTypeToEnum<T>::value,
-                           points.shape(),
+                           spoints.shape(),
                            &rpoints));
 
         OP_REQUIRES_OK(ctx, ::tensorflow::DoReverse<Device, T>(
             ctx->eigen_device<Device>(),
-            points,
-            {points.dims() - 1},
+            spoints,
+            {spoints.dims() - 1},
             &rpoints));
 
         /// Transpose points to obtain single-dimension arrays.
         std::cout << "Op::Transpose" << std::endl;
 
         Tensor tpoints;
-        TensorShape tpoints_shape = points.shape();
-        for (int i = 0; i < points.dims(); i++) {
-            tpoints_shape.set_dim(i, points.dim_size(points_perm[i]));
+        TensorShape tpoints_shape = spoints.shape();
+        for (int i = 0; i < spoints.dims(); i++) {
+            tpoints_shape.set_dim(i, spoints.dim_size(points_perm[i]));
         }
         
         OP_REQUIRES_OK(ctx,
@@ -382,9 +417,9 @@ class NUFFT : public OpKernel {
         Tensor tsource;
         const Tensor* psource;
         if (transpose_source) {
-            TensorShape tsource_shape = source.shape();
-            for (int i = 0; i < source.dims(); i++) {
-                tsource_shape.set_dim(i, source.dim_size(source_perm[i]));
+            TensorShape tsource_shape = ssource.shape();
+            for (int i = 0; i < ssource.dims(); i++) {
+                tsource_shape.set_dim(i, ssource.dim_size(source_perm[i]));
             }
             
             OP_REQUIRES_OK(ctx,
@@ -395,14 +430,14 @@ class NUFFT : public OpKernel {
             
             OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
                 ctx->eigen_device<Device>(),
-                source,
+                ssource,
                 source_perm,
                 &tsource));
             
             psource = &tsource;
             
         } else {
-            psource = &source;
+            psource = &ssource;
         }
 
         Tensor ttarget;

@@ -44,8 +44,8 @@ def parameterized(**params):
 class NUFFTOpsTest(tf.test.TestCase):
 
     @parameterized(grid_shape=[[16, 16], [16, 16, 16]],
-                   source_batch_shape=[[2, 4]],
-                   points_batch_shape=[[1, 1]],
+                   source_batch_shape=[[], [2, 4]],
+                   points_batch_shape=[[], [2, 1], [1, 4]],
                    transform_type=['type_1', 'type_2'],
                    j_sign=['negative', 'positive'],
                    dtype=[tf.dtypes.complex64, tf.dtypes.complex128],
@@ -64,8 +64,9 @@ class NUFFTOpsTest(tf.test.TestCase):
         # Set random seed.
         tf.random.set_seed(0)
 
-        # Skip float64 GPU tests. Something's not quite right with those. Good
-        # luck dealing with that to future self. TODO
+        # Skip float64 GPU tests. Something's not quite right with those. Is it
+        # due to limited support on NVIDIA card used for testing or is anything
+        # else off?
         if dtype == tf.dtypes.complex128 and device == '/gpu:0':
             return
 

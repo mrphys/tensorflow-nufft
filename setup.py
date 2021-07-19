@@ -1,67 +1,37 @@
 """Nonuniform fast Fourier transform (NUFFT) for TensorFlow v2."""
 
-import glob
-from setuptools import find_packages, setup, Extension
-from distutils.sysconfig import get_config_vars
-import os
+from setuptools import Extension
+from setuptools import find_packages
+from setuptools import setup
+from setuptools.dist import Distribution
+from setuptools.command.install import install as _install
 
-try:
-    import tensorflow as tf
-except ModuleNotFoundError as err:
-    raise ModuleNotFoundError(
-        "TensorFlow is required to proceed with the tensorflow_nufft installation."
-        ) from err
+PROJECT_NAME = 'tensorflow-nufft'
 
 with open('VERSION') as version_file:
     VERSION = version_file.read().strip()
 
 with open("requirements.txt") as f:
-    requirements = [line.strip() for line in f.readlines()]
-
-REQUIRED_PACKAGES = requirements
+    REQUIRED_PACKAGES = [line.strip() for line in f.readlines()]
 
 DOCLINES = __doc__.split('\n')
 
-SOURCES = [
+class install(_install):
 
-]
+    def finalize_options(self):
+        _install.finalize_options(self)
+        self.install_lib = self.install_platlib
 
-base_dir = os.path.dirname(os.path.realpath(__file__))
-INCLUDE_DIRS=[
-    os.path.join(base_dir, 'third_party/finufft/include')
-]
+class BinaryDistribution(Distribution):
 
-CC_FLAGS = [
-    '-fPIC',
-    '-O2',
-    '-std=c++11'
-]
-
-LD_FLAGS = [
-    '-shared'
-]
-
-SOURCES += glob.glob('cc/ops/*.cc')
-SOURCES += glob.glob('cc/kernels/*.cc')
-CC_FLAGS += tf.sysconfig.get_compile_flags()
-LD_FLAGS += tf.sysconfig.get_link_flags()
-
-tensorflow_nufft_ext = Extension('tensorflow_nufft/libtensorflow_nufft',
-                     sources=SOURCES,
-                     include_dirs=INCLUDE_DIRS,
-                     libraries=['finufft'],
-                    #  library_dirs=[os.path.join(base_dir, 'third_party/finufft/lib-static')],
-                    #  extra_objects=[os.path.join(base_dir, 'third_party/finufft/lib-static/libfinufft.a')],
-                     extra_compile_args=CC_FLAGS,
-                     extra_link_args=LD_FLAGS,
-                     optional=True)
-
-# Remove platform-specific info from the extension suffix. This environment
-# variable is used by `build_ext` to name the library file.
-get_config_vars()['EXT_SUFFIX'] = '.so'
+    def has_ext_modules(self):
+        return True
+    
+    def is_pure(self):
+        return False
 
 setup(
-    name='tensorflow_nufft',
+    name=PROJECT_NAME,
     version=VERSION,
     description=DOCLINES[0],
     long_description='\n'.join(DOCLINES[2:]),
@@ -84,9 +54,11 @@ setup(
         'Topic :: Software Development :: Libraries',
         'Topic :: Software Development :: Libraries :: Python Modules'
     ],
+    distclass=BinaryDistribution,
     license="Apache 2.0",
     keywords=['tensorflow', 'nufft'],
-    install_requires=REQUIRED_PACKAGES,
-    python_requires='>=3.6',
-    ext_modules=[tensorflow_nufft_ext]
+    cmdclass={'install': install},
+    include_package_data=True,
+    zip_safe=False,
+    install_requires=REQUIRED_PACKAGES
 )

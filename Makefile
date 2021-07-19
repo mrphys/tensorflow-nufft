@@ -44,8 +44,36 @@ LDFLAGS += -lcudadevrt -lcudart -lnvToolsExt
 TARGET_LIB = tensorflow_nufft/python/ops/_nufft_ops.so
 TARGET_LIB_GPU = tensorflow_nufft/python/ops/_nufft_ops.cu.o
 
-# nufft op for CPU
+all: op
+
 op: $(TARGET_LIB)
+
+.PHONY: test
+test: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)
+	$(PYTHON_BIN_PATH) tensorflow_nufft/python/ops/nufft_ops_test.py
+
+.PHONY: lint
+lint: $(wildcard tensorflow_nufft/python/ops/*.py)
+	pylint --rcfile=pylintrc tensorflow_nufft/python
+
+pip_pkg: $(TARGET_LIB)
+	./build_pip_pkg.sh make artifacts
+
+.PHONY: clean
+clean: mostlyclean
+	$(MAKE) clean -C $(FINUFFT_DIR_CPU)
+	$(MAKE) clean -C $(FINUFFT_DIR_GPU)
+
+.PHONY: mostlyclean
+mostlyclean:
+	rm -f $(TARGET_LIB)
+	rm -f $(TARGET_LIB_GPU)
+	rm -f $(NUFFT_OBJS_GPU)
+
+.PHONY: install_dependencies
+install_dependencies:
+	apt-get update
+	apt-get -y install libfftw3-dev
 
 $(TARGET_LIB): $(NUFFT_SRCS) $(TARGET_LIB_GPU) $(FINUFFT_LIB_CPU) $(FINUFFT_LIB_GPU)
 	$(CXX) $(CCFLAGS) -o $@ $^ $(NUFFT_OBJS_GPU) ${LDFLAGS}
@@ -56,31 +84,20 @@ $(TARGET_LIB_GPU): $(FINUFFT_LIB_GPU) $(NUFFT_SRCS_GPU)
 	$(NVCC) -dc $(filter-out $<, $^) $(CUFLAGS) -odir tensorflow_nufft/cc/kernels -Xcompiler "-fPIC" -lcudadevrt -lcudart
 	$(NVCC) -dlink $(NUFFT_OBJS_GPU) $(FINUFFT_LIB_GPU) -o $(TARGET_LIB_GPU) -Xcompiler "-fPIC" -lcudadevrt -lcudart
 
-# $(TARGET_LIB_GPU_LINK): $(TARGET_LIB_GPU)
-# # $(NVCC) -std=c++11 -c -o $@ $^  $(CUFLAGS)
-	
-$(FINUFFT_LIB_CPU):
+$(FINUFFT_LIB_CPU): $(FINUFFT_DIR_CPU) | clone_third_party
 	$(MAKE) lib -C $(FINUFFT_DIR_CPU)
 
-$(FINUFFT_LIB_GPU):
+$(FINUFFT_LIB_GPU): $(FINUFFT_DIR_GPU) | clone_third_party
 	$(MAKE) lib -C $(FINUFFT_DIR_GPU)
 
-test: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)
-	$(PYTHON_BIN_PATH) tensorflow_nufft/python/ops/nufft_ops_test.py
+.PHONY: clone_third_party
+clone_third_party:
+	if [ ! -d $(FINUFFT_DIR_CPU) ]; 											\
+	then 																		\
+		git clone https://github.com/mrphys/finufft.git $(FINUFFT_DIR_CPU);		\
+	fi
 
-lint: $(wildcard tensorflow_nufft/python/ops/*.py)
-	pylint --rcfile=pylintrc tensorflow_nufft/python
-
-pip_pkg: $(TARGET_LIB)
-	./build_pip_pkg.sh make artifacts
-
-clean: mostlyclean
-	$(MAKE) clean -C $(FINUFFT_DIR_CPU)
-	$(MAKE) clean -C $(FINUFFT_DIR_GPU)
-
-mostlyclean:
-	rm -f $(TARGET_LIB)
-	rm -f $(TARGET_LIB_GPU)
-	rm -f $(NUFFT_OBJS_GPU)
-
-.PHONY: clean mostlyclean
+	if [ ! -d $(FINUFFT_DIR_GPU) ]; 															\
+	then 																						\
+		git clone https://github.com/mrphys/cufinufft.git $(FINUFFT_DIR_GPU) --branch release;	\
+	fi

@@ -20,7 +20,9 @@ jobs:
           apt-get -y install libfftw3-dev
       - name: Build shared library
         run: |
-          make op
+          make -j$(nproc) op
+      - name: Run tests
+          make test
 
     # - uses: actions/checkout@v2
     # - name: Set up Python 3.8

@@ -68,6 +68,9 @@ $(FINUFFT_LIB_GPU):
 test: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)
 	$(PYTHON_BIN_PATH) tensorflow_nufft/python/ops/nufft_ops_test.py
 
+lint: $(wildcard tensorflow_nufft/python/ops/*.py)
+	pylint --rcfile=pylintrc tensorflow_nufft/python
+
 pip_pkg: $(TARGET_LIB)
 	./build_pip_pkg.sh make artifacts
 

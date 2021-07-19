@@ -12,10 +12,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install libfftw3-dev
+          apt-get -y install libfftw3-dev
       - name: Build shared library
         run: |
           make op

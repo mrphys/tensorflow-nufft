@@ -17,14 +17,18 @@ NUFFT_SRCS = $(filter-out $(NUFFT_SRCS_GPU), $(wildcard tensorflow_nufft/cc/kern
 
 TF_CFLAGS := $(shell $(PYTHON_BIN_PATH) -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))')
 TF_LFLAGS := $(shell $(PYTHON_BIN_PATH) -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))')
+TF_INCLUDE := $(shell $(PYTHON_BIN_PATH) -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_include()))')
+
+CUDA_INCLUDE = /usr/local/cuda/targets/x86_64-linux/include
+CUDA_LIBDIR = /usr/local/cuda/targets/x86_64-linux/lib
 
 # GCC-specific compilation flags.
 CCFLAGS = ${TF_CFLAGS} -fPIC -O2 -std=c++11
 CCFLAGS += -I$(ROOT_DIR)/$(FINUFFT_DIR_CPU)/include
 CCFLAGS += -I$(ROOT_DIR)/$(FINUFFT_DIR_GPU)/include
 CCFLAGS += -DGOOGLE_CUDA=1
-CCFLAGS += -I/usr/local/cuda/targets/x86_64-linux/include
-CCFLAGS += -L/usr/local/cuda/targets/x86_64-linux/lib
+CCFLAGS += -I$(CUDA_INCLUDE)
+CCFLAGS += -L$(CUDA_LIBDIR)
 
 # NVCC-specific compilation flags.
 CUFLAGS = $(TF_CFLAGS) -std=c++11 -DGOOGLE_CUDA=1 -x cu -Xcompiler "-fPIC" -DNDEBUG --expt-relaxed-constexpr
@@ -79,8 +83,8 @@ $(TARGET_LIB): $(NUFFT_SRCS) $(TARGET_LIB_GPU) $(FINUFFT_LIB_CPU) $(FINUFFT_LIB_
 	$(CXX) $(CCFLAGS) -o $@ $^ $(NUFFT_OBJS_GPU) ${LDFLAGS}
 
 $(TARGET_LIB_GPU): $(FINUFFT_LIB_GPU) $(NUFFT_SRCS_GPU)
-	mkdir -p $(ROOT_DIR)/third_party/gpus/cuda
-	cp -r /usr/local/cuda/include/ $(ROOT_DIR)/third_party/gpus/cuda/
+	mkdir -p $(TF_INCLUDE)/third_party/gpus/cuda/include
+	cp -r $(CUDA_INCLUDE)/* $(TF_INCLUDE)/third_party/gpus/cuda/include
 	$(NVCC) -dc $(filter-out $<, $^) $(CUFLAGS) -odir tensorflow_nufft/cc/kernels -Xcompiler "-fPIC" -lcudadevrt -lcudart
 	$(NVCC) -dlink $(NUFFT_OBJS_GPU) $(FINUFFT_LIB_GPU) -o $(TARGET_LIB_GPU) -Xcompiler "-fPIC" -lcudadevrt -lcudart
 

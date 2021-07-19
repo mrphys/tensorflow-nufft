@@ -130,4 +130,5 @@ dmypy.json
 .pyre/
 
 artifacts/
-third_party/gpus/cuda
+third_party/finufft
+third_party/cufinufft

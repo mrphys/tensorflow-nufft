@@ -17,7 +17,7 @@ NUFFT_SRCS = $(filter-out $(NUFFT_SRCS_GPU), $(wildcard tensorflow_nufft/cc/kern
 
 TF_CFLAGS := $(shell $(PYTHON_BIN_PATH) -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))')
 TF_LFLAGS := $(shell $(PYTHON_BIN_PATH) -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))')
-TF_INCLUDE := $(shell $(PYTHON_BIN_PATH) -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_include()))')
+TF_INCLUDE := $(shell $(PYTHON_BIN_PATH) -c 'import tensorflow as tf; print(tf.sysconfig.get_include())')
 
 CUDA_INCLUDE = /usr/local/cuda/targets/x86_64-linux/include
 CUDA_LIBDIR = /usr/local/cuda/targets/x86_64-linux/lib
@@ -88,11 +88,15 @@ $(TARGET_LIB_GPU): $(FINUFFT_LIB_GPU) $(NUFFT_SRCS_GPU)
 	$(NVCC) -dc $(filter-out $<, $^) $(CUFLAGS) -odir tensorflow_nufft/cc/kernels -Xcompiler "-fPIC" -lcudadevrt -lcudart
 	$(NVCC) -dlink $(NUFFT_OBJS_GPU) $(FINUFFT_LIB_GPU) -o $(TARGET_LIB_GPU) -Xcompiler "-fPIC" -lcudadevrt -lcudart
 
-$(FINUFFT_LIB_CPU): $(FINUFFT_DIR_CPU) | clone_third_party
+$(FINUFFT_LIB_CPU): $(FINUFFT_DIR_CPU)
 	$(MAKE) lib -C $(FINUFFT_DIR_CPU)
 
-$(FINUFFT_LIB_GPU): $(FINUFFT_DIR_GPU) | clone_third_party
+$(FINUFFT_LIB_GPU): $(FINUFFT_DIR_GPU)
 	$(MAKE) lib -C $(FINUFFT_DIR_GPU)
+
+$(FINUFFT_DIR_CPU): | clone_third_party
+
+$(FINUFFT_DIR_GPU): | clone_third_party
 
 .PHONY: clone_third_party
 clone_third_party:

@@ -88,12 +88,6 @@ struct DoNUFFTBase {
             ncalls *= points_bdims[d];
         }
 
-        std::cout << "ncoeffs: " << ncoeffs << std::endl;
-        std::cout << "nbdims: " << nbdims << std::endl;
-        std::cout << "ncalls: " << ncalls << std::endl;
-        std::cout << "ntrans: " << ntrans << std::endl;
-        std::cout << "npts: " << npts << std::endl;
-
         // Factors to transform linear indices to subindices and viceversa.
         gtl::InlinedVector<int, 8> source_bfactors(nbdims);
         for (int d = 0; d < nbdims; d++) {
@@ -101,7 +95,6 @@ struct DoNUFFTBase {
             for (int j = d + 1; j < nbdims; j++) {
                 source_bfactors[d] *= source_bdims[j];
             }
-            std::cout << "source_bfactors[d]: " << source_bfactors[d] << std::endl;
         }
 
         gtl::InlinedVector<int, 8> points_bfactors(nbdims);
@@ -110,7 +103,6 @@ struct DoNUFFTBase {
             for (int j = d + 1; j < nbdims; j++) {
                 points_bfactors[d] *= points_bdims[j];
             }
-            std::cout << "points_bfactors[d]: " << points_bfactors[d] << std::endl;
         }
         
         // Obtain pointers to non-uniform strengths and Fourier mode
@@ -136,13 +128,10 @@ struct DoNUFFTBase {
                 break;
         }
 
-        std::cout << "opts" << std::endl;
-
         // NUFFT options.
         typename finufft::opts_type<Device, T>::type opts;
         finufft::default_opts<Device, T>(type, rank, &opts);
 
-        std::cout << "makeplan" << std::endl;        
         // Make the NUFFT plan.
         int err;
         typename finufft::plan_type<Device, T>::type plan;
@@ -191,8 +180,6 @@ struct DoNUFFTBase {
                     break;
             }
             
-            std::cout << "setpts" << std::endl;    
-
             // Set the point coordinates.
             err = finufft::setpts<Device, T>(
                 plan,
@@ -219,12 +206,6 @@ struct DoNUFFTBase {
 
             bstrengths = strengths + *pcs * ntrans * npts;
             bcoeffs = coeffs + *pcc * ntrans * ncoeffs;
-            
-            std::cout << "c = " << c << std::endl;
-            std::cout << "*pcs = " << *pcs << std::endl;
-            std::cout << "*pcc = " << *pcc << std::endl;   
-
-            std::cout << "execute" << std::endl;
 
             // Execute the NUFFT.
             err = finufft::execute<Device, T>(plan, bstrengths, bcoeffs);
@@ -236,8 +217,6 @@ struct DoNUFFTBase {
         }
 
         // Clean up the plan.
-        std::cout << "destroy" << std::endl;
-
         err = finufft::destroy<Device, T>(plan);
 
         if (err > 1) {

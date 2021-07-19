@@ -377,8 +377,6 @@ class NUFFT : public OpKernel {
         }
         bool transpose_target = transpose_source;
 
-        std::cout << "transpose is " << transpose_source << std::endl;
-
         // Reverse points.
         Tensor rpoints;
         OP_REQUIRES_OK(ctx,
@@ -394,8 +392,6 @@ class NUFFT : public OpKernel {
             &rpoints));
 
         /// Transpose points to obtain single-dimension arrays.
-        std::cout << "Op::Transpose" << std::endl;
-
         Tensor tpoints;
         TensorShape tpoints_shape = spoints.shape();
         for (int i = 0; i < spoints.dims(); i++) {
@@ -458,8 +454,6 @@ class NUFFT : public OpKernel {
             ptarget = target;
         }
 
-        std::cout << "Op::Op" << std::endl;
-
         // Perform operation.
         OP_REQUIRES_OK(ctx, DoNUFFT<Device, T>()(
             ctx,
@@ -476,8 +470,6 @@ class NUFFT : public OpKernel {
             (T*) tpoints.data(),
             (std::complex<T>*) psource->data(),
             (std::complex<T>*) ptarget->data()));
-
-        std::cout << "Op::Target" << std::endl;
 
         if (transpose_target) {
             OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(

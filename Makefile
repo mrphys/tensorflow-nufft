@@ -48,9 +48,9 @@ LDFLAGS += -lcudadevrt -lcudart -lnvToolsExt
 TARGET_LIB = tensorflow_nufft/python/ops/_nufft_ops.so
 TARGET_LIB_GPU = tensorflow_nufft/python/ops/_nufft_ops.cu.o
 
-all: op
+all: lib pip_pkg
 
-op: $(TARGET_LIB)
+lib: $(TARGET_LIB)
 
 .PHONY: test
 test: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)
@@ -61,7 +61,11 @@ lint: $(wildcard tensorflow_nufft/python/ops/*.py)
 	pylint --rcfile=pylintrc tensorflow_nufft/python
 
 pip_pkg: $(TARGET_LIB)
+	rm -r artifacts/
 	./build_pip_pkg.sh make artifacts
+	pip3 install "auditwheel>=4.0.0"
+	./tools/build/auditwheel repair --plat manylinux_2_17_x86_64 --wheel-dir artifacts/ artifacts/*.whl
+	rm -r artifacts/*linux_x86_64.whl
 
 .PHONY: clean
 clean: mostlyclean
@@ -74,8 +78,8 @@ mostlyclean:
 	rm -f $(TARGET_LIB_GPU)
 	rm -f $(NUFFT_OBJS_GPU)
 
-.PHONY: install_dependencies
-install_dependencies:
+.PHONY: dependencies
+dependencies:
 	apt-get update
 	apt-get -y install libfftw3-dev
 

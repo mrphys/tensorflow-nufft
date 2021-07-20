@@ -134,5 +134,10 @@ class NUFFTOpsTest(tf.test.TestCase):
                           rtol=epsilon, atol=epsilon)
 
 
+class NUFFTOpsBenchmark():
+
+  def benchmark_nufft():
+    pass
+
 if __name__ == '__main__':
   tf.test.main()

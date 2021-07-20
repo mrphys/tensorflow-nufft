@@ -32,7 +32,7 @@ jobs:
       - name: Build shared library
         run: |
           docker build --tag build_env -f ./tools/docker/build_env.Dockerfile ./
-          docker run --rm -it -v ${PWD}:/working_dir -w /working_dir build_env make -j$(nproc) lib
+          docker run --rm -v ${PWD}:/working_dir -w /working_dir build_env make -j$(nproc) lib
       # - name: Run tests
       #   run: |
       #     make test
@@ -42,6 +42,7 @@ jobs:
       - name: Build pip package
         run: |
           pip install wheel
+          pip install "auditwheel>=4.0.0"
           make pip_pkg
       - name: Publish to Test PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

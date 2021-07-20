@@ -12,8 +12,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
-      os: ['ubuntu-latest']
-      py-version: ['3.6']
+      matrix:
+        os: ['ubuntu-latest']
+        py-version: ['3.6']
 
     # container:
     #   image: tensorflow/tensorflow:custom-op-gpu-ubuntu16

@@ -1,6 +1,6 @@
 TF_SHARED_LIBRARY_NAME=libtensorflow_framework.so.2
 
-POLICY_JSON=$(find / -name policy.json)
+POLICY_JSON=$(python -c 'import site; print(site.getsitepackages()[0])')/auditwheel/policy/policy.json
 
 sudo sed -i "s/libresolv.so.2\"/libresolv.so.2\", \"$TF_SHARED_LIBRARY_NAME\"/g" $POLICY_JSON
 

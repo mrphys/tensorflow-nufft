@@ -17,9 +17,11 @@
 import tensorflow as tf
 
 
-nufft_ops = tf.load_op_library(
+_nufft_ops = tf.load_op_library(
   tf.compat.v1.resource_loader.get_path_to_datafile('_nufft_ops.so'))
-nufft = nufft_ops.nufft
+
+
+nufft = _nufft_ops.nufft
 
 
 @tf.RegisterGradient("NUFFT")

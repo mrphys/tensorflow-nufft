@@ -60,14 +60,14 @@ def parameterized(**params):
 class NUFFTOpsTest(tf.test.TestCase):
   """Test case for NUFFT functions."""
 
-  @parameterized(grid_shape=[[16, 16], [16, 16, 16]],
+  @parameterized(grid_shape=[[10, 10], [10, 10, 10]],
                  source_batch_shape=[[], [2, 4]],
                  points_batch_shape=[[], [2, 1], [1, 4]],
                  transform_type=['type_1', 'type_2'],
                  j_sign=['negative', 'positive'],
                  dtype=[tf.dtypes.complex64, tf.dtypes.complex128],
                  device=['/cpu:0', '/gpu:0'])
-  def test_nufft(self,  # pylint: disable=missing-function-docstring
+  def test_nufft(self,  # pylint: disable=missing-param-doc
                  grid_shape=None,
                  source_batch_shape=None,
                  points_batch_shape=None,
@@ -75,6 +75,8 @@ class NUFFTOpsTest(tf.test.TestCase):
                  j_sign=None,
                  dtype=None,
                  device=None):
+    """Test op result and gradients."""
+    # pylint: disable=unexpected-keyword-arg
 
     # Set random seed.
     tf.random.set_seed(0)
@@ -91,19 +93,19 @@ class NUFFTOpsTest(tf.test.TestCase):
       num_points = tf.math.reduce_prod(grid_shape)
 
       # Generate random signal and points.
-      if transform_type == 'type_1': # nonuniform to uniform
+      if transform_type == 'type_1':    # nonuniform to uniform
         source_shape = source_batch_shape + [num_points]
-      elif transform_type == 'type_2': # uniform to nonuniform
+      elif transform_type == 'type_2':  # uniform to nonuniform
         source_shape = source_batch_shape + grid_shape
 
       source = tf.Variable(tf.dtypes.complex(
-        tf.random.uniform( # pylint: disable=unexpected-keyword-arg
+        tf.random.uniform(
           source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
-        tf.random.uniform( # pylint: disable=unexpected-keyword-arg
+        tf.random.uniform(
           source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
 
       points_shape = points_batch_shape + [num_points, rank]
-      points = tf.Variable(tf.random.uniform( # pylint: disable=unexpected-keyword-arg
+      points = tf.Variable(tf.random.uniform(
         points_shape, minval=-np.pi, maxval=np.pi,
         dtype=dtype.real_dtype))
 

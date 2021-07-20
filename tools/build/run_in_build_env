@@ -1,9 +1,11 @@
+TAG=mrphys/tensorflow-nufft
+
 # If image has not been built yet, build it now.
-docker image inspect build_env > /dev/null
+docker image inspect ${TAG} > /dev/null
 if [[ $? -ne 0 ]]; then
     # Image does not exist.
-    docker build --tag build_env -f ./tools/docker/build_env.Dockerfile ./
+    docker build --tag ${TAG} -f ./tools/docker/build_env.Dockerfile ./
 fi
 
 # Run the command.
-docker run --rm -v ${PWD}:/working_dir -w /working_dir build_env $@
+docker run --rm -v ${PWD}:/working_dir -w /working_dir ${TAG} $@

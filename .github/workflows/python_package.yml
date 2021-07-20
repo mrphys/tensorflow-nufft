@@ -13,18 +13,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Build Docker image
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Get package version
+        run: |
+          echo "package_version=$(cat ./VERSION)" >> $GITHUB_ENV
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1 
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
         uses: docker/build-push-action@v2
         with:
           file: ./tools/docker/build_env.Dockerfile
-          outputs: type=tar,dest=/tmp/docker_build_env.tar
-      
-      - name: Upload Docker image
-        uses: actions/upload-artifact@v2
-        with:
-          name: docker_build_env
-          path: /tmp/docker_build_env.tar
-
+          push: true
+          cache-from: type=registry,ref=${{ github.repository }}:${{ env.package_version }}
+          cache-to: type=registry,ref=${{ github.repository }}:${{ env.package_version }}
+          
   build-lib:
 
     name: Build shared library
@@ -59,22 +69,20 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+      
+      - name: Get package version
+        run: |
+          echo "package_version=$(cat ./VERSION)" >> $GITHUB_ENV
 
-      - name: Download Docker image
-        uses: actions/download-artifact@v2
-        with:
-          name: docker_build_env
-          path: /tmp
+      - name: Pull Docker image
+        run: |
+          docker pull ghcr.io/${{ github.repository }}:${{ env.package_version }}
       
       - name: Download shared library
         uses: actions/download-artifact@v2
         with:
           name: lib_so
           path: ./tensorflow_nufft/python/ops
-
-      - name: Load Docker image
-        run: |
-          docker load -i /tmp/docker_build_env.tar
 
       # - name: Set up Python
       #   uses: actions/setup-python@v2

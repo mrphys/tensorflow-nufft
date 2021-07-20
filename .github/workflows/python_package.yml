@@ -26,9 +26,9 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.py-version }}
-      - name: Install dependencies
-        run: |
-          make dependencies
+      # - name: Install dependencies
+      #   run: |
+      #     make dependencies
       - name: Build shared library
         run: |
           docker run --rm -v ${PWD}:/working_dir -w /working_dir tensorflow/tensorflow:custom-op-gpu-ubuntu16 "make -j$(nproc) lib"

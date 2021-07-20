@@ -9,20 +9,28 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
-    container:
-      image: tensorflow/tensorflow:custom-op-gpu-ubuntu16
+    strategy:
+      os: ['ubuntu-latest']
+      py-version: ['3.6']
+
+    # container:
+    #   image: tensorflow/tensorflow:custom-op-gpu-ubuntu16
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.py-version }}
       - name: Install dependencies
         run: |
           make dependencies
       - name: Build shared library
         run: |
-          make -j$(nproc) lib
+          docker run --rm -v ${PWD}:/working_dir -w /working_dir tensorflow/tensorflow:custom-op-gpu-ubuntu16 "make -j$(nproc) lib"
       # - name: Run tests
       #   run: |
       #     make test
@@ -43,3 +51,4 @@ jobs:
       #   uses: pypa/gh-action-pypi-publish@release/v1
       #   with:
       #     password: ${{ secrets.PYPI_API_TOKEN }}
+  

@@ -50,7 +50,7 @@ TARGET_LIB_GPU = tensorflow_nufft/python/ops/_nufft_ops.cu.o
 
 all: lib pip_pkg
 
-lib: $(TARGET_LIB)
+lib: dependencies $(TARGET_LIB)
 
 .PHONY: test
 test: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)

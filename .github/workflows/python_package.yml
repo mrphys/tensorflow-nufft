@@ -38,7 +38,7 @@ jobs:
           push: true
           tags: ${{ github.repository }}:v${{ env.package_version }}
           cache-from: type=registry,ref=${{ github.repository }}:v${{ env.package_version }}
-          cache-to: type=registry,ref=${{ github.repository }}:v${{ env.package_version }}
+          cache-to: type=inline
 
   build-lib:
 

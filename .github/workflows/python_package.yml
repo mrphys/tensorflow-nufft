@@ -30,6 +30,9 @@ jobs:
       - name: Lint
         run: |
           make lint
+      - name: Build pip package
+        run: |
+          make pip_pkg
       - name: Publish to Test PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

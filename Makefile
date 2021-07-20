@@ -1,6 +1,7 @@
 CXX := g++
 NVCC := nvcc
 PYTHON_BIN_PATH = python
+PY_VERSION ?= 3.8
 
 # Root directory.
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -60,9 +61,9 @@ test: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)
 lint: $(wildcard tensorflow_nufft/python/ops/*.py)
 	pylint --rcfile=pylintrc tensorflow_nufft/python
 
-pip_pkg:
+pip_pkg: $(TARGET_LIB)
 	rm -rf artifacts/
-	./build_pip_pkg.sh make artifacts
+	./build_pip_pkg.sh make --py_version $(PY_VERSION) artifacts
 	auditwheel repair --plat manylinux_2_17_x86_64 --wheel-dir artifacts/ artifacts/*.whl
 	rm -rf artifacts/*linux_x86_64.whl
 

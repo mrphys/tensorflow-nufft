@@ -7,25 +7,76 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  build-docker:
 
+    name: Build Docker environment
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Build Docker image
+        uses: docker/build-push-action@v2
+        with:
+          file: ./tools/docker/build_env.Dockerfile
+          outputs: type=docker,dest=/tmp/docker_build_env.tar
+      
+      - name: Upload Docker image
+        uses: actions/upload-artifact@v2
+        with:
+          name: docker_build_env
+          path: /tmp/docker_build_env.tar
+
+  build-lib:
+
+    name: Build shared library
+    needs: build-docker
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Build shared library
+        run: |
+          ./tools/build/run_in_build_env make -j$(nproc) lib
+
+      - name: Upload shared library
+        uses: actions/upload-artifact@v2
+        with:
+          name: lib_so
+          path: ./tensorflow_nufft/python/ops/_nufft_ops.so
+
+  build-pip:
+
+    name: Build pip package
+    needs: [build-docker, build-lib]
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
         os: ['ubuntu-latest']
-        py-version: ['3.6']
+        py-version: ['3.6', '3.7', '3.8']
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Set up Python
-        uses: actions/setup-python@v2
+
+      - name: Download Docker image
+        uses: actions/download-artifact@v2
         with:
-          python-version: ${{ matrix.py-version }}
-      - name: Build shared library
-        run: |
-          ./tools/build/run_in_build_env make -j$(nproc) lib
+          name: docker_build_env
+          path: /tmp
+      
+      - name: Download shared library
+        uses: actions/download-artifact@v2
+        with:
+          name: lib_so
+          path: ./tensorflow_nufft/python/ops/_nufft_ops.so
+
+      # - name: Set up Python
+      #   uses: actions/setup-python@v2
+      #   with:
+      #     python-version: ${{ matrix.py-version }}
+      
       # - name: Run tests
       #   run: |
       #     make test
@@ -34,13 +85,15 @@ jobs:
       #     make lint
       - name: Build pip package
         run: |
-          ./tools/build/run_in_build_env make pip_pkg
+          ./tools/build/run_in_build_env make pip_pkg PY_VERSION=${{ matrix.py-version }}
+
       - name: Publish to Test PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.TEST_PYPI_API_TOKEN }}
           repository_url: https://test.pypi.org/legacy/
           packages_dir: artifacts/
+
       # - name: Publish to PyPI
       #   if: startsWith(github.ref, 'refs/tags')
       #   uses: pypa/gh-action-pypi-publish@release/v1

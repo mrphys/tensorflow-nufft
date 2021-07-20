@@ -31,11 +31,15 @@ else
   PIP_FILE_PREFIX="bazel-bin/build_pip_pkg.runfiles/__main__/"
 fi
 
+PY_VERSION=
 function main() {
   while [[ ! -z "${1}" ]]; do
     if [[ ${1} == "make" ]]; then
       echo "Using Makefile to build pip package."
       PIP_FILE_PREFIX=""
+    elif [[ ${1} == "--py_version" ]]; then
+      PY_VERSION=${2}
+      shift
     else
       DEST=${1}
     fi
@@ -69,7 +73,12 @@ function main() {
   cp ${PIP_FILE_PREFIX}LICENSE "${TMPDIR}"
   cp ${PIP_FILE_PREFIX}VERSION "${TMPDIR}"
   cp ${PIP_FILE_PREFIX}requirements.txt "${TMPDIR}"
-  rsync -avm -L --exclude='*.h' --exclude='*.cc' --exclude='*.o' --exclude='*_test.py' ${PIP_FILE_PREFIX}tensorflow_nufft "${TMPDIR}"
+  rsync -avm -L --exclude='*.h' --exclude='*.cc' --exclude='*.o' --exclude='*_test.py' --exclude='__pycache__/*' ${PIP_FILE_PREFIX}tensorflow_nufft "${TMPDIR}"
+
+  echo "=== Select Python version"
+  if [ ! -z "${PY_VERSION}" ]; then
+    pyenv global $(pyenv versions | grep -oP "${PY_VERSION}.\d*")
+  fi
 
   pushd ${TMPDIR}
   echo $(date) : "=== Building wheel"

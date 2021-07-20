@@ -20,6 +20,9 @@ jobs:
         run: |
           echo "package_version=$(cat ./VERSION)" >> $GITHUB_ENV
 
+      - name: Setup Buildx action
+        uses: docker/setup-buildx-action@v1
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v1 
         with:
@@ -30,6 +33,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v2
         with:
+          context: .
           file: ./tools/docker/build_env.Dockerfile
           push: true
           cache-from: type=registry,ref=${{ github.repository }}:${{ env.package_version }}

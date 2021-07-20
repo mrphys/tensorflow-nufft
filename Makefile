@@ -61,11 +61,11 @@ lint: $(wildcard tensorflow_nufft/python/ops/*.py)
 	pylint --rcfile=pylintrc tensorflow_nufft/python
 
 pip_pkg: $(TARGET_LIB)
-	rm -r artifacts/
+	rm -rf artifacts/
 	./build_pip_pkg.sh make artifacts
 	pip3 install "auditwheel>=4.0.0"
 	./tools/build/auditwheel repair --plat manylinux_2_17_x86_64 --wheel-dir artifacts/ artifacts/*.whl
-	rm -r artifacts/*linux_x86_64.whl
+	rm -rf artifacts/*linux_x86_64.whl
 
 .PHONY: clean
 clean: mostlyclean

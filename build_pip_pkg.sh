@@ -69,7 +69,7 @@ function main() {
   cp ${PIP_FILE_PREFIX}LICENSE "${TMPDIR}"
   cp ${PIP_FILE_PREFIX}VERSION "${TMPDIR}"
   cp ${PIP_FILE_PREFIX}requirements.txt "${TMPDIR}"
-  rsync -avm -L --exclude='*_test.py' ${PIP_FILE_PREFIX}tensorflow_nufft "${TMPDIR}"
+  rsync -avm -L --exclude='*.h' --exclude='*.cc' --exclude='*.o' --exclude='*_test.py' ${PIP_FILE_PREFIX}tensorflow_nufft "${TMPDIR}"
 
   pushd ${TMPDIR}
   echo $(date) : "=== Building wheel"

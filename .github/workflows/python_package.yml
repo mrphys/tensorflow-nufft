@@ -31,7 +31,8 @@ jobs:
       #     make dependencies
       - name: Build shared library
         run: |
-          docker run --rm -v ${PWD}:/working_dir -w /working_dir tensorflow/tensorflow:custom-op-gpu-ubuntu16 make -j$(nproc) lib
+          docker build --tag build_env -f ./tools/docker/build_env.Dockerfile ./
+          docker run --rm -it -v ${PWD}:/working_dir -w /working_dir build_env make -j$(nproc) lib
       # - name: Run tests
       #   run: |
       #     make test

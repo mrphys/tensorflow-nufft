@@ -50,7 +50,7 @@ TARGET_LIB_GPU = tensorflow_nufft/python/ops/_nufft_ops.cu.o
 
 all: lib pip_pkg
 
-lib: dependencies $(TARGET_LIB)
+lib: $(TARGET_LIB)
 
 .PHONY: test
 test: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)
@@ -77,11 +77,6 @@ mostlyclean:
 	rm -f $(TARGET_LIB)
 	rm -f $(TARGET_LIB_GPU)
 	rm -f $(NUFFT_OBJS_GPU)
-
-.PHONY: dependencies
-dependencies:
-	apt-get update
-	apt-get -y install libfftw3-dev
 
 $(TARGET_LIB): $(NUFFT_SRCS) $(TARGET_LIB_GPU) $(FINUFFT_LIB_CPU) $(FINUFFT_LIB_GPU)
 	$(CXX) $(CCFLAGS) -o $@ $^ $(NUFFT_OBJS_GPU) ${LDFLAGS}

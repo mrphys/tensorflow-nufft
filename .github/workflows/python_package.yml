@@ -40,6 +40,7 @@ jobs:
       #     make lint
       - name: Build pip package
         run: |
+          pip install wheel
           make pip_pkg
       - name: Publish to Test PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

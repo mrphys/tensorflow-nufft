@@ -60,7 +60,7 @@ test: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)
 lint: $(wildcard tensorflow_nufft/python/ops/*.py)
 	pylint --rcfile=pylintrc tensorflow_nufft/python
 
-pip_pkg: $(TARGET_LIB)
+pip_pkg:
 	rm -rf artifacts/
 	./build_pip_pkg.sh make artifacts
 	./tools/build/tf_auditwheel repair --plat manylinux_2_17_x86_64 --wheel-dir artifacts/ artifacts/*.whl

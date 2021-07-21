@@ -50,6 +50,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Get package version
+        run: |
+          echo "package_version=$(cat ./VERSION)" >> $GITHUB_ENV
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v1 
         with:
@@ -112,12 +116,7 @@ jobs:
       #   with:
       #     python-version: ${{ matrix.py-version }}
       
-      # - name: Run tests
-      #   run: |
-      #     make test
-      # - name: Lint
-      #   run: |
-      #     make lint
+      
       - name: Build pip package
         run: |
           ./tools/build/run_in_build_env make pip_pkg PY_VERSION=${{ matrix.py-version }}

@@ -24,6 +24,7 @@ jobs:
 
       - name: Lint code
         run: |
+          pip install pylint
           make lint
 
   build-docker:

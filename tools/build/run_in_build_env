@@ -1,11 +1,5 @@
-TAG=mrphys/tensorflow-nufft
-
-# If image has not been built yet, build it now.
-docker image inspect ${TAG} > /dev/null
-if [[ $? -ne 0 ]]; then
-    # Image does not exist.
-    docker build --tag ${TAG} -f ./tools/docker/build_env.Dockerfile ./
-fi
+VERSION=$(cat ../../VERSION)
+TAG=ghcr.io/mrphys/tensorflow-nufft:${VERSION}
 
 # Run the command.
 docker run --rm -v ${PWD}:/working_dir -w /working_dir ${TAG} $@

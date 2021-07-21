@@ -43,7 +43,7 @@ def parameterized(**params):
   def decorator(func):
 
     @functools.wraps(func)
-    def run_tests(self):
+    def run(self):
 
       # Create combinations of the parameters above.
       values = itertools.product(*param_lists.values())
@@ -54,8 +54,31 @@ def parameterized(**params):
           print(f"Subtest #{i + 1}/{len(params)}: {p}")
           func(self, **p)
 
-    return run_tests
+    return run
   return decorator
+
+
+def run_in_cpu_and_gpu(func):
+  """Decorates a test to run with multiple parameter combinations.
+
+  All possible combinations (Cartesian product) of the parameters will be
+  tested.
+
+  Returns:
+    A new test which calls the decorated function in a CPU device and a GPU
+    device, if available.
+  """
+  @functools.wraps(func)
+  def run(self, *args, **kwargs):
+    
+    with tf.device('/CPU:0'):
+      func(self, *args, **kwargs)
+    
+    # if tf.test.gpu_device_name():
+    #   with tf.device(tf.test.gpu_device_name()):
+    #     func(self, *args, **kwargs)
+
+  return run
 
 
 class NUFFTOpsTest(tf.test.TestCase):
@@ -78,6 +101,8 @@ class NUFFTOpsTest(tf.test.TestCase):
                  device=None):
     """Test op result and gradients."""
     # pylint: disable=unexpected-keyword-arg
+
+    tf.debugging.set_log_device_placement(True)
 
     # Set random seed.
     tf.random.set_seed(0)
@@ -137,79 +162,74 @@ class NUFFTOpsTest(tf.test.TestCase):
 
 class NUFFTOpsBenchmark(tf.test.Benchmark):
 
+  # source_shape, points_shape, transform_type, grid_shape
+  cases = [
+    ([256, 256], [200000, 2], 'type_2', None),
+    ([16, 256, 256], [200000, 2], 'type_2', None),
+    ([16, 256, 256], [16, 200000, 2], 'type_2', None),
+    ([200000], [200000, 2], 'type_1', [256, 256]),
+    ([16, 200000], [200000, 2], 'type_1', [256, 256]),
+    ([16, 200000], [16, 200000, 2], 'type_1', [256, 256]),
+    ([128, 128, 128], [800000, 3], 'type_2', None),
+    ([800000], [800000, 3], 'type_1', [128, 128, 128])
+  ]
+
+  @run_in_cpu_and_gpu
   def benchmark_nufft(self):
     
-    # tf.compat.v1.disable_v2_behavior()
-
     source_shape = [256, 256]
     points_shape = [65536, 2]
 
     dtype = tf.dtypes.complex64
 
     rng = np.random.default_rng(0)
-    
+
     def random(shape):
-      return rng.random(shape, dtype=dtype.real_dtype.name) - 0.5
+        return rng.random(shape, dtype=dtype.real_dtype.name) - 0.5
 
-    source = tf.Variable(random(source_shape) + random(source_shape) * 1j)
-    points = tf.Variable(random(points_shape) * 2.0 * np.pi)
-    result = nufft_ops.nufft(source, points)
-    print(result.shape)
+    results = []
 
-    with tf.Graph().as_default(), \
-        tf.compat.v1.Session(config=tf.test.benchmark_config()) as sess:
+    for source_shape, points_shape, transform_type, grid_shape in self.cases:
 
       source = tf.Variable(random(source_shape) + random(source_shape) * 1j)
       points = tf.Variable(random(points_shape) * 2.0 * np.pi)
-      self.evaluate(tf.compat.v1.global_variables_initializer())
+
+      with tf.Graph().as_default(), \
+          tf.compat.v1.Session(config=tf.test.benchmark_config()) as sess, \
+          tf.device('/cpu:0'):
+
+        source = tf.Variable(random(source_shape) + random(source_shape) * 1j)
+        points = tf.Variable(random(points_shape) * 2.0 * np.pi)
+        self.evaluate(tf.compat.v1.global_variables_initializer())
+        
+        target = nufft_ops.nufft(source,
+                                 points,
+                                 transform_type=transform_type,
+                                 grid_shape=grid_shape)
+
+        result = self.run_op_benchmark(
+          sess,
+          target,
+          burn_iters=2,
+          min_iters=50,
+          store_memory_usage=True,
+          extras={
+            'source_shape': source_shape,
+            'points_shape': points_shape,
+            'transform_type': transform_type,
+            'grid_shape': grid_shape
+          })
+
+      result.update(result['extras'])
+      result.pop('extras')
+      results.append(list(result.values()))
+
+    try:
+      from tabulate import tabulate
+      print(tabulate(results, headers=list(result.keys())))
       
-      result = nufft_ops.nufft(source, points)
-
-      self.run_op_benchmark(
-        sess,
-        result,
-        min_iters=50)
-
-#     # self.report_benchmark(
-#     #     iters=2,
-#     #     name="custom_benchmark_name",
-#     #     extras={"number_key": 3,
-#     #             "other_key": "string"})
-
-# class EinsumBenchmark(tf.test.Benchmark):
-#   cases = [
-#       # Unary cases.
-#       ['ijk->i', 100],
-#       ['ijk->kji', 100],
-#   ]
-
-#   def benchmarkEinsum(self):
-#     for equation, dim in self.cases:
-#       with tf.Graph().as_default(), \
-#           tf.compat.v1.Session(config=tf.test.benchmark_config()) as sess, \
-#           tf.device('/cpu:0'):
-#         r = np.random.RandomState(0)
-#         input_subscripts = equation.split('->')[0].split(',')
-#         input_vars = []
-#         for subscript in input_subscripts:
-#           input_shape = (dim,) * len(subscript)
-#           input_vars.append(
-#               tf.Variable(np.array(r.randn(*input_shape), np.float32)))
-#         self.evaluate(tf.compat.v1.global_variables_initializer())
-
-#         # Call einsum_v1.
-#         self.run_op_benchmark(
-#             sess,
-#             tf.einsum(equation, *input_vars),
-#             min_iters=50,
-#             name='einsum_v1_cpu_({})_{}'.format(equation, dim))
-
-        # # Call gen_linalg_ops.einsum.
-        # self.run_op_benchmark(
-        #     sess,
-        #     tf.einsum(input_vars, equation),
-        #     min_iters=50,
-        #     name='einsum_v2_cpu_({})_{}'.format(equation, dim))
+    except ModuleNotFoundError:
+      pass
 
 if __name__ == '__main__':
   tf.test.main()

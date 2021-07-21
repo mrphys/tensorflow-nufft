@@ -57,6 +57,10 @@ lib: $(TARGET_LIB)
 test: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)
 	$(PYTHON_BIN_PATH) tensorflow_nufft/python/ops/nufft_ops_test.py
 
+.PHONY: benchmark
+benchmark: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)
+	$(PYTHON_BIN_PATH) tensorflow_nufft/python/ops/nufft_ops_test.py --benchmarks=.*
+
 .PHONY: lint
 lint: $(wildcard tensorflow_nufft/python/ops/*.py)
 	pylint --rcfile=pylintrc tensorflow_nufft/python

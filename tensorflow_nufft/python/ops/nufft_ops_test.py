@@ -19,7 +19,6 @@ import itertools
 
 import numpy as np
 import tensorflow as tf
-from tensorflow._api.v2 import random
 
 import nufft_ops
 
@@ -76,9 +75,8 @@ class NUFFTOpsTest(tf.test.TestCase):
                  j_sign=None,
                  dtype=None,
                  device=None):
-    """Test op result and gradients."""
+    """Test NUFFT op result and gradients."""
     # pylint: disable=unexpected-keyword-arg
-
     tf.debugging.set_log_device_placement(True)
 
     # Set random seed.
@@ -138,6 +136,7 @@ class NUFFTOpsTest(tf.test.TestCase):
 
 
 class NUFFTOpsBenchmark(tf.test.Benchmark):
+  """Benchmark for NUFFT functions."""
 
   # source_shape, points_shape, transform_type, grid_shape
   cases = [
@@ -152,7 +151,8 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
   ]
 
   def benchmark_nufft(self):
-    
+    """Benchmark NUFFT op."""
+
     source_shape = [256, 256]
     points_shape = [65536, 2]
 
@@ -160,8 +160,8 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
 
     rng = np.random.default_rng(0)
 
-    def random(shape):
-        return rng.random(shape, dtype=dtype.real_dtype.name) - 0.5
+    def random_array(shape):
+      return rng.random(shape, dtype=dtype.real_dtype.name) - 0.5
 
     devices = ['/cpu:0']
     if tf.test.gpu_device_name():
@@ -177,17 +177,17 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
 
       for source_shape, points_shape, transform_type, grid_shape in self.cases:
 
-        source = tf.Variable(random(source_shape) + random(source_shape) * 1j)
-        points = tf.Variable(random(points_shape) * 2.0 * np.pi)
-
         with tf.Graph().as_default(), \
             tf.compat.v1.Session(config=tf.test.benchmark_config()) as sess, \
             tf.device(device):
 
-          source = tf.Variable(random(source_shape) + random(source_shape) * 1j)
-          points = tf.Variable(random(points_shape) * 2.0 * np.pi)
+          source = tf.Variable(
+            random_array(source_shape) + random_array(source_shape) * 1j)
+          points = tf.Variable(
+            random_array(points_shape) * 2.0 * np.pi)
+
           self.evaluate(tf.compat.v1.global_variables_initializer())
-          
+
           target = nufft_ops.nufft(source,
                                   points,
                                   transform_type=transform_type,
@@ -213,7 +213,7 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
 
     for r, h in zip(results, headers):
       try:
-        from tabulate import tabulate
+        from tabulate import tabulate # pylint: disable=import-outside-toplevel
         print(tabulate(r, headers=h))
       except ModuleNotFoundError:
         pass

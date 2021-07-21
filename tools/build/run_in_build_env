@@ -1,4 +1,7 @@
-VERSION=$(cat ../../VERSION)
+set -e
+
+# Get the Docker tag.
+VERSION=$(cat ${BASH_SOURCE%/*}/../../VERSION)
 TAG=ghcr.io/mrphys/tensorflow-nufft:${VERSION}
 
 # Run the command.

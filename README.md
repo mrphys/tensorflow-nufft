@@ -16,10 +16,10 @@ contribution of this package is the TensorFlow functionality.
 
 ### Install
 
-The easiest way to install `tensorflow_nufft` is via pip.
+The easiest way to install `tensorflow-nufft` is via pip.
 
 ```
-pip install tensorflow_nufft
+pip install tensorflow-nufft
 ```
 
 Note that only Linux binaries are currently being provided.

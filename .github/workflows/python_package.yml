@@ -78,11 +78,18 @@ jobs:
       - name: Get package version
         run: |
           echo "package_version=$(cat ./VERSION)" >> $GITHUB_ENV
+      
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1 
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull Docker image
         run: |
           docker pull ghcr.io/${{ github.repository }}:${{ env.package_version }}
-      
+
       - name: Download shared library
         uses: actions/download-artifact@v2
         with:

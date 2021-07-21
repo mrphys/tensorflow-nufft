@@ -19,6 +19,7 @@ import itertools
 
 import numpy as np
 import tensorflow as tf
+from tensorflow._api.v2 import random
 
 import nufft_ops
 
@@ -138,22 +139,80 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
 
   def benchmark_nufft(self):
     
+    # tf.compat.v1.disable_v2_behavior()
+
+    source_shape = [10, 10]
+    points_shape = [100, 2]
+
+    dtype = tf.dtypes.complex64
+
+    rng = np.random.default_rng(0)
     
-    # source_shape = [10, 10]
-    # dtype=tf.dtypes.complex64
+    def random(shape):
+      return rng.random(shape, dtype=dtype.real_dtype.name) - 0.5
 
-    # source = tf.Variable(tf.dtypes.complex(
-    #     tf.random.uniform(
-    #       source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
-    #     tf.random.uniform(
-    #       source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
+    source = tf.Variable(random(source_shape) + random(source_shape) * 1j)
+    points = tf.Variable(random(points_shape) * 2.0 * np.pi)
+    result = nufft_ops.nufft(source, points)
+    print(result.shape)
 
-    # def benchmarkReport2(self):
-    #   self.report_benchmark(
-    #       iters=2,
-    #       name="custom_benchmark_name",
-    #       extras={"number_key": 3,
-    #               "other_key": "string"})
+    with tf.Graph().as_default(), \
+        tf.compat.v1.Session(config=tf.test.benchmark_config()) as sess:
+
+      source = tf.Variable(random(source_shape) + random(source_shape) * 1j)
+      points = tf.Variable(random(points_shape) * 2.0 * np.pi)
+      self.evaluate(tf.compat.v1.global_variables_initializer())
+      
+      result = nufft_ops.nufft(source, points)
+
+      v = sess.run(result)
+      print(v)
+
+      self.run_op_benchmark(
+        sess,
+        nufft_ops.nufft(source, points),
+        min_iters=50)
+
+#     # self.report_benchmark(
+#     #     iters=2,
+#     #     name="custom_benchmark_name",
+#     #     extras={"number_key": 3,
+#     #             "other_key": "string"})
+
+# class EinsumBenchmark(tf.test.Benchmark):
+#   cases = [
+#       # Unary cases.
+#       ['ijk->i', 100],
+#       ['ijk->kji', 100],
+#   ]
+
+#   def benchmarkEinsum(self):
+#     for equation, dim in self.cases:
+#       with tf.Graph().as_default(), \
+#           tf.compat.v1.Session(config=tf.test.benchmark_config()) as sess, \
+#           tf.device('/cpu:0'):
+#         r = np.random.RandomState(0)
+#         input_subscripts = equation.split('->')[0].split(',')
+#         input_vars = []
+#         for subscript in input_subscripts:
+#           input_shape = (dim,) * len(subscript)
+#           input_vars.append(
+#               tf.Variable(np.array(r.randn(*input_shape), np.float32)))
+#         self.evaluate(tf.compat.v1.global_variables_initializer())
+
+#         # Call einsum_v1.
+#         self.run_op_benchmark(
+#             sess,
+#             tf.einsum(equation, *input_vars),
+#             min_iters=50,
+#             name='einsum_v1_cpu_({})_{}'.format(equation, dim))
+
+        # # Call gen_linalg_ops.einsum.
+        # self.run_op_benchmark(
+        #     sess,
+        #     tf.einsum(input_vars, equation),
+        #     min_iters=50,
+        #     name='einsum_v2_cpu_({})_{}'.format(equation, dim))
 
 if __name__ == '__main__':
   tf.test.main()

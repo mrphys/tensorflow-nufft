@@ -36,8 +36,8 @@ jobs:
           context: .
           file: ./tools/docker/build_env.Dockerfile
           push: true
-          tags: ${{ github.repository }}:v${{ env.package_version }}
-          cache-from: type=registry,ref=${{ github.repository }}:v${{ env.package_version }}
+          tags: ${{ github.repository }}:${{ env.package_version }}
+          cache-from: type=registry,ref=${{ github.repository }}:${{ env.package_version }}
           cache-to: type=inline
 
   build-lib:
@@ -81,7 +81,7 @@ jobs:
 
       - name: Pull Docker image
         run: |
-          docker pull ghcr.io/${{ github.repository }}:v${{ env.package_version }}
+          docker pull ghcr.io/${{ github.repository }}:${{ env.package_version }}
       
       - name: Download shared library
         uses: actions/download-artifact@v2

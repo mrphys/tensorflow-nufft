@@ -27,21 +27,21 @@ RUN cd /opt && \
     make install
 
 # 
-RUN curl https://pyenv.run | bash
-ENV PYENV_ROOT="/root/.pyenv"
-ENV PATH="$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
-RUN eval "$(pyenv init --path)"
-RUN eval "$(pyenv init -)"
+# RUN curl https://pyenv.run | bash
+# ENV PYENV_ROOT="/root/.pyenv"
+# ENV PATH="$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
+# RUN eval "$(pyenv init --path)"
+# RUN eval "$(pyenv init -)"
 
-RUN pyenv install 3.6.14
-RUN pyenv install 3.7.11
-RUN pyenv install 3.8.11
+# RUN pyenv install 3.6.14
+# RUN pyenv install 3.7.11
+# RUN pyenv install 3.8.11
 
-RUN pyenv global 3.6.14
-RUN pip install tensorflow
+# RUN pyenv global 3.6.14
+# RUN pip install tensorflow
 
-RUN pyenv global 3.7.11
-RUN pip install tensorflow
+# RUN pyenv global 3.7.11
+# RUN pip install tensorflow
 
-RUN pyenv global 3.8.11
-RUN pip install tensorflow
+# RUN pyenv global 3.8.11
+# RUN pip install tensorflow

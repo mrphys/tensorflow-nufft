@@ -48,7 +48,7 @@ def parameterized(**params):
       values = itertools.product(*param_lists.values())
       params = [dict(zip(param_lists.keys(), v)) for v in values]
       # Now call decorated function with each set of parameters.
-      for i, p in enumerate(params):
+      for i, p in enumerate(params[:2]):
         with self.subTest(**p):
           print(f"Subtest #{i + 1}/{len(params)}: {p}")
           func(self, **p)
@@ -134,10 +134,25 @@ class NUFFTOpsTest(tf.test.TestCase):
                           rtol=epsilon, atol=epsilon)
 
 
-class NUFFTOpsBenchmark():
+class NUFFTOpsBenchmark(tf.test.Benchmark):
 
-  def benchmark_nufft():
+  def benchmark_nufft(self):
     pass
+    # source_shape = [10, 10]
+    # dtype=tf.dtypes.complex64
+
+    # source = tf.Variable(tf.dtypes.complex(
+    #     tf.random.uniform(
+    #       source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
+    #     tf.random.uniform(
+    #       source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
+
+    # def benchmarkReport2(self):
+    #   self.report_benchmark(
+    #       iters=2,
+    #       name="custom_benchmark_name",
+    #       extras={"number_key": 3,
+    #               "other_key": "string"})
 
 if __name__ == '__main__':
   tf.test.main()

@@ -27,7 +27,7 @@ jobs:
         uses: docker/login-action@v1 
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: jmontalt
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
@@ -36,8 +36,8 @@ jobs:
           context: .
           file: ./tools/docker/build_env.Dockerfile
           push: true
-          tags: ${{ github.repository }}:${{ env.package_version }}
-          cache-from: type=registry,ref=${{ github.repository }}:${{ env.package_version }}
+          tags: jmontalt/tensorflow-nufft:${{ env.package_version }}
+          cache-from: type=registry,ref=jmontalt/tensorflow-nufft:${{ env.package_version }}
           cache-to: type=inline
 
   build-lib:

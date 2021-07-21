@@ -137,7 +137,8 @@ class NUFFTOpsTest(tf.test.TestCase):
 class NUFFTOpsBenchmark(tf.test.Benchmark):
 
   def benchmark_nufft(self):
-    pass
+    
+    
     # source_shape = [10, 10]
     # dtype=tf.dtypes.complex64
 

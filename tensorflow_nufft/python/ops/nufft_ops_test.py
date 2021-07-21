@@ -58,29 +58,6 @@ def parameterized(**params):
   return decorator
 
 
-def run_in_cpu_and_gpu(func):
-  """Decorates a test to run with multiple parameter combinations.
-
-  All possible combinations (Cartesian product) of the parameters will be
-  tested.
-
-  Returns:
-    A new test which calls the decorated function in a CPU device and a GPU
-    device, if available.
-  """
-  @functools.wraps(func)
-  def run(self, *args, **kwargs):
-    
-    with tf.device('/CPU:0'):
-      func(self, *args, **kwargs)
-    
-    # if tf.test.gpu_device_name():
-    #   with tf.device(tf.test.gpu_device_name()):
-    #     func(self, *args, **kwargs)
-
-  return run
-
-
 class NUFFTOpsTest(tf.test.TestCase):
   """Test case for NUFFT functions."""
 
@@ -174,7 +151,6 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
     ([800000], [800000, 3], 'type_1', [128, 128, 128])
   ]
 
-  @run_in_cpu_and_gpu
   def benchmark_nufft(self):
     
     source_shape = [256, 256]
@@ -187,49 +163,60 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
     def random(shape):
         return rng.random(shape, dtype=dtype.real_dtype.name) - 0.5
 
+    devices = ['/cpu:0']
+    if tf.test.gpu_device_name():
+      devices.append(tf.test.gpu_device_name())
+
     results = []
+    headers = []
 
-    for source_shape, points_shape, transform_type, grid_shape in self.cases:
+    for d, device in enumerate(devices):
 
-      source = tf.Variable(random(source_shape) + random(source_shape) * 1j)
-      points = tf.Variable(random(points_shape) * 2.0 * np.pi)
+      results.append([])
+      headers.append([])
 
-      with tf.Graph().as_default(), \
-          tf.compat.v1.Session(config=tf.test.benchmark_config()) as sess, \
-          tf.device('/cpu:0'):
+      for source_shape, points_shape, transform_type, grid_shape in self.cases:
 
         source = tf.Variable(random(source_shape) + random(source_shape) * 1j)
         points = tf.Variable(random(points_shape) * 2.0 * np.pi)
-        self.evaluate(tf.compat.v1.global_variables_initializer())
-        
-        target = nufft_ops.nufft(source,
-                                 points,
-                                 transform_type=transform_type,
-                                 grid_shape=grid_shape)
 
-        result = self.run_op_benchmark(
-          sess,
-          target,
-          burn_iters=2,
-          min_iters=50,
-          store_memory_usage=True,
-          extras={
-            'source_shape': source_shape,
-            'points_shape': points_shape,
-            'transform_type': transform_type,
-            'grid_shape': grid_shape
-          })
+        with tf.Graph().as_default(), \
+            tf.compat.v1.Session(config=tf.test.benchmark_config()) as sess, \
+            tf.device(device):
 
-      result.update(result['extras'])
-      result.pop('extras')
-      results.append(list(result.values()))
+          source = tf.Variable(random(source_shape) + random(source_shape) * 1j)
+          points = tf.Variable(random(points_shape) * 2.0 * np.pi)
+          self.evaluate(tf.compat.v1.global_variables_initializer())
+          
+          target = nufft_ops.nufft(source,
+                                  points,
+                                  transform_type=transform_type,
+                                  grid_shape=grid_shape)
 
-    try:
-      from tabulate import tabulate
-      print(tabulate(results, headers=list(result.keys())))
-      
-    except ModuleNotFoundError:
-      pass
+          result = self.run_op_benchmark(
+            sess,
+            target,
+            burn_iters=2,
+            min_iters=50,
+            store_memory_usage=True,
+            extras={
+              'source_shape': source_shape,
+              'points_shape': points_shape,
+              'transform_type': transform_type,
+              'grid_shape': grid_shape
+            })
+
+        result.update(result['extras'])
+        result.pop('extras')
+        headers[d] = list(result.keys())
+        results[d].append(list(result.values()))
+
+    for r, h in zip(results, headers):
+      try:
+        from tabulate import tabulate
+        print(tabulate(r, headers=h))
+      except ModuleNotFoundError:
+        pass
 
 if __name__ == '__main__':
   tf.test.main()

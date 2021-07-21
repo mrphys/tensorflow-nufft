@@ -50,6 +50,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1 
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull Docker image
+        run: |
+          docker pull ghcr.io/${{ github.repository }}:${{ env.package_version }}
+
       - name: Build shared library
         run: |
           ./tools/build/run_in_build_env make -j$(nproc) lib

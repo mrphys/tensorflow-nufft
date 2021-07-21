@@ -14,18 +14,6 @@ contribution of this package is the TensorFlow functionality.
 
 ## Installation
 
-
-
-### Prerequisites
-
-`tensorflow_nufft` uses the FFTW3 library. To install FFTW3 in Debian/Ubuntu
-run:
-
-```
-apt-get install libfftw3-dev
-```
-
-
 ### Install
 
 The easiest way to install `tensorflow_nufft` is via pip.
@@ -34,16 +22,15 @@ The easiest way to install `tensorflow_nufft` is via pip.
 pip install tensorflow_nufft
 ```
 
+Note that only Linux binaries are currently being provided.
 
 ### Contributions
 All contributions are welcome.
 
 
 ### Example
-
+For usage examples, see [examples](examples). 
 
 
 ### Citations
-
-
 

@@ -15,6 +15,20 @@ with open("requirements.txt") as f:
 
 DOCLINES = __doc__.split('\n')
 
+class install(_install):
+
+    def finalize_options(self):
+        _install.finalize_options(self)
+        self.install_lib = self.install_platlib
+
+class BinaryDistribution(Distribution):
+
+    def has_ext_modules(self):
+        return True
+    
+    def is_pure(self):
+        return False
+        
 setup(
     name=PROJECT_NAME,
     version=VERSION,

@@ -7,9 +7,27 @@ on:
     branches: [ master ]
 
 jobs:
+
+  lint-code:
+    name: Lint code
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: Lint code
+        run: |
+          make lint
+
   build-docker:
 
     name: Build Docker environment
+    needs: lint-code
     runs-on: ubuntu-latest
 
     steps:
@@ -72,7 +90,7 @@ jobs:
       - name: Upload shared library
         uses: actions/upload-artifact@v2
         with:
-          name: lib_so
+          name: lib
           path: ./tensorflow_nufft/python/ops/_nufft_ops.so
 
   build-pip:
@@ -108,25 +126,25 @@ jobs:
       - name: Download shared library
         uses: actions/download-artifact@v2
         with:
-          name: lib_so
+          name: lib
           path: ./tensorflow_nufft/python/ops
-
-      # - name: Set up Python
-      #   uses: actions/setup-python@v2
-      #   with:
-      #     python-version: ${{ matrix.py-version }}
-      
       
       - name: Build pip package
         run: |
           ./tools/build/run_in_build_env make pip_pkg PY_VERSION=${{ matrix.py-version }}
-
-      - name: Publish to Test PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+    
+      - name: Upload pip package
+        uses: actions/upload-artifact@v2
         with:
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-          repository_url: https://test.pypi.org/legacy/
-          packages_dir: artifacts/
+          name: pip_pkg
+          path: ./artifacts/*.whl
+
+      # - name: Publish to Test PyPI
+      #   uses: pypa/gh-action-pypi-publish@release/v1
+      #   with:
+      #     password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+      #     repository_url: https://test.pypi.org/legacy/
+      #     packages_dir: artifacts/
 
       # - name: Publish to PyPI
       #   if: startsWith(github.ref, 'refs/tags')

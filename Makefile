@@ -66,9 +66,8 @@ lint: $(wildcard tensorflow_nufft/python/ops/*.py)
 	pylint --rcfile=pylintrc tensorflow_nufft/python
 
 pip_pkg: $(TARGET_LIB)
-	rm -rf artifacts/
 	./build_pip_pkg.sh make --py_version $(PY_VERSION) artifacts
-	auditwheel repair --plat manylinux_2_17_x86_64 --wheel-dir artifacts/ artifacts/*.whl
+	auditwheel repair --plat manylinux_2_17_x86_64 --wheel-dir artifacts/ artifacts/*linux_x86_64.whl
 	rm -rf artifacts/*linux_x86_64.whl
 
 .PHONY: clean

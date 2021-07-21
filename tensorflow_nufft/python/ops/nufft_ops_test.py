@@ -218,5 +218,6 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
       except ModuleNotFoundError:
         pass
 
+
 if __name__ == '__main__':
   tf.test.main()

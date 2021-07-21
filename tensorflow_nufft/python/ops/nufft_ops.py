@@ -313,6 +313,66 @@ def _validate_nudft_inputs(source,
   return source, points, transform_type, j_sign, grid_shape
 
 
+def estimate_density(points, grid_shape, num_iterations=10):
+  """Estimate density compensation weights for the given set of points.
+
+  Args:
+    points: A `Tensor`. The set of points, in `[-pi, pi]`, for which sampling
+      density should be estimated. Must have shape `[..., M, N]`, where `M` is
+      the number of samples, `N` is the number of dimensions and `...` is any
+      number of batch dimensions. Must be one of the following types: `float32`,
+      `float64`.
+    grid_shape: A `tf.TensorShape` or list of `int`s. The shape of the
+      corresponding grid, without any batch dimensions.
+    num_iterations: Number of iterations of the estimation algorithm. More
+      iterations may improve accuracy at increased computational cost.
+
+  Returns:
+    A `Tensor` of shape `[..., M]` containing the density compensation weights
+    for `points`.
+
+  References:
+    [1] Zwart, N.R., Johnson, K.O. and Pipe, J.G. (2012), Efficient sample
+        density estimation by combining gridding and an optimized kernel. Magn.
+        Reson. Med., 67: 701-710. https://doi.org/10.1002/mrm.23041
+  """
+  # Functions.
+  interp = lambda weights, points: nufft(weights, points,
+                                         transform_type='type_2',
+                                         j_sign='negative',
+                                         grid_shape=grid_shape)
+
+  spread = lambda weights, points: nufft(weights, points,
+                                         transform_type='type_1',
+                                         j_sign='positive',
+                                         grid_shape=grid_shape)
+
+  # We do not check inputs here, the NUFFT op will do it.
+  batch_shape = points.shape[:-2]
+  rank = points.shape[-1]
+
+  # Initialize density compensation weights.
+  weights = tf.ones(batch_shape + points.shape[-2:-1],
+                    dtype=_complex_dtype(points.dtype))
+
+  # Run iterative algorithm.
+  for _ in range(num_iterations):
+    weights /= interp(spread(weights, points), points)
+
+  # Scale weights.
+  test_image = tf.ones(batch_shape + grid_shape,
+                       dtype=_complex_dtype(points.dtype))
+
+  test_image = spread(weights * interp(test_image, points), points)
+
+  scale = tf.math.reduce_mean(test_image, axis=list(range(-rank, 0)))
+  scale = tf.expand_dims(scale, -1)
+
+  weights /= scale
+
+  return weights
+
+
 def _validate_enum(value, valid_values, name):
   """Validates that value is in a list of valid values.
 

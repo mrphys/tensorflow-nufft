@@ -1,6 +1,5 @@
 """Nonuniform fast Fourier transform (NUFFT) for TensorFlow v2."""
 
-from setuptools import Extension
 from setuptools import find_packages
 from setuptools import setup
 from setuptools.dist import Distribution
@@ -15,20 +14,6 @@ with open("requirements.txt") as f:
     REQUIRED_PACKAGES = [line.strip() for line in f.readlines()]
 
 DOCLINES = __doc__.split('\n')
-
-class install(_install):
-
-    def finalize_options(self):
-        _install.finalize_options(self)
-        self.install_lib = self.install_platlib
-
-class BinaryDistribution(Distribution):
-
-    def has_ext_modules(self):
-        return True
-    
-    def is_pure(self):
-        return False
 
 setup(
     name=PROJECT_NAME,
@@ -50,6 +35,9 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: C++',
         'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
         'Topic :: Scientific/Engineering :: Mathematics',
         'Topic :: Software Development :: Libraries',
         'Topic :: Software Development :: Libraries :: Python Modules'

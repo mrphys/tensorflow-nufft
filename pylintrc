@@ -327,7 +327,7 @@ ignore-exceptions=AssertionError,NotImplementedError,StopIteration,TypeError
 
 # Number of spaces of indent required when the last token on the preceding line
 # is an open (, [, or {.
-indent-after-paren=4
+indent-after-paren=2
 
 
 [GOOGLE LINES]

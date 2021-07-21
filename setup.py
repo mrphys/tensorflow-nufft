@@ -1,4 +1,7 @@
-"""Nonuniform fast Fourier transform (NUFFT) for TensorFlow v2."""
+"""TensorFlow NUFFT.
+
+Implementation of the non-uniform Fourier transform in TensorFlow.
+"""
 
 from setuptools import find_packages
 from setuptools import setup
@@ -28,7 +31,7 @@ class BinaryDistribution(Distribution):
     
     def is_pure(self):
         return False
-        
+
 setup(
     name=PROJECT_NAME,
     version=VERSION,

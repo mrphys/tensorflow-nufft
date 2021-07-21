@@ -213,6 +213,7 @@ class NUFFT : public OpKernel {
         int64 nufft_rank = points.dim_size(points.dims() - 1);
         int64 num_points = points.dim_size(points.dims() - 2);
 
+        TensorShape grid_shape;
         switch (transform_type_) {
             case 1: // nonuniform to uniform
                 
@@ -222,6 +223,7 @@ class NUFFT : public OpKernel {
                                 "A valid `grid_shape` input must be provided "
                                 "for NUFFT type-1, but received: ",
                                 grid_shape_.DebugString()));
+                grid_shape = grid_shape_;
 
                 break;
 
@@ -234,7 +236,7 @@ class NUFFT : public OpKernel {
                                 nufft_rank, " but received shape: ",
                                 source.shape().DebugString()));
                 for (int i = source.dims() - nufft_rank; i < source.dims(); i++) {
-                    grid_shape_.AddDim(source.dim_size(i));
+                    grid_shape.AddDim(source.dim_size(i));
                 }
 
                 break;
@@ -316,7 +318,7 @@ class NUFFT : public OpKernel {
         TensorShape target_shape(bcast.output_shape());
         switch (transform_type_) {
             case 1: // nonuniform to uniform
-                target_shape.AppendShape(grid_shape_);
+                target_shape.AppendShape(grid_shape);
                 break;
             case 2: // uniform to nonuniform
                 target_shape.AppendShape({num_points});
@@ -465,7 +467,7 @@ class NUFFT : public OpKernel {
             outer_dims.size(),
             (int64_t*) psource->shape().dim_sizes().data(),
             (int64_t*) tpoints.shape().dim_sizes().data(),
-            (int64_t*) grid_shape_.dim_sizes().data(),
+            (int64_t*) grid_shape.dim_sizes().data(),
             num_points,
             (T*) tpoints.data(),
             (std::complex<T>*) psource->data(),

@@ -189,9 +189,9 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
           self.evaluate(tf.compat.v1.global_variables_initializer())
 
           target = nufft_ops.nufft(source,
-                                  points,
-                                  transform_type=transform_type,
-                                  grid_shape=grid_shape)
+                                   points,
+                                   transform_type=transform_type,
+                                   grid_shape=grid_shape)
 
           result = self.run_op_benchmark(
             sess,

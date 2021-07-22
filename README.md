@@ -1,5 +1,6 @@
 # TensorFlow NUFFT
 
+[![PyPI](https://badge.fury.io/py/tensorflow-nufft.svg)](https://badge.fury.io/py/tensorflow-nufft)
 [![build](https://github.com/mrphys/tensorflow-nufft/actions/workflows/build-package.yml/badge.svg)](https://github.com/mrphys/tensorflow-nufft/actions/workflows/build-package.yml)
 
 This is an implementation of the non-uniform fast Fourier transform (NUFFT) in

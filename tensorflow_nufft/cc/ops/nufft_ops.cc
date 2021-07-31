@@ -46,4 +46,7 @@ REGISTER_OP("NUFFT")
     .Attr("j_sign: {'positive', 'negative'} = 'negative'")
     .Attr("epsilon: float = 1e-6")
     .Attr("grid_shape: shape = { unknown_rank: true }")
-    .SetShapeFn(NUFFTShapeFn);
+    .SetShapeFn(NUFFTShapeFn)
+    .Doc(R"doc(
+Compute the non-uniform fast Fourier transform.
+)doc");

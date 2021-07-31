@@ -101,6 +101,8 @@ Status DoReverseImpl(const Device& device, const Tensor& input,
     }
 #undef HANDLE_REVERSE
   }
+
+  return Status::OK();
 }
 
 }  // namespace internal

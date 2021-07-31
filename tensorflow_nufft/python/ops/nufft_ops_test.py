@@ -77,7 +77,6 @@ class NUFFTOpsTest(tf.test.TestCase):
                  device=None):
     """Test NUFFT op result and gradients."""
     # pylint: disable=unexpected-keyword-arg
-    tf.debugging.set_log_device_placement(True)
 
     # Set random seed.
     tf.random.set_seed(0)

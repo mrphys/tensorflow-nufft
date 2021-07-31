@@ -1,22 +1,36 @@
-"""TensorFlow NUFFT.
+# Copyright 2021 University College London. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+"""Setup TensorFlow NUFFT."""
 
-Implementation of the non-uniform Fourier transform in TensorFlow.
-"""
-
+from os import path
 from setuptools import find_packages
 from setuptools import setup
 from setuptools.dist import Distribution
 from setuptools.command.install import install as _install
 
-PROJECT_NAME = 'tensorflow-nufft'
+ROOT = path.abspath(path.dirname(__file__))
 
-with open('VERSION') as version_file:
-    VERSION = version_file.read().strip()
+ABOUT = {}
+with open(path.join(ROOT, "tensorflow_nufft/__about__.py")) as f:
+    exec(f.read(), ABOUT)
 
-with open("requirements.txt") as f:
+with open(path.join(ROOT, "README.rst"), encoding='utf-8') as f:
+    LONG_DESCRIPTION = f.read()
+
+with open(path.join(ROOT, "requirements.txt")) as f:
     REQUIRED_PACKAGES = [line.strip() for line in f.readlines()]
-
-DOCLINES = __doc__.split('\n')
 
 class install(_install):
 
@@ -33,15 +47,20 @@ class BinaryDistribution(Distribution):
         return False
 
 setup(
-    name=PROJECT_NAME,
-    version=VERSION,
-    description=DOCLINES[0],
-    long_description='\n'.join(DOCLINES[2:]),
-    long_description_content_type="text/markdown",
-    author='Javier Montalt-Tordera',
-    author_email='javier.tordera.17@ucl.ac.uk',
-    url='https://github.com/mrphys/tensorflow_nufft',
+    name=ABOUT['__title__'],
+    version=ABOUT['__version__'],
+    description=ABOUT['__summary__'],
+    long_description=LONG_DESCRIPTION,
+    long_description_content_type="text/x-rst",
+    author=ABOUT['__author__'],
+    author_email=ABOUT['__email__'],
+    url=ABOUT['__uri__'],
     packages=find_packages(),
+    install_requires=REQUIRED_PACKAGES,
+    include_package_data=True,
+    zip_safe=False,
+    distclass=BinaryDistribution,
+    cmdclass={'install': install},
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: GPU',
@@ -59,11 +78,6 @@ setup(
         'Topic :: Software Development :: Libraries',
         'Topic :: Software Development :: Libraries :: Python Modules'
     ],
-    distclass=BinaryDistribution,
-    license="Apache 2.0",
-    keywords=['tensorflow', 'nufft'],
-    cmdclass={'install': install},
-    include_package_data=True,
-    zip_safe=False,
-    install_requires=REQUIRED_PACKAGES
+    license=ABOUT['__license__'],
+    keywords=['tensorflow', 'nufft']   
 )

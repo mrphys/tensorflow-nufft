@@ -1,8 +1,0 @@
-set -e
-
-# Get the Docker tag.
-VERSION=$(cat ${BASH_SOURCE%/*}/../../VERSION)
-TAG=ghcr.io/mrphys/tensorflow-nufft:${VERSION}
-
-# Run the command.
-docker run --rm -v ${PWD}:/working_dir -w /working_dir ${TAG} $@

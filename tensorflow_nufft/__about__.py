@@ -12,14 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"TensorFlow NUFFT."
 
-import importlib
-import types
+__all__ = [
+    "__title__",
+    "__summary__",
+    "__uri__",
+    "__version__",
+    "__author__",
+    "__email__",
+    "__license__",
+    "__copyright__",
+]
 
-from tensorflow_nufft.__about__ import *
+__title__ = "tensorflow-nufft"
+__summary__ = "A fast, native non-uniform FFT op for TensorFlow."
+__uri__ = "https://github.com/mrphys/tensorflow-nufft"
 
-_nufft_ops = importlib.import_module('tensorflow_nufft.python.ops.nufft_ops')
-nufft = _nufft_ops.nufft
-util = types.SimpleNamespace(estimate_density=_nufft_ops.estimate_density)
-del _nufft_ops
+__version__ = "0.2.0a0"
+
+__author__ = "Javier Montalt Tordera"
+__email__ = "javier.montalt@outlook.com"
+
+__license__ = "Apache 2.0"
+__copyright__ = "2021 University College London"

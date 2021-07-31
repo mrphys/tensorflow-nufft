@@ -12,139 +12,64 @@ on:
 
 jobs:
 
-  lint-code:
+  build:
 
-    name: Lint code
+    name: Build package
     runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.8
-
-      - name: Lint code
-        run: |
-          pip install pylint
-          make lint
-
-  build-docker:
-
-    name: Build Docker environment
-    needs: lint-code
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Get package version
-        run: |
-          echo "package_version=$(cat ./VERSION)" >> $GITHUB_ENV
-
-      - name: Setup Buildx action
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1 
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./tools/docker/build_env.Dockerfile
-          push: true
-          tags: ghcr.io/${{ github.repository }}:${{ env.package_version }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:${{ env.package_version }}
-          cache-to: type=inline
-
-  build-lib:
-
-    name: Build shared library
-    needs: build-docker
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Get package version
-        run: |
-          echo "package_version=$(cat ./VERSION)" >> $GITHUB_ENV
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1 
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull Docker image
-        run: |
-          docker pull ghcr.io/${{ github.repository }}:${{ env.package_version }}
-
-      - name: Build shared library
-        run: |
-          ./tools/build/run_in_build_env make -j$(nproc) lib
-
-      - name: Upload shared library
-        uses: actions/upload-artifact@v2
-        with:
-          name: lib
-          path: ./tensorflow_nufft/python/ops/_nufft_ops.so
-
-  build-pip:
-
-    name: Build pip package
-    needs: [build-docker, build-lib]
-    runs-on: ${{ matrix.os }}
+    
+    container:
+      image: ghcr.io/mrphys/tensorflow-manylinux:1.2.0
 
     strategy:
       matrix:
-        os: ['ubuntu-latest']
-        py-version: ['3.6', '3.7', '3.8']
+        py_version: [3.6, 3.7, 3.8, 3.9]
+
+    env:
+      PYTHON: python${{ matrix.py_version }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      
-      - name: Get package version
-        run: |
-          echo "package_version=$(cat ./VERSION)" >> $GITHUB_ENV
-      
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1 
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          lfs: true
 
-      - name: Pull Docker image
+      - name: Lint code
         run: |
-          docker pull ghcr.io/${{ github.repository }}:${{ env.package_version }}
+          make lint PY_VERSION=${{ matrix.py_version }}
 
-      - name: Download shared library
-        uses: actions/download-artifact@v2
-        with:
-          name: lib
-          path: ./tensorflow_nufft/python/ops
-      
-      - name: Build pip package
+      - name: Compile shared library
         run: |
-          ./tools/build/run_in_build_env make pip_pkg PY_VERSION=${{ matrix.py-version }}
-    
-      - name: Upload pip package
+          make PY_VERSION=${{ matrix.py_version }} CXX=/dt7/usr/bin/g++
+
+      - name: Install required packages
+        run: |
+          $PYTHON -m pip install -r requirements.txt
+
+      - name: Run test suite
+        run: |
+          make test PY_VERSION=${{ matrix.py_version }}
+
+      - name: Build wheel
+        run: |
+          make wheel PY_VERSION=${{ matrix.py_version }}
+
+      - name: Upload wheel
         uses: actions/upload-artifact@v2
         with:
-          name: pip_pkg
+          name: wheels
           path: ./artifacts/*.whl
+
+      - name: Build docs
+        run: |
+          pip install sphinx furo
+          make docs PY_VERSION=${{ matrix.py_version }}
+
+      - name: Upload docs
+        if: matrix.py_version == 3.9
+        uses: actions/upload-artifact@v2
+        with:
+          name: docs
+          path: ./tools/docs/_build/html
 
       - name: Publish to Test PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -160,4 +85,33 @@ jobs:
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
           packages_dir: artifacts/
-  
+
+  publish-docs:
+    
+    name: Publish docs
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags')
+    
+    steps:
+
+      - name: Checkout docs branch
+        uses: actions/checkout@v2
+        with:
+          ref: docs
+
+      - name: Clean docs branch
+        run: |
+          rm -r ./*
+
+      - name: Download docs
+        uses: actions/download-artifact@v2
+        with:
+          name: docs
+
+      - name: Publish docs to GitHub Pages
+        run: |
+          git config --global user.name mrphys
+          git config --global user.email mrphys@users.noreply.github.com
+          git diff --quiet && git diff --staged --quiet || git commit -am 'CI/CD - Update docs'
+          git push --force

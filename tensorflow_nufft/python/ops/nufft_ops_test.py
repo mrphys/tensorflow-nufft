@@ -48,7 +48,7 @@ def parameterized(**params):
       values = itertools.product(*param_lists.values())
       params = [dict(zip(param_lists.keys(), v)) for v in values]
       # Now call decorated function with each set of parameters.
-      for i, p in enumerate(params[:10]):
+      for i, p in enumerate(params):
         with self.subTest(**p):
           print(f"Subtest #{i + 1}/{len(params)}: {p}")
           func(self, **p)
@@ -77,7 +77,6 @@ class NUFFTOpsTest(tf.test.TestCase):
                  device=None):
     """Test NUFFT op result and gradients."""
     # pylint: disable=unexpected-keyword-arg
-    tf.debugging.set_log_device_placement(True)
 
     # Set random seed.
     tf.random.set_seed(0)

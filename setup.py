@@ -56,6 +56,11 @@ setup(
     author_email=ABOUT['__email__'],
     url=ABOUT['__uri__'],
     packages=find_packages(),
+    install_requires=REQUIRED_PACKAGES,
+    include_package_data=True,
+    zip_safe=False,
+    distclass=BinaryDistribution,
+    cmdclass={'install': install},
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: GPU',
@@ -73,11 +78,6 @@ setup(
         'Topic :: Software Development :: Libraries',
         'Topic :: Software Development :: Libraries :: Python Modules'
     ],
-    distclass=BinaryDistribution,
     license=ABOUT['__license__'],
-    keywords=['tensorflow', 'nufft'],
-    cmdclass={'install': install},
-    include_package_data=True,
-    zip_safe=False,
-    install_requires=REQUIRED_PACKAGES
+    keywords=['tensorflow', 'nufft']   
 )

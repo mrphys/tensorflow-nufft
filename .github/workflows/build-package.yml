@@ -24,6 +24,9 @@ jobs:
       matrix:
         py_version: [3.6, 3.7, 3.8, 3.9]
 
+    env:
+      PYTHON: python${{ matrix.py_version }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2

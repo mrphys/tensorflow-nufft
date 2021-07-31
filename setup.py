@@ -14,19 +14,22 @@
 # ==============================================================================
 """Setup TensorFlow NUFFT."""
 
+from os import path
 from setuptools import find_packages
 from setuptools import setup
 from setuptools.dist import Distribution
 from setuptools.command.install import install as _install
 
+ROOT = path.abspath(path.dirname(__file__))
+
 ABOUT = {}
-with open("tensorflow_nufft/__about__.py") as f:
+with open(path.join(ROOT, "tensorflow_nufft/__about__.py")) as f:
     exec(f.read(), ABOUT)
 
-with open("README.md", encoding='utf-8') as f:
+with open(path.join(ROOT, "README.md"), encoding='utf-8') as f:
     LONG_DESCRIPTION = f.read()
 
-with open("requirements.txt") as f:
+with open(path.join(ROOT, "requirements.txt")) as f:
     REQUIRED_PACKAGES = [line.strip() for line in f.readlines()]
 
 class install(_install):

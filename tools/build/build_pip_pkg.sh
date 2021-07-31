@@ -71,6 +71,7 @@ function main() {
   cp ${PIP_FILE_PREFIX}setup.py "${TMPDIR}"
   cp ${PIP_FILE_PREFIX}MANIFEST.in "${TMPDIR}"
   cp ${PIP_FILE_PREFIX}LICENSE "${TMPDIR}"
+  cp ${PIP_FILE_PREFIX}README.md "${TMPDIR}"
   cp ${PIP_FILE_PREFIX}requirements.txt "${TMPDIR}"
   rsync -avm -L --exclude='*.h' --exclude='*.cc' --exclude='*.o'              \
     --exclude='*_test.py' --exclude='__pycache__/*'                           \

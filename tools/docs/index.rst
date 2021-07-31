@@ -1,23 +1,20 @@
-.. tensorflow-nufft documentation master file, created by
-   sphinx-quickstart on Thu Jul 22 01:18:58 2021.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+Welcome to TensorFlow NUFFT
+===========================
 
-TensorFlow NUFFT Documentation
-==========================================
+.. include:: ../../README.rst
+   :start-after: start-intro
+   :end-before: end-intro
+
+Installation
+------------
+
+.. include:: ../../README.rst
+   :start-after: start-install
+   :end-before: end-install
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :maxdepth: 1
+   :caption: API Documentation
+   :hidden:
 
-.. automodule:: tensorflow_nufft
-   :imported-members:
-   :members:
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   nufft

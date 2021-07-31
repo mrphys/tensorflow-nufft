@@ -1,8 +1,0 @@
-*.egg-info
-*.o
-*.pyc
-*.so
-
-__pycache__/
-artifacts/
-tools/docs/_*

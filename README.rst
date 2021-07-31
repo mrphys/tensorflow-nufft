@@ -22,8 +22,8 @@ TensorFlow. It provides:
 * Shape functions to support static shape inference.
 
 The underlying NUFFT implementation is that of the Flatiron Institute. Please
-see the repositories [FINUFFT](https://github.com/flatironinstitute/finufft) and
-[cuFINUFFT](https://github.com/flatironinstitute/cufinufft) repositories for
+refer to the `FINUFFT <https://github.com/flatironinstitute/finufft/>`_ and
+`cuFINUFFT <https://github.com/flatironinstitute/cufinufft/>`_ repositories for
 details.
 
 .. end-intro

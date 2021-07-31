@@ -28,7 +28,7 @@ pip install tensorflow-nufft
 Note that only Linux binaries are currently being provided.
 
 ## Example
-For usage examples, see [examples](examples). 
+For usage examples, see [examples](tools/examples). 
 
 ## Cite this
 

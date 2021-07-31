@@ -43,7 +43,7 @@ jobs:
 
       - name: Get package version
         run: |
-          echo "package_version=$(cat ./VERSION)" >> $GITHUB_ENV
+          echo "version=$(grep -oP "(?<=__version__ = \").*(?=\")" tensorflow_nufft/__about__.py)" >> $GITHUB_ENV
 
       - name: Setup Buildx action
         uses: docker/setup-buildx-action@v1
@@ -61,8 +61,8 @@ jobs:
           context: .
           file: ./tools/docker/build_env.Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}:${{ env.package_version }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:${{ env.package_version }}
+          tags: ghcr.io/${{ github.repository }}:${{ env.version }}
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:${{ env.version }}
           cache-to: type=inline
 
   build-lib:
@@ -77,7 +77,7 @@ jobs:
 
       - name: Get package version
         run: |
-          echo "package_version=$(cat ./VERSION)" >> $GITHUB_ENV
+          echo "version=$(grep -oP "(?<=__version__ = \").*(?=\")" tensorflow_nufft/__about__.py)" >> $GITHUB_ENV
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v1 
@@ -88,7 +88,7 @@ jobs:
 
       - name: Pull Docker image
         run: |
-          docker pull ghcr.io/${{ github.repository }}:${{ env.package_version }}
+          docker pull ghcr.io/${{ github.repository }}:${{ env.version }}
 
       - name: Build shared library
         run: |
@@ -117,7 +117,7 @@ jobs:
       
       - name: Get package version
         run: |
-          echo "package_version=$(cat ./VERSION)" >> $GITHUB_ENV
+          echo "version=$(grep -oP "(?<=__version__ = \").*(?=\")" tensorflow_nufft/__about__.py)" >> $GITHUB_ENV
       
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v1 
@@ -128,7 +128,7 @@ jobs:
 
       - name: Pull Docker image
         run: |
-          docker pull ghcr.io/${{ github.repository }}:${{ env.package_version }}
+          docker pull ghcr.io/${{ github.repository }}:${{ env.version }}
 
       - name: Download shared library
         uses: actions/download-artifact@v2

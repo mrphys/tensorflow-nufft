@@ -1,22 +1,33 @@
-"""TensorFlow NUFFT.
-
-Implementation of the non-uniform Fourier transform in TensorFlow.
-"""
+# Copyright 2021 University College London. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+"""Setup TensorFlow NUFFT."""
 
 from setuptools import find_packages
 from setuptools import setup
 from setuptools.dist import Distribution
 from setuptools.command.install import install as _install
 
-PROJECT_NAME = 'tensorflow-nufft'
+ABOUT = {}
+with open("tensorflow_nufft/__about__.py") as f:
+    exec(f.read(), ABOUT)
 
-with open('VERSION') as version_file:
-    VERSION = version_file.read().strip()
+with open("README.md", encoding='utf-8') as f:
+    LONG_DESCRIPTION = f.read()
 
 with open("requirements.txt") as f:
     REQUIRED_PACKAGES = [line.strip() for line in f.readlines()]
-
-DOCLINES = __doc__.split('\n')
 
 class install(_install):
 
@@ -33,14 +44,14 @@ class BinaryDistribution(Distribution):
         return False
 
 setup(
-    name=PROJECT_NAME,
-    version=VERSION,
-    description=DOCLINES[0],
-    long_description='\n'.join(DOCLINES[2:]),
+    name=ABOUT['__title__'],
+    version=ABOUT['__version__'],
+    description=ABOUT['__summary__'],
+    long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
-    author='Javier Montalt-Tordera',
-    author_email='javier.tordera.17@ucl.ac.uk',
-    url='https://github.com/mrphys/tensorflow_nufft',
+    author=ABOUT['__author__'],
+    author_email=ABOUT['__email__'],
+    url=ABOUT['__uri__'],
     packages=find_packages(),
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -60,7 +71,7 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules'
     ],
     distclass=BinaryDistribution,
-    license="Apache 2.0",
+    license=ABOUT['__license__'],
     keywords=['tensorflow', 'nufft'],
     cmdclass={'install': install},
     include_package_data=True,

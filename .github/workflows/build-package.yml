@@ -102,7 +102,7 @@ jobs:
 
       - name: Clean docs branch
         run: |
-          rm -r ./*
+          rm -rf ./*
 
       - name: Download docs
         uses: actions/download-artifact@v2

@@ -4,11 +4,11 @@ TensorFlow NUFFT
 |pypi| |build| |docs|
 
 .. |pypi| image:: https://badge.fury.io/py/tensorflow-nufft.svg
-    :target: https://github.com/mrphys/tensorflow-nufft/actions/workflows/build-package.yml
+    :target: https://badge.fury.io/py/tensorflow-nufft
 .. |build| image:: https://github.com/mrphys/tensorflow-nufft/actions/workflows/build-package.yml/badge.svg
     :target: https://github.com/mrphys/tensorflow-nufft/actions/workflows/build-package.yml
 .. |docs| image:: https://img.shields.io/badge/api-reference-blue.svg
-    :target: https://mrphys.github.io/tensorflow-nufft/
+    :target: https://mrphys.github.io/tensorflow-nufft
 
 .. start-intro
 

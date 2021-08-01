@@ -108,6 +108,9 @@ jobs:
       #     git diff --quiet && git diff --staged --quiet || git commit -am 'CI/CD - Update docs'
       #     git push --force
       
+      - name: Checkout master
+        uses: actions/checkout@v2
+
       - name: Get release tag
         run: |
           echo "release=${GITHUB_REF/refs\/tags\/v/}" >> $GITHUB_ENV

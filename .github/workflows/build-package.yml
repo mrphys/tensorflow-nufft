@@ -105,7 +105,8 @@ jobs:
         run: |
           git config --global user.name mrphys
           git config --global user.email mrphys@users.noreply.github.com
-          git diff --quiet && git diff --staged --quiet || git commit -am 'CI/CD - Update docs'
+          git add -A
+          git commit -m "CI/CD - Update docs" || echo "No changes to commit."
           git push --force
 
       - name: Checkout master
@@ -127,6 +128,7 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: wheels
+          path: artifacts/
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

@@ -12,102 +12,102 @@ on:
 
 jobs:
 
-  # build:
+  build:
 
-  #   name: Build package
-  #   runs-on: ubuntu-latest
+    name: Build package
+    runs-on: ubuntu-latest
     
-  #   container:
-  #     image: ghcr.io/mrphys/tensorflow-manylinux:1.2.0
+    container:
+      image: ghcr.io/mrphys/tensorflow-manylinux:1.2.0
 
-  #   strategy:
-  #     matrix:
-  #       py_version: [3.6, 3.7, 3.8, 3.9]
+    strategy:
+      matrix:
+        py_version: [3.6, 3.7, 3.8, 3.9]
 
-  #   env:
-  #     PYTHON: python${{ matrix.py_version }}
+    env:
+      PYTHON: python${{ matrix.py_version }}
 
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v2
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-  #     - name: Lint code
-  #       run: |
-  #         make lint PY_VERSION=${{ matrix.py_version }}
+      - name: Lint code
+        run: |
+          make lint PY_VERSION=${{ matrix.py_version }}
 
-  #     - name: Compile shared library
-  #       run: |
-  #         make PY_VERSION=${{ matrix.py_version }} CXX=/dt7/usr/bin/g++
+      - name: Compile shared library
+        run: |
+          make PY_VERSION=${{ matrix.py_version }} CXX=/dt7/usr/bin/g++
 
-  #     - name: Install required packages
-  #       run: |
-  #         $PYTHON -m pip install -r requirements.txt
+      - name: Install required packages
+        run: |
+          $PYTHON -m pip install -r requirements.txt
 
-  #     - name: Run test suite
-  #       run: |
-  #         make test PY_VERSION=${{ matrix.py_version }}
+      - name: Run test suite
+        run: |
+          make test PY_VERSION=${{ matrix.py_version }}
 
-  #     - name: Build wheel
-  #       run: |
-  #         make wheel PY_VERSION=${{ matrix.py_version }}
+      - name: Build wheel
+        run: |
+          make wheel PY_VERSION=${{ matrix.py_version }}
 
-  #     - name: Upload wheel
-  #       if: startsWith(github.ref, 'refs/tags')
-  #       uses: actions/upload-artifact@v2
-  #       with:
-  #         name: wheels
-  #         path: ./artifacts/*.whl
+      - name: Build docs
+        run: |
+          make docs PY_VERSION=${{ matrix.py_version }}
+      
+      - name: Upload wheel
+        if: startsWith(github.ref, 'refs/tags')
+        uses: actions/upload-artifact@v2
+        with:
+          name: wheels
+          path: ./artifacts/*.whl
 
-  #     - name: Build docs
-  #       run: |
-  #         make docs PY_VERSION=${{ matrix.py_version }}
+      - name: Upload docs
+        if: startsWith(github.ref, 'refs/tags') && matrix.py_version == 3.9
+        uses: actions/upload-artifact@v2
+        with:
+          name: docs
+          path: ./tools/docs/_build/html
 
-  #     - name: Upload docs
-  #       if: startsWith(github.ref, 'refs/tags') && matrix.py_version == 3.9
-  #       uses: actions/upload-artifact@v2
-  #       with:
-  #         name: docs
-  #         path: ./tools/docs/_build/html
-
-  #     - name: Publish to Test PyPI
-  #       uses: pypa/gh-action-pypi-publish@release/v1
-  #       with:
-  #         password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-  #         repository_url: https://test.pypi.org/legacy/
-  #         packages_dir: artifacts/
-  #         skip_existing: true
+      - name: Publish to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
+          packages_dir: artifacts/
+          skip_existing: true
 
 
   release:
     
     name: Release
-    # needs: build
+    needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags')
     
     steps:
 
-      # - name: Checkout docs branch
-      #   uses: actions/checkout@v2
-      #   with:
-      #     ref: docs
+      - name: Checkout docs branch
+        uses: actions/checkout@v2
+        with:
+          ref: docs
 
-      # - name: Clean docs branch
-      #   run: |
-      #     rm -rf ./*
+      - name: Clean docs branch
+        run: |
+          rm -rf ./*
 
-      # - name: Download docs
-      #   uses: actions/download-artifact@v2
-      #   with:
-      #     name: docs
+      - name: Download docs
+        uses: actions/download-artifact@v2
+        with:
+          name: docs
 
-      # - name: Publish docs to GitHub Pages
-      #   run: |
-      #     git config --global user.name mrphys
-      #     git config --global user.email mrphys@users.noreply.github.com
-      #     git diff --quiet && git diff --staged --quiet || git commit -am 'CI/CD - Update docs'
-      #     git push --force
-      
+      - name: Publish docs to GitHub Pages
+        run: |
+          git config --global user.name mrphys
+          git config --global user.email mrphys@users.noreply.github.com
+          git diff --quiet && git diff --staged --quiet || git commit -am 'CI/CD - Update docs'
+          git push --force
+
       - name: Checkout master
         uses: actions/checkout@v2
 
@@ -122,14 +122,14 @@ jobs:
           body_path: RELEASE.rst
           prerelease: ${{ contains(env.release, 'a') || contains(env.release, 'b') || contains(env.release, 'rc') }}
           fail_on_unmatched_files: true
-      
-      # - name: Download wheels
-      #   uses: actions/download-artifact@v2
-      #   with:
-      #     name: wheels
 
-      # - name: Publish to PyPI
-      #   uses: pypa/gh-action-pypi-publish@release/v1
-      #   with:
-      #     password: ${{ secrets.PYPI_API_TOKEN }}
-      #     packages_dir: artifacts/
+      - name: Download wheels
+        uses: actions/download-artifact@v2
+        with:
+          name: wheels
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages_dir: artifacts/

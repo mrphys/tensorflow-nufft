@@ -28,7 +28,7 @@ __title__ = "tensorflow-nufft"
 __summary__ = "A fast, native non-uniform FFT op for TensorFlow."
 __uri__ = "https://github.com/mrphys/tensorflow-nufft"
 
-__version__ = "0.2.0a1"
+__version__ = "0.2.0a2"
 
 __author__ = "Javier Montalt Tordera"
 __email__ = "javier.montalt@outlook.com"

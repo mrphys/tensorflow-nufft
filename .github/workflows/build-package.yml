@@ -97,7 +97,7 @@ jobs:
         with:
           name: TensorFlow NUFFT ${{ env.version }}
           body_path: RELEASE.rst
-          prerelease: ${{ contains(env.version, 'a') || contains(env.version, 'a') || contains(env.version, 'rc') }}
+          prerelease: ${{ contains(env.version, 'a') || contains(env.version, 'b') || contains(env.version, 'rc') }}
           fail_on_unmatched_files: true
 
   publish-docs:

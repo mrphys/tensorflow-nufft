@@ -134,6 +134,63 @@ class NUFFTOpsTest(tf.test.TestCase):
                           rtol=epsilon, atol=epsilon)
 
 
+  def test_static_shape(self): # pylint: disable=missing-function-docstring
+
+    tf.compat.v1.disable_v2_behavior()
+    self._assert_static_shapes([100, 100], [1000, 2], [1000])
+    self._assert_static_shapes([100, 100], [None, 2], [None])
+    self._assert_static_shapes([None, None], [None, 2], [None])
+    self._assert_static_shapes([None, None], [None, None], None)
+    self._assert_static_shapes([8, 100, 100], [1000, 2], [8, 1000])
+    self._assert_static_shapes([8, 100, 100], [None, 1000, 2], [8, 1000])
+    self._assert_static_shapes([None, 100, 100], [None, 1000, 2], [None, 1000])
+    self._assert_static_shapes([60, 100, 100], [1000, 3], [1000])
+
+    self._assert_static_shapes([None, 40, 1000], [None, 1000, 2],
+                               [None, 40, 200, 200], 'type_1', [200, 200])
+    self._assert_static_shapes([None, None], [None, 1000, 2],
+                               [None, 100, 200], 'type_1', [100, 200])
+
+    self._assert_static_raises([None, 40, 1000], [None, 1000, 2], 'type_1',
+                               regex="grid_shape attr must be fully defined")
+    self._assert_static_raises([8, 100, 100], [6, 1000, 2],
+                               regex="Dimensions must be equal")
+    self._assert_static_raises([50, 50, 50, 50], [500, 4],
+                               regex="Dimension must be 1, 2 or 3")
+
+
+  def _assert_static_shapes(self, source_shape, points_shape, target_shape, # pylint: disable=missing-function-docstring
+                            transform_type='type_2', grid_shape=None):
+
+    source = tf.compat.v1.placeholder(tf.complex64, source_shape)
+    points = tf.compat.v1.placeholder(tf.float32, points_shape)
+    target = nufft_ops.nufft(source, points,
+                             transform_type=transform_type,
+                             grid_shape=grid_shape)
+    if target.shape.rank is not None:
+      self.assertEqual(target.shape.as_list(), target_shape)
+    else:
+      self.assertEqual(target_shape, None)
+
+
+  def _assert_static_raises(self, source_shape, points_shape, # pylint: disable=missing-function-docstring
+                            transform_type='type_2', grid_shape=None,
+                            regex=None):
+
+    source = tf.compat.v1.placeholder(tf.complex64, source_shape)
+    points = tf.compat.v1.placeholder(tf.float32, points_shape)
+    if regex is not None:
+      with self.assertRaisesRegex(ValueError, regex):
+        nufft_ops.nufft(source, points,
+                        transform_type=transform_type,
+                        grid_shape=grid_shape)
+    else:
+      with self.assertRaises(ValueError):
+        nufft_ops.nufft(source, points,
+                        transform_type=transform_type,
+                        grid_shape=grid_shape)
+
+
 class NUFFTOpsBenchmark(tf.test.Benchmark):
   """Benchmark for NUFFT functions."""
 

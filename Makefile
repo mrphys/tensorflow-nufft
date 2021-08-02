@@ -24,7 +24,7 @@ CUDA_INCLUDE = /usr/local/cuda/targets/x86_64-linux/include
 CUDA_LIBDIR = /usr/local/cuda/targets/x86_64-linux/lib
 
 CUDA ?= 1
-CFLAGS = -O3 -march=x86-64 -mtune=generic -mavx2
+CFLAGS = -O3 -march=x86-64 -mtune=generic
 
 -include make.inc
 
@@ -87,5 +87,6 @@ clean:
 	rm -f $(TARGET_LIB)
 	rm -f $(TARGET_DLINK)
 	rm -f $(CUOBJECTS)
+	rm -rf artifacts/
 
 .PHONY: all lib wheel test benchmark lint docs clean

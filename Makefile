@@ -40,7 +40,19 @@ ifeq ($(CUDA), 1)
 CXXFLAGS += -I$(CUDA_INCLUDE)
 endif
 
-CUFLAGS = -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-constexpr
+NVARCH ?= \
+	-gencode=arch=compute_35,code=sm_35 \
+	-gencode=arch=compute_50,code=sm_50 \
+	-gencode=arch=compute_52,code=sm_52 \
+	-gencode=arch=compute_60,code=sm_60 \
+	-gencode=arch=compute_61,code=sm_61 \
+	-gencode=arch=compute_70,code=sm_70 \
+	-gencode=arch=compute_75,code=sm_75 \
+	-gencode=arch=compute_80,code=sm_80 \
+	-gencode=arch=compute_86,code=sm_86 \
+	-gencode=arch=compute_86,code=compute_86
+
+CUFLAGS = $(NVARCH) -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-constexpr
 CUFLAGS += -I$(CUFINUFFT_INCLUDE)
 
 LDFLAGS = $(TF_LDFLAGS)
@@ -60,10 +72,10 @@ all: lib wheel
 lib: $(TARGET_LIB)
 
 %.cu.o: %.cu.cc
-	$(NVCC) -ccbin $(CXX) -arch=sm_61 -dc -x cu $(CUFLAGS) -o $@ -c $<
+	$(NVCC) -ccbin $(CXX) -dc -x cu $(CUFLAGS) -o $@ -c $<
 
 $(TARGET_DLINK): $(CUOBJECTS)
-	$(NVCC) -ccbin $(CXX) -arch=sm_61 -dlink $(CUFLAGS) -o $@ $^
+	$(NVCC) -ccbin $(CXX) -dlink $(CUFLAGS) -o $@ $^
 
 $(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK)
 	$(CXX) -shared $(CXXFLAGS) -o $@ $^ $(LDFLAGS)

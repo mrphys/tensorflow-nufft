@@ -1,5 +1,5 @@
-Non-Uniform Fast Fourier Transform
-==================================
+Non-Uniform FFT
+===============
 
 Reference
 ---------

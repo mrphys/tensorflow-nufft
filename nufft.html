@@ -3,10 +3,10 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="prev" title="Welcome to TensorFlow NUFFT" href="index.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Example: MRI Application" href="examples/mri_app.html" /><link rel="prev" title="Welcome to TensorFlow NUFFT" href="index.html" />
 
     <meta name="generator" content="sphinx-4.1.2, furo 2021.07.31.beta41"/>
-        <title>Non-Uniform Fast Fourier Transform - tensorflow-nufft 0.2.0a4 documentation</title>
+        <title>Non-Uniform FFT - tensorflow-nufft 0.2.0b0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=daa650a7760fac3eee23aa959745d2c866b74cb3" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=93475b62d1c3bc01323a0eefdc14a62d77b12690" />
@@ -121,7 +121,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">tensorflow-nufft 0.2.0a4 documentation</div></a>
+      <a href="index.html"><div class="brand">tensorflow-nufft 0.2.0b0 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -144,7 +144,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">tensorflow-nufft 0.2.0a4 documentation</span>
+  <span class="sidebar-brand-text">tensorflow-nufft 0.2.0b0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -154,7 +154,11 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">API Documentation</span></p>
 <ul class="current">
-<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Non-Uniform Fast Fourier Transform</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Non-Uniform FFT</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Examples</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="examples/mri_app.html">Example: MRI Application</a></li>
 </ul>
 
 </div>
@@ -180,28 +184,80 @@
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <section id="non-uniform-fast-fourier-transform">
-<h1>Non-Uniform Fast Fourier Transform<a class="headerlink" href="#non-uniform-fast-fourier-transform" title="Permalink to this headline">¶</a></h1>
+        <section id="non-uniform-fft">
+<h1>Non-Uniform FFT<a class="headerlink" href="#non-uniform-fft" title="Permalink to this headline">¶</a></h1>
 <section id="reference">
 <h2>Reference<a class="headerlink" href="#reference" title="Permalink to this headline">¶</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="tensorflow_nufft.nufft">
 <span class="sig-prename descclassname"><span class="pre">tensorflow_nufft.</span></span><span class="sig-name descname"><span class="pre">nufft</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">points</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'type_2'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j_sign</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'negative'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">epsilon</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_shape</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tensorflow_nufft.nufft" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute the non-uniform fast Fourier transform.</p>
+<dd><p>Compute the non-uniform discrete Fourier transform via non-uniform FFT.</p>
+<p>This op supports 1D, 2D and 3D type-1 and type-2 transforms.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>1D transforms are only supported on the CPU.</p>
+</div>
+<dl class="footnote brackets">
+<dt class="label" id="id1"><span class="brackets">1</span></dt>
+<dd><p>Barnett, A.H., Magland, J. and Klinteberg, L. af (2019), A parallel
+nonuniform fast Fourier transform library based on an “exponential of
+semicircle” kernel. SIAM J. Sci. Comput., 41(5): C479–C504.
+<a class="reference external" href="https://doi.org/10.1137/18M120885X">https://doi.org/10.1137/18M120885X</a></p>
+</dd>
+<dt class="label" id="id2"><span class="brackets">2</span></dt>
+<dd><p>Shih Y., Wright G., Anden J., Blaschke J. and Barnett A.H. (2021),
+cuFINUFFT: a load-balanced GPU library for general-purpose nonuniform FFTs.
+2021 IEEE International Parallel and Distributed Processing Symposium
+Workshops (IPDPSW), 688–697 <a class="reference external" href="https://doi.org/10.1109/IPDPSW52791.2021.00105">https://doi.org/10.1109/IPDPSW52791.2021.00105</a></p>
+</dd>
+</dl>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>source</strong> – A <cite>Tensor</cite>. Must be one of the following types: <cite>complex64</cite>, <cite>complex128</cite>.</p></li>
-<li><p><strong>points</strong> – A <cite>Tensor</cite>. Must be one of the following types: <cite>float32</cite>, <cite>float64</cite>.</p></li>
-<li><p><strong>transform_type</strong> – An optional <cite>string</cite> from: <cite>“type_1”, “type_2”</cite>. Defaults to <cite>“type_2”</cite>.</p></li>
-<li><p><strong>j_sign</strong> – An optional <cite>string</cite> from: <cite>“positive”, “negative”</cite>. Defaults to <cite>“negative”</cite>.</p></li>
-<li><p><strong>epsilon</strong> – An optional <cite>float</cite>. Defaults to <cite>1e-06</cite>.</p></li>
-<li><p><strong>grid_shape</strong> – An optional <cite>tf.TensorShape</cite> or list of <cite>ints</cite>. Defaults to <cite>None</cite>.</p></li>
+<li><p><strong>source</strong> – A <code class="docutils literal notranslate"><span class="pre">Tensor</span></code>. Must be one of the following types: <code class="docutils literal notranslate"><span class="pre">complex64</span></code>, <code class="docutils literal notranslate"><span class="pre">complex128</span></code>.
+The source grid, for type-2 transforms, or the source point set, for
+type-1 transforms. If <code class="docutils literal notranslate"><span class="pre">transform_type</span></code> is <code class="docutils literal notranslate"><span class="pre">"type_2"</span></code>, <code class="docutils literal notranslate"><span class="pre">source</span></code> must have shape
+<code class="docutils literal notranslate"><span class="pre">[...]</span> <span class="pre">+</span> <span class="pre">grid_shape</span></code>, where <code class="docutils literal notranslate"><span class="pre">grid_shape</span></code> is the shape of the grid and <code class="docutils literal notranslate"><span class="pre">...</span></code> is
+any number of batch dimensions. <code class="docutils literal notranslate"><span class="pre">grid_shape</span></code> must have rank 1, 2 or 3. If
+<code class="docutils literal notranslate"><span class="pre">transform_type</span></code> is <code class="docutils literal notranslate"><span class="pre">"type_1"</span></code>, <code class="docutils literal notranslate"><span class="pre">source</span></code> must have shape <code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">M]</span></code>, where <code class="docutils literal notranslate"><span class="pre">M</span></code>
+is the number of non-uniform points and <code class="docutils literal notranslate"><span class="pre">...</span></code> is any number of batch
+dimensions.</p></li>
+<li><p><strong>points</strong> – A <code class="docutils literal notranslate"><span class="pre">Tensor</span></code>. Must be one of the following types: <code class="docutils literal notranslate"><span class="pre">float32</span></code>, <code class="docutils literal notranslate"><span class="pre">float64</span></code>.
+The target non-uniform point coordinates, for type-2 transforms, or the
+source non-uniform point coordinates, for type-1 transforms. Must have shape
+<code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">M,</span> <span class="pre">N]</span></code>, where <code class="docutils literal notranslate"><span class="pre">M</span></code> is the number of non-uniform points, <code class="docutils literal notranslate"><span class="pre">N</span></code> is the rank
+of the grid and <code class="docutils literal notranslate"><span class="pre">...</span></code> is any number of batch dimensions, which must be
+broadcastable with the batch dimensions of <code class="docutils literal notranslate"><span class="pre">source</span></code>. <code class="docutils literal notranslate"><span class="pre">N</span></code> must be 1, 2 or 3 and
+must be equal to the rank of <code class="docutils literal notranslate"><span class="pre">grid_shape</span></code>. The non-uniform coordinates must be
+in units of radians/pixel, i.e., in the range <code class="docutils literal notranslate"><span class="pre">[-pi,</span> <span class="pre">pi]</span></code>.</p></li>
+<li><p><strong>transform_type</strong> – An optional <code class="docutils literal notranslate"><span class="pre">string</span></code> from: <code class="docutils literal notranslate"><span class="pre">"type_1",</span> <span class="pre">"type_2"</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">"type_2"</span></code>.
+The type of the transform. A type-2 transform evaluates the DFT
+on a set of arbitrary points given points on a grid (uniform to non-uniform).
+A type-1 transform evaluates the DFT on grid points given a set of arbitrary
+points (non-uniform to uniform).</p></li>
+<li><p><strong>j_sign</strong> – An optional <code class="docutils literal notranslate"><span class="pre">string</span></code> from: <code class="docutils literal notranslate"><span class="pre">"positive",</span> <span class="pre">"negative"</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">"negative"</span></code>.
+The sign of the imaginary unit in the exponential. Use a negative sign
+to evaluate frequency domain points given a signal domain source. Use a
+positive sign to evaluate signal domain points given a frequency domain
+source.</p></li>
+<li><p><strong>epsilon</strong> – An optional <code class="docutils literal notranslate"><span class="pre">float</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">1e-06</span></code>.
+The desired relative precision. Should be in the range <code class="docutils literal notranslate"><span class="pre">[1e-06,</span> <span class="pre">1e-01]</span></code>
+for <code class="docutils literal notranslate"><span class="pre">complex64</span></code> types and <code class="docutils literal notranslate"><span class="pre">[1e-14,</span> <span class="pre">1e-01]</span></code> for <code class="docutils literal notranslate"><span class="pre">complex128</span></code> types. The
+computation may take longer for smaller values.</p></li>
+<li><p><strong>grid_shape</strong> – An optional <code class="docutils literal notranslate"><span class="pre">tf.TensorShape</span></code> or list of <code class="docutils literal notranslate"><span class="pre">ints</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">None</span></code>.
+The shape of the output grid. This argument is required for type-1
+transforms and ignored for type-2 transforms.</p></li>
 <li><p><strong>name</strong> – A name for the operation (optional).</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
-<dd class="field-even"><p>A <cite>Tensor</cite>. Has the same type as <cite>source</cite>.</p>
+<dd class="field-even"><p>A <code class="docutils literal notranslate"><span class="pre">Tensor</span></code>. Has the same type as <code class="docutils literal notranslate"><span class="pre">source</span></code>.
+The target point set, for type-2 transforms, or the target grid, for
+type-1 transforms. If <code class="docutils literal notranslate"><span class="pre">transform_type</span></code> is <code class="docutils literal notranslate"><span class="pre">"type_2"</span></code>, the output has shape
+<code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">M,</span> <span class="pre">N]</span></code>, where the batch shape <code class="docutils literal notranslate"><span class="pre">...</span></code> is the result of broadcasting the
+batch shapes of <code class="docutils literal notranslate"><span class="pre">source</span></code> and <code class="docutils literal notranslate"><span class="pre">points</span></code>. If <code class="docutils literal notranslate"><span class="pre">transform_type</span></code> is <code class="docutils literal notranslate"><span class="pre">"type_1"</span></code>, the
+output has shape <code class="docutils literal notranslate"><span class="pre">[...]</span> <span class="pre">+</span> <span class="pre">grid_shape</span></code>, where the batch shape <code class="docutils literal notranslate"><span class="pre">...</span></code> is the
+result of broadcasting the batch shapes of <code class="docutils literal notranslate"><span class="pre">source</span></code> and <code class="docutils literal notranslate"><span class="pre">points</span></code>.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -212,7 +268,15 @@
       <footer>
         
         <div class="related-pages">
-          
+          <a class="next-page" href="examples/mri_app.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Example: MRI Application</div>
+              </div>
+              <svg><use href="#svg-arrow-right"></use></svg>
+            </a>
           <a class="prev-page" href="index.html">
               <svg><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
@@ -254,7 +318,7 @@
         <div class="toc-tree-container">
           <div class="toc-tree">
             <ul>
-<li><a class="reference internal" href="#">Non-Uniform Fast Fourier Transform</a><ul>
+<li><a class="reference internal" href="#">Non-Uniform FFT</a><ul>
 <li><a class="reference internal" href="#reference">Reference</a></li>
 </ul>
 </li>
@@ -272,5 +336,6 @@
     <script src="_static/underscore.js"></script>
     <script src="_static/doctools.js"></script>
     <script src="_static/scripts/main.js"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     </body>
 </html>

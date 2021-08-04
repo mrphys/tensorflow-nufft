@@ -68,7 +68,8 @@ html_static_path = []
 
 
 def md_to_rst(app, what, name, obj, options, lines):
-    
+    """Convert some markdown syntax to reStructuredText."""
+
     # Replace markdown literal markers (`) by ReST literal markers (``).
     myst = '\n'.join(lines)
     text = myst.replace('`', '``')

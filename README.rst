@@ -53,9 +53,11 @@ Contributions
 -------------
 
 If you use this package and something does not work as you expected, please
-file an issue describing your problem. We will do our best to help.
+`file an issue <https://github.com/mrphys/tensorflow-nufft/issues/new>`_
+describing your problem. We will do our best to help.
 
-If you would like to make a contribution, please create a pull request.
+Contributions are very welcome. Please create a pull request if you would like
+to make a contribution.
 
 Citation
 --------

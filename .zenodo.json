@@ -3,7 +3,7 @@
 
     "description": "A fast, native non-uniform FFT op for TensorFlow.",
 
-    "keywords": ["TensorFlow", "NUFFT", "Non-Uniform Fast Fourier Transform", "MRI", "Magnetic Resonance Imaging", "ML", "Machine Learning", "Python"],
+    "keywords": ["TensorFlow", "NUFFT", "Non-Uniform Fast Fourier Transform", "ML", "Machine Learning", "Python"],
 
     "upload_type": "software",
     

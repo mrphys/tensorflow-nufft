@@ -135,7 +135,7 @@ REGISTER_OP("NUFFT")
   .Output("target: Tcomplex")
   .Attr("transform_type: {'type_1', 'type_2'} = 'type_2'")
   .Attr("j_sign: {'positive', 'negative'} = 'negative'")
-  .Attr("epsilon: float = 1e-6")
+  .Attr("tol: float = 1e-6")
   .Attr("grid_shape: shape = { unknown_rank: true }")
   .SetShapeFn(NUFFTShapeFn)
   .Doc(R"doc(
@@ -177,9 +177,9 @@ j_sign: The sign of the imaginary unit in the exponential. Use a negative sign
   to evaluate frequency domain points given a signal domain source. Use a
   positive sign to evaluate signal domain points given a frequency domain
   source.
-epsilon: The desired relative precision. Should be in the range `[1e-06, 1e-01]`
+tol: The desired relative precision. Should be in the range `[1e-06, 1e-01]`
   for `complex64` types and `[1e-14, 1e-01]` for `complex128` types. The
-  computation may take longer for smaller values.
+  computation may take longer for smaller values of `tol`.
 grid_shape: The shape of the output grid. This argument is required for type-1
   transforms and ignored for type-2 transforms.
 target: The target point set, for type-2 transforms, or the target grid, for

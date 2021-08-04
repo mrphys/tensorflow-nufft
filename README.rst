@@ -48,3 +48,16 @@ Documentation
 
 Visit the `docs <https://mrphys.github.io/tensorflow-nufft/>`_ for the API
 reference and examples of usage. 
+
+Contributions
+-------------
+
+If you use this package and something does not work as you expected, please
+file an issue describing your problem. We will do our best to help.
+
+If you would like to make a contribution, please create a pull request.
+
+Citation
+--------
+
+If you find this software useful in your work, please cite our Zenodo record.

@@ -40,7 +40,7 @@ def _nufft_grad(op, grad):
   points = op.inputs[1]
   transform_type = op.get_attr('transform_type')
   j_sign = op.get_attr('j_sign')
-  epsilon = op.get_attr('epsilon')
+  tol = op.get_attr('tol')
   rank = points.shape[-1]
 
   # Gradient of type-1 transform is computed using type-2 transform and
@@ -64,7 +64,7 @@ def _nufft_grad(op, grad):
                       points,
                       transform_type=grad_transform_type,
                       j_sign=grad_j_sign,
-                      epsilon=epsilon,
+                      tol=tol,
                       grid_shape=grad_grid_shape)
 
   # Handle broadcasting.

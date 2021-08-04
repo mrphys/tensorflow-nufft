@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Example: MRI Application" href="examples/mri_app.html" /><link rel="prev" title="Welcome to TensorFlow NUFFT" href="index.html" />
 
     <meta name="generator" content="sphinx-4.1.2, furo 2021.07.31.beta41"/>
-        <title>Non-Uniform FFT - tensorflow-nufft 0.2.0b0 documentation</title>
+        <title>Non-Uniform FFT - tensorflow-nufft 0.2.0b1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=daa650a7760fac3eee23aa959745d2c866b74cb3" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=93475b62d1c3bc01323a0eefdc14a62d77b12690" />
@@ -121,7 +121,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">tensorflow-nufft 0.2.0b0 documentation</div></a>
+      <a href="index.html"><div class="brand">tensorflow-nufft 0.2.0b1 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -144,7 +144,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
   
-  <span class="sidebar-brand-text">tensorflow-nufft 0.2.0b0 documentation</span>
+  <span class="sidebar-brand-text">tensorflow-nufft 0.2.0b1 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -190,7 +190,7 @@
 <h2>Reference<a class="headerlink" href="#reference" title="Permalink to this headline">¶</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="tensorflow_nufft.nufft">
-<span class="sig-prename descclassname"><span class="pre">tensorflow_nufft.</span></span><span class="sig-name descname"><span class="pre">nufft</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">points</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'type_2'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j_sign</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'negative'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">epsilon</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_shape</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tensorflow_nufft.nufft" title="Permalink to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">tensorflow_nufft.</span></span><span class="sig-name descname"><span class="pre">nufft</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">points</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'type_2'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j_sign</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'negative'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_shape</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tensorflow_nufft.nufft" title="Permalink to this definition">¶</a></dt>
 <dd><p>Compute the non-uniform discrete Fourier transform via non-uniform FFT.</p>
 <p>This op supports 1D, 2D and 3D type-1 and type-2 transforms.</p>
 <div class="admonition note">
@@ -240,10 +240,10 @@ The sign of the imaginary unit in the exponential. Use a negative sign
 to evaluate frequency domain points given a signal domain source. Use a
 positive sign to evaluate signal domain points given a frequency domain
 source.</p></li>
-<li><p><strong>epsilon</strong> – An optional <code class="docutils literal notranslate"><span class="pre">float</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">1e-06</span></code>.
+<li><p><strong>tol</strong> – An optional <code class="docutils literal notranslate"><span class="pre">float</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">1e-06</span></code>.
 The desired relative precision. Should be in the range <code class="docutils literal notranslate"><span class="pre">[1e-06,</span> <span class="pre">1e-01]</span></code>
 for <code class="docutils literal notranslate"><span class="pre">complex64</span></code> types and <code class="docutils literal notranslate"><span class="pre">[1e-14,</span> <span class="pre">1e-01]</span></code> for <code class="docutils literal notranslate"><span class="pre">complex128</span></code> types. The
-computation may take longer for smaller values.</p></li>
+computation may take longer for smaller values of <code class="docutils literal notranslate"><span class="pre">tol</span></code>.</p></li>
 <li><p><strong>grid_shape</strong> – An optional <code class="docutils literal notranslate"><span class="pre">tf.TensorShape</span></code> or list of <code class="docutils literal notranslate"><span class="pre">ints</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">None</span></code>.
 The shape of the output grid. This argument is required for type-1
 transforms and ignored for type-2 transforms.</p></li>

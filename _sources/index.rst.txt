@@ -13,11 +13,11 @@ Installation
    :end-before: end-install
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: API Documentation
    :hidden:
 
-   nufft
+   nufft_ops
 
 .. toctree::
    :maxdepth: 1

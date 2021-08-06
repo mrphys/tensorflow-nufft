@@ -1,0 +1,6 @@
+﻿tfft.interp
+===========
+
+.. currentmodule:: tfft
+
+.. autofunction:: interp

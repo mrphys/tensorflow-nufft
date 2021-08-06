@@ -1,0 +1,6 @@
+﻿tfft.nufft
+==========
+
+.. currentmodule:: tfft
+
+.. autofunction:: nufft

@@ -3,13 +3,13 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Example: MRI Application" href="examples/mri_app.html" /><link rel="prev" title="Welcome to TensorFlow NUFFT" href="index.html" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="tfft.interp" href="tfft.interp.html" /><link rel="prev" title="NUFFT" href="../nufft_ops.html" />
 
     <meta name="generator" content="sphinx-4.1.2, furo 2021.07.31.beta41"/>
-        <title>Non-Uniform FFT - tensorflow-nufft 0.2.0b1 documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=daa650a7760fac3eee23aa959745d2c866b74cb3" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=93475b62d1c3bc01323a0eefdc14a62d77b12690" />
+        <title>tfft.nufft - tensorflow-nufft 0.3.0b0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=daa650a7760fac3eee23aa959745d2c866b74cb3" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=93475b62d1c3bc01323a0eefdc14a62d77b12690" />
     
     
 
@@ -33,7 +33,7 @@
     }
   }
 </style>
-    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="_static/pygments_dark.css"></head>
+    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="../_static/pygments_dark.css"></head>
   <body>
     
 <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
@@ -121,7 +121,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="index.html"><div class="brand">tensorflow-nufft 0.2.0b1 documentation</div></a>
+      <a href="../index.html"><div class="brand">tensorflow-nufft 0.3.0b0 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -132,7 +132,7 @@
           <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
         </button>
       </div>
-      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
         <div class="visually-hidden">Toggle table of contents sidebar</div>
         <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
       </label>
@@ -141,12 +141,12 @@
   <aside class="sidebar-drawer">
     <div class="sidebar-container">
       
-      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
   
   
-  <span class="sidebar-brand-text">tensorflow-nufft 0.2.0b1 documentation</span>
+  <span class="sidebar-brand-text">tensorflow-nufft 0.3.0b0 documentation</span>
   
-</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+</a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
   <input type="hidden" name="check_keywords" value="yes">
   <input type="hidden" name="area" value="default">
@@ -154,11 +154,17 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">API Documentation</span></p>
 <ul class="current">
-<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Non-Uniform FFT</a></li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="../nufft_ops.html">NUFFT</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">tfft.nufft</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tfft.interp.html">tfft.interp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tfft.spread.html">tfft.spread</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tfft.nudft.html">tfft.nudft</a></li>
+</ul>
+</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Examples</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="examples/mri_app.html">Example: MRI Application</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples/mri_app.html">Example: MRI Application</a></li>
 </ul>
 
 </div>
@@ -179,19 +185,17 @@
               <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
             </button>
           </div>
-          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
             <div class="visually-hidden">Toggle table of contents sidebar</div>
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <section id="non-uniform-fft">
-<h1>Non-Uniform FFT<a class="headerlink" href="#non-uniform-fft" title="Permalink to this headline">¶</a></h1>
-<section id="reference">
-<h2>Reference<a class="headerlink" href="#reference" title="Permalink to this headline">¶</a></h2>
+        <section id="tfft-nufft">
+<h1>tfft.nufft<a class="headerlink" href="#tfft-nufft" title="Permalink to this headline">¶</a></h1>
 <dl class="py function">
-<dt class="sig sig-object py" id="tensorflow_nufft.nufft">
-<span class="sig-prename descclassname"><span class="pre">tensorflow_nufft.</span></span><span class="sig-name descname"><span class="pre">nufft</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">points</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'type_2'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">j_sign</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'negative'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_shape</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tensorflow_nufft.nufft" title="Permalink to this definition">¶</a></dt>
-<dd><p>Compute the non-uniform discrete Fourier transform via non-uniform FFT.</p>
+<dt class="sig sig-object py" id="tfft.nufft">
+<span class="sig-prename descclassname"><span class="pre">tfft.</span></span><span class="sig-name descname"><span class="pre">nufft</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">points</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_shape</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'type_2'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fft_direction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'forward'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tfft.nufft" title="Permalink to this definition">¶</a></dt>
+<dd><p>Compute the non-uniform discrete Fourier transform via NUFFT.</p>
 <p>This op supports 1D, 2D and 3D type-1 and type-2 transforms.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -230,23 +234,22 @@ of the grid and <code class="docutils literal notranslate"><span class="pre">...
 broadcastable with the batch dimensions of <code class="docutils literal notranslate"><span class="pre">source</span></code>. <code class="docutils literal notranslate"><span class="pre">N</span></code> must be 1, 2 or 3 and
 must be equal to the rank of <code class="docutils literal notranslate"><span class="pre">grid_shape</span></code>. The non-uniform coordinates must be
 in units of radians/pixel, i.e., in the range <code class="docutils literal notranslate"><span class="pre">[-pi,</span> <span class="pre">pi]</span></code>.</p></li>
+<li><p><strong>grid_shape</strong> – An optional <code class="docutils literal notranslate"><span class="pre">tf.TensorShape</span></code> or list of <code class="docutils literal notranslate"><span class="pre">ints</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">None</span></code>.
+The shape of the output grid. This argument is required for type-1
+transforms and ignored for type-2 transforms.</p></li>
 <li><p><strong>transform_type</strong> – An optional <code class="docutils literal notranslate"><span class="pre">string</span></code> from: <code class="docutils literal notranslate"><span class="pre">"type_1",</span> <span class="pre">"type_2"</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">"type_2"</span></code>.
 The type of the transform. A type-2 transform evaluates the DFT
 on a set of arbitrary points given points on a grid (uniform to non-uniform).
 A type-1 transform evaluates the DFT on grid points given a set of arbitrary
 points (non-uniform to uniform).</p></li>
-<li><p><strong>j_sign</strong> – An optional <code class="docutils literal notranslate"><span class="pre">string</span></code> from: <code class="docutils literal notranslate"><span class="pre">"positive",</span> <span class="pre">"negative"</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">"negative"</span></code>.
-The sign of the imaginary unit in the exponential. Use a negative sign
-to evaluate frequency domain points given a signal domain source. Use a
-positive sign to evaluate signal domain points given a frequency domain
-source.</p></li>
+<li><p><strong>fft_direction</strong> – An optional <code class="docutils literal notranslate"><span class="pre">string</span></code> from: <code class="docutils literal notranslate"><span class="pre">"forward",</span> <span class="pre">"backward"</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">"forward"</span></code>.
+Defines the sign of the exponent in the formula of the Fourier
+transform. A <code class="docutils literal notranslate"><span class="pre">"forward"</span></code> transform has negative sign and a <code class="docutils literal notranslate"><span class="pre">"backward"</span></code>
+transform has positive sign.</p></li>
 <li><p><strong>tol</strong> – An optional <code class="docutils literal notranslate"><span class="pre">float</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">1e-06</span></code>.
 The desired relative precision. Should be in the range <code class="docutils literal notranslate"><span class="pre">[1e-06,</span> <span class="pre">1e-01]</span></code>
 for <code class="docutils literal notranslate"><span class="pre">complex64</span></code> types and <code class="docutils literal notranslate"><span class="pre">[1e-14,</span> <span class="pre">1e-01]</span></code> for <code class="docutils literal notranslate"><span class="pre">complex128</span></code> types. The
 computation may take longer for smaller values of <code class="docutils literal notranslate"><span class="pre">tol</span></code>.</p></li>
-<li><p><strong>grid_shape</strong> – An optional <code class="docutils literal notranslate"><span class="pre">tf.TensorShape</span></code> or list of <code class="docutils literal notranslate"><span class="pre">ints</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">None</span></code>.
-The shape of the output grid. This argument is required for type-1
-transforms and ignored for type-2 transforms.</p></li>
 <li><p><strong>name</strong> – A name for the operation (optional).</p></li>
 </ul>
 </dd>
@@ -254,7 +257,7 @@ transforms and ignored for type-2 transforms.</p></li>
 <dd class="field-even"><p>A <code class="docutils literal notranslate"><span class="pre">Tensor</span></code>. Has the same type as <code class="docutils literal notranslate"><span class="pre">source</span></code>.
 The target point set, for type-2 transforms, or the target grid, for
 type-1 transforms. If <code class="docutils literal notranslate"><span class="pre">transform_type</span></code> is <code class="docutils literal notranslate"><span class="pre">"type_2"</span></code>, the output has shape
-<code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">M,</span> <span class="pre">N]</span></code>, where the batch shape <code class="docutils literal notranslate"><span class="pre">...</span></code> is the result of broadcasting the
+<code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">M]</span></code>, where the batch shape <code class="docutils literal notranslate"><span class="pre">...</span></code> is the result of broadcasting the
 batch shapes of <code class="docutils literal notranslate"><span class="pre">source</span></code> and <code class="docutils literal notranslate"><span class="pre">points</span></code>. If <code class="docutils literal notranslate"><span class="pre">transform_type</span></code> is <code class="docutils literal notranslate"><span class="pre">"type_1"</span></code>, the
 output has shape <code class="docutils literal notranslate"><span class="pre">[...]</span> <span class="pre">+</span> <span class="pre">grid_shape</span></code>, where the batch shape <code class="docutils literal notranslate"><span class="pre">...</span></code> is the
 result of broadcasting the batch shapes of <code class="docutils literal notranslate"><span class="pre">source</span></code> and <code class="docutils literal notranslate"><span class="pre">points</span></code>.</p>
@@ -262,29 +265,28 @@ result of broadcasting the batch shapes of <code class="docutils literal notrans
 </dl>
 </dd></dl>
 </section>
-</section>
 
       </article>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="examples/mri_app.html">
+          <a class="next-page" href="tfft.interp.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Example: MRI Application</div>
+                <div class="title">tfft.interp</div>
               </div>
               <svg><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="index.html">
+          <a class="prev-page" href="../nufft_ops.html">
               <svg><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Home</div>
+                <div class="title">NUFFT</div>
                 
               </div>
             </a>
@@ -298,7 +300,7 @@ result of broadcasting the batch shapes of <code class="docutils literal notrans
               <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
               <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
             |
-            <a class="muted-link" href="_sources/nufft.rst.txt"
+            <a class="muted-link" href="../_sources/_nufft_ops/tfft.nufft.rst.txt"
                rel="nofollow">
               Show Source
             </a>
@@ -306,36 +308,17 @@ result of broadcasting the batch shapes of <code class="docutils literal notrans
         
       </footer>
     </div>
-    <aside class="toc-drawer">
+    <aside class="toc-drawer no-toc">
       
-      
-      <div class="toc-sticky toc-scroll">
-        <div class="toc-title-container">
-          <span class="toc-title">
-            Contents
-          </span>
-        </div>
-        <div class="toc-tree-container">
-          <div class="toc-tree">
-            <ul>
-<li><a class="reference internal" href="#">Non-Uniform FFT</a><ul>
-<li><a class="reference internal" href="#reference">Reference</a></li>
-</ul>
-</li>
-</ul>
-
-          </div>
-        </div>
-      </div>
       
       
     </aside>
   </div>
-</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-    <script src="_static/jquery.js"></script>
-    <script src="_static/underscore.js"></script>
-    <script src="_static/doctools.js"></script>
-    <script src="_static/scripts/main.js"></script>
+</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/scripts/main.js"></script>
     <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     </body>
 </html>

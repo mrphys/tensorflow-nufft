@@ -3,10 +3,10 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
-<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="prev" title="Non-Uniform FFT" href="../nufft.html" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="prev" title="tfft.nudft" href="../_nufft_ops/tfft.nudft.html" />
 
     <meta name="generator" content="sphinx-4.1.2, furo 2021.07.31.beta41"/>
-        <title>Example: MRI Application - tensorflow-nufft 0.2.0b1 documentation</title>
+        <title>Example: MRI Application - tensorflow-nufft 0.3.0b0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=daa650a7760fac3eee23aa959745d2c866b74cb3" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=93475b62d1c3bc01323a0eefdc14a62d77b12690" />
@@ -121,7 +121,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="../index.html"><div class="brand">tensorflow-nufft 0.2.0b1 documentation</div></a>
+      <a href="../index.html"><div class="brand">tensorflow-nufft 0.3.0b0 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -144,7 +144,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
   
   
-  <span class="sidebar-brand-text">tensorflow-nufft 0.2.0b1 documentation</span>
+  <span class="sidebar-brand-text">tensorflow-nufft 0.3.0b0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -154,7 +154,13 @@
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
   <p class="caption" role="heading"><span class="caption-text">API Documentation</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../nufft.html">Non-Uniform FFT</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../nufft_ops.html">NUFFT</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle child pages in navigation</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../_nufft_ops/tfft.nufft.html">tfft.nufft</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../_nufft_ops/tfft.interp.html">tfft.interp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../_nufft_ops/tfft.spread.html">tfft.spread</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../_nufft_ops/tfft.nudft.html">tfft.nudft</a></li>
+</ul>
+</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Examples</span></p>
 <ul class="current">
@@ -531,7 +537,7 @@ weights:
 
 <span class="n">kspace</span> <span class="o">=</span> <span class="n">tfft</span><span class="o">.</span><span class="n">nufft</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">points</span><span class="p">,</span>
                     <span class="n">transform_type</span><span class="o">=</span><span class="s1">'type_2'</span><span class="p">,</span>
-                    <span class="n">j_sign</span><span class="o">=</span><span class="s1">'negative'</span><span class="p">)</span>
+                    <span class="n">fft_direction</span><span class="o">=</span><span class="s1">'forward'</span><span class="p">)</span>
 
 <span class="nb">print</span><span class="p">(</span><span class="s2">"kspace: </span><span class="se">\n</span><span class="s2"> - shape: </span><span class="si">{}</span><span class="se">\n</span><span class="s2"> - dtype: </span><span class="si">{}</span><span class="s2">"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">kspace</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">kspace</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
 </pre></div>
@@ -547,12 +553,12 @@ kspace:
  - dtype: &lt;dtype: 'complex64'&gt;
 </pre></div></div>
 </div>
-<p>We are using a type-2 transform (uniform to nonuniform) and a negative sign for the imaginary unit (signal domain to frequency domain). These are the default values for <code class="docutils literal notranslate"><span class="pre">transform_type</span></code> and <code class="docutils literal notranslate"><span class="pre">j_sign</span></code>, so providing them was not necessary in this case.</p>
+<p>We are using a type-2 transform (uniform to nonuniform) and a backward FFT (image domain to frequency domain). These are the default values for <code class="docutils literal notranslate"><span class="pre">transform_type</span></code> and <code class="docutils literal notranslate"><span class="pre">fft_direction</span></code>, so providing them was not necessary in this case.</p>
 </section>
 <section id="Adjoint-transform-(k-space-to-image)">
 <h2>Adjoint transform (<em>k</em>-space to image)<a class="headerlink" href="#Adjoint-transform-(k-space-to-image)" title="Permalink to this headline">¶</a></h2>
-<p>We will now perform the adjoint transform to recover the image given the <em>k</em>-space data. In this case, we will use a type-1 transform (nonuniform to uniform) and a positive sign for the imaginary unit (frequency domain to signal domain). Also note that, prior to evaluating the NUFFT, we will compensate for the nonuniform sampling density by simply dividing the <em>k</em>-space samples by the density weights. Finally, for type-1 transforms we need to specify an additional <code class="docutils literal notranslate"><span class="pre">grid_shape</span></code> argument, which
-should be the size of the image. If there are any batch dimensions, <code class="docutils literal notranslate"><span class="pre">grid_shape</span></code> should <strong>not</strong> include them.</p>
+<p>We will now perform the adjoint transform to recover the image given the <em>k</em>-space data. In this case, we will use a type-1 transform (nonuniform to uniform) and a backward FFT (frequency domain to image domain). Also note that, prior to evaluating the NUFFT, we will compensate for the nonuniform sampling density by simply dividing the <em>k</em>-space samples by the density weights. Finally, for type-1 transforms we need to specify an additional <code class="docutils literal notranslate"><span class="pre">grid_shape</span></code> argument, which should be the size of the
+image. If there are any batch dimensions, <code class="docutils literal notranslate"><span class="pre">grid_shape</span></code> should <strong>not</strong> include them.</p>
 <div class="nbinput docutils container">
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
 </pre></div>
@@ -562,9 +568,9 @@ should be the size of the image. If there are any batch dimensions, <code class=
 <span class="n">comp_kspace</span> <span class="o">=</span> <span class="n">kspace</span> <span class="o">/</span> <span class="n">tf</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">weights</span><span class="p">,</span> <span class="n">tf</span><span class="o">.</span><span class="n">complex64</span><span class="p">)</span>
 
 <span class="n">recon</span> <span class="o">=</span> <span class="n">tfft</span><span class="o">.</span><span class="n">nufft</span><span class="p">(</span><span class="n">comp_kspace</span><span class="p">,</span> <span class="n">points</span><span class="p">,</span>
+                   <span class="n">grid_shape</span><span class="o">=</span><span class="n">grid_shape</span><span class="p">,</span>
                    <span class="n">transform_type</span><span class="o">=</span><span class="s1">'type_1'</span><span class="p">,</span>
-                   <span class="n">j_sign</span><span class="o">=</span><span class="s1">'positive'</span><span class="p">,</span>
-                   <span class="n">grid_shape</span><span class="o">=</span><span class="n">grid_shape</span><span class="p">)</span>
+                   <span class="n">fft_direction</span><span class="o">=</span><span class="s1">'backward'</span><span class="p">)</span>
 
 <span class="nb">print</span><span class="p">(</span><span class="s2">"recon: </span><span class="se">\n</span><span class="s2"> - shape: </span><span class="si">{}</span><span class="se">\n</span><span class="s2"> - dtype: </span><span class="si">{}</span><span class="s2">"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">recon</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">recon</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
 </pre></div>
@@ -609,8 +615,7 @@ Text(0.5, 1.0, 'Image after forward\nand adjoint NUFFT')
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/examples_mri_app_17_1.png" src="../_images/examples_mri_app_17_1.png"/>
-</div>
+<img alt="../_images/examples_mri_app_17_1.svg" src="../_images/examples_mri_app_17_1.svg"/></div>
 </div>
 </section>
 </section>
@@ -620,14 +625,14 @@ Text(0.5, 1.0, 'Image after forward\nand adjoint NUFFT')
         
         <div class="related-pages">
           
-          <a class="prev-page" href="../nufft.html">
+          <a class="prev-page" href="../_nufft_ops/tfft.nudft.html">
               <svg><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Non-Uniform FFT</div>
+                <div class="title">tfft.nudft</div>
                 
               </div>
             </a>

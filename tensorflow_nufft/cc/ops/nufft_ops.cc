@@ -135,11 +135,59 @@ REGISTER_OP("NUFFT")
   .Output("target: Tcomplex")
   .Attr("transform_type: {'type_1', 'type_2'} = 'type_2'")
   .Attr("j_sign: {'positive', 'negative'} = 'negative'")
-  .Attr("epsilon: float = 1e-6")
+  .Attr("tol: float = 1e-6")
   .Attr("grid_shape: shape = { unknown_rank: true }")
   .SetShapeFn(NUFFTShapeFn)
   .Doc(R"doc(
-Compute the non-uniform fast Fourier transform.
+Compute the non-uniform discrete Fourier transform via non-uniform FFT.
+
+This op supports 1D, 2D and 3D type-1 and type-2 transforms.
+
+.. note::
+  1D transforms are only supported on the CPU.
+
+.. [1] Barnett, A.H., Magland, J. and Klinteberg, L. af (2019), A parallel
+  nonuniform fast Fourier transform library based on an “exponential of
+  semicircle" kernel. SIAM J. Sci. Comput., 41(5): C479–C504.
+  https://doi.org/10.1137/18M120885X
+.. [2] Shih Y., Wright G., Anden J., Blaschke J. and Barnett A.H. (2021),
+  cuFINUFFT: a load-balanced GPU library for general-purpose nonuniform FFTs.
+  2021 IEEE International Parallel and Distributed Processing Symposium
+  Workshops (IPDPSW), 688–697 https://doi.org/10.1109/IPDPSW52791.2021.00105
+
+source: The source grid, for type-2 transforms, or the source point set, for
+  type-1 transforms. If `transform_type` is `"type_2"`, `source` must have shape
+  `[...] + grid_shape`, where `grid_shape` is the shape of the grid and `...` is
+  any number of batch dimensions. `grid_shape` must have rank 1, 2 or 3. If
+  `transform_type` is `"type_1"`, `source` must have shape `[..., M]`, where `M`
+  is the number of non-uniform points and `...` is any number of batch
+  dimensions.
+points: The target non-uniform point coordinates, for type-2 transforms, or the
+  source non-uniform point coordinates, for type-1 transforms. Must have shape
+  `[..., M, N]`, where `M` is the number of non-uniform points, `N` is the rank
+  of the grid and `...` is any number of batch dimensions, which must be
+  broadcastable with the batch dimensions of `source`. `N` must be 1, 2 or 3 and
+  must be equal to the rank of `grid_shape`. The non-uniform coordinates must be
+  in units of radians/pixel, i.e., in the range `[-pi, pi]`.
+transform_type: The type of the transform. A type-2 transform evaluates the DFT
+  on a set of arbitrary points given points on a grid (uniform to non-uniform).
+  A type-1 transform evaluates the DFT on grid points given a set of arbitrary
+  points (non-uniform to uniform).
+j_sign: The sign of the imaginary unit in the exponential. Use a negative sign
+  to evaluate frequency domain points given a signal domain source. Use a
+  positive sign to evaluate signal domain points given a frequency domain
+  source.
+tol: The desired relative precision. Should be in the range `[1e-06, 1e-01]`
+  for `complex64` types and `[1e-14, 1e-01]` for `complex128` types. The
+  computation may take longer for smaller values of `tol`.
+grid_shape: The shape of the output grid. This argument is required for type-1
+  transforms and ignored for type-2 transforms.
+target: The target point set, for type-2 transforms, or the target grid, for
+  type-1 transforms. If `transform_type` is `"type_2"`, the output has shape
+  `[..., M, N]`, where the batch shape `...` is the result of broadcasting the
+  batch shapes of `source` and `points`. If `transform_type` is `"type_1"`, the
+  output has shape `[...] + grid_shape`, where the batch shape `...` is the
+  result of broadcasting the batch shapes of `source` and `points`.
 )doc");
 
 } // namespace tensorflow

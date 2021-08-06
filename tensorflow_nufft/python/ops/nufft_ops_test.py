@@ -75,7 +75,7 @@ class NUFFTOpsTest(tf.test.TestCase):
                  j_sign=None,
                  dtype=None,
                  device=None):
-    """Test NUFFT op result and gradients."""
+    """Test NUFFT op result and gradients against naive NUDFT results."""
     # pylint: disable=unexpected-keyword-arg
 
     # Set random seed.
@@ -127,11 +127,11 @@ class NUFFTOpsTest(tf.test.TestCase):
       grad_nufft = tape.gradient(result_nufft, source)
       grad_nudft = tape.gradient(result_nudft, source)
 
-      epsilon = 1.e-3
+      tol = 1.e-3
       self.assertAllClose(result_nudft, result_nufft,
-                          rtol=epsilon, atol=epsilon)
+                          rtol=tol, atol=tol)
       self.assertAllClose(grad_nufft, grad_nudft,
-                          rtol=epsilon, atol=epsilon)
+                          rtol=tol, atol=tol)
 
 
   def test_static_shape(self): # pylint: disable=missing-function-docstring

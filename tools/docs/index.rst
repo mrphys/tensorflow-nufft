@@ -18,3 +18,10 @@ Installation
    :hidden:
 
    nufft
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Examples
+   :hidden:
+
+   examples/mri_app.ipynb

@@ -42,3 +42,24 @@ You can install TensorFlow NUFFT with ``pip``:
 Note that only Linux wheels are currently being provided.
 
 .. end-install
+
+Documentation
+-------------
+
+Visit the `docs <https://mrphys.github.io/tensorflow-nufft/>`_ for the API
+reference and examples of usage. 
+
+Contributions
+-------------
+
+If you use this package and something does not work as you expected, please
+`file an issue <https://github.com/mrphys/tensorflow-nufft/issues/new>`_
+describing your problem. We will do our best to help.
+
+Contributions are very welcome. Please create a pull request if you would like
+to make a contribution.
+
+Citation
+--------
+
+If you find this software useful in your work, please cite our Zenodo record.

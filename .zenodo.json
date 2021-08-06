@@ -1,0 +1,21 @@
+{
+    "title": "TensorFlow NUFFT",
+
+    "description": "A fast, native non-uniform FFT op for TensorFlow.",
+
+    "keywords": ["TensorFlow", "NUFFT", "Non-Uniform Fast Fourier Transform", "ML", "Machine Learning", "Python"],
+
+    "upload_type": "software",
+    
+    "license": "Apache-2.0",
+
+    "access_right": "open",
+    
+    "creators": [
+        {   
+            "orcid": "0000-0003-1956-1409",
+            "affiliation": "University College London",
+            "name": "Montalt Tordera, Javier"
+        }
+    ]    
+}

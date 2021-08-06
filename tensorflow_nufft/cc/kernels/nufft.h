@@ -66,7 +66,7 @@ struct DoNUFFTBase {
                  int rank,
                  int iflag,
                  int ntrans,
-                 T epsilon,
+                 T tol,
                  int64_t nbdims,
                  int64_t* source_bdims,
                  int64_t* points_bdims,
@@ -136,7 +136,7 @@ struct DoNUFFTBase {
     int err;
     typename finufft::plan_type<Device, T>::type plan;
     err = finufft::makeplan<Device, T>(type, rank, nmodes, iflag,
-                                       ntrans, epsilon, &plan, &opts);
+                                       ntrans, tol, &plan, &opts);
 
     if (err > 1) {
       return errors::Internal(
@@ -229,7 +229,7 @@ struct DoNUFFT : DoNUFFTBase<Device, T> {
                     int rank,
                     int iflag,
                     int ntrans,
-                    T epsilon,
+                    T tol,
                     int64_t nbdims,
                     int64_t* source_bdims,
                     int64_t* points_bdims,

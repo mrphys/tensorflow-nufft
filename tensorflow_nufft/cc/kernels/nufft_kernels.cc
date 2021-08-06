@@ -138,7 +138,7 @@ struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
                     int rank,
                     int iflag,
                     int ntrans,
-                    T epsilon,
+                    T tol,
                     int64_t nbdims,
                     int64_t* source_bdims,
                     int64_t* points_bdims,
@@ -148,7 +148,7 @@ struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
                     std::complex<T>* source,
                     std::complex<T>* target) {
     return this->compute(
-      ctx, type, rank, iflag, ntrans, epsilon,
+      ctx, type, rank, iflag, ntrans, tol,
       nbdims, source_bdims, points_bdims,
       nmodes, npts, points, source, target);
   }
@@ -166,7 +166,7 @@ class NUFFT : public OpKernel {
 
     OP_REQUIRES_OK(ctx, ctx->GetAttr("transform_type", &transform_type_str));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("j_sign", &j_sign_str));
-    OP_REQUIRES_OK(ctx, ctx->GetAttr("epsilon", &epsilon_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &tol_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("grid_shape", &grid_shape_));
 
     if (transform_type_str == "type_1") {
@@ -450,7 +450,7 @@ class NUFFT : public OpKernel {
       static_cast<int>(nufft_rank),
       j_sign_,
       num_transforms,
-      static_cast<T>(epsilon_),
+      static_cast<T>(tol_),
       outer_dims.size(),
       (int64_t*) psource->shape().dim_sizes().data(),
       (int64_t*) tpoints.shape().dim_sizes().data(),
@@ -473,7 +473,7 @@ class NUFFT : public OpKernel {
 
   int transform_type_;
   int j_sign_;
-  float epsilon_;
+  float tol_;
   TensorShape grid_shape_;
 
 };

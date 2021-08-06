@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""NUFFT ops."""
+"""Non-uniform fast Fourier transform (NUFFT).
+
+This module contains ops to calculate the NUFFT and some related functionality.
+"""
 
 import tensorflow as tf
 
@@ -22,6 +25,8 @@ _nufft_ops = tf.load_op_library(
 
 
 nufft = _nufft_ops.nufft
+interp = _nufft_ops.interp
+spread = _nufft_ops.spread
 
 
 @tf.RegisterGradient("NUFFT")
@@ -39,7 +44,7 @@ def _nufft_grad(op, grad):
   source = op.inputs[0]
   points = op.inputs[1]
   transform_type = op.get_attr('transform_type')
-  j_sign = op.get_attr('j_sign')
+  fft_direction = op.get_attr('fft_direction')
   tol = op.get_attr('tol')
   rank = points.shape[-1]
 
@@ -52,20 +57,20 @@ def _nufft_grad(op, grad):
     grad_transform_type = 'type_1'
     grad_grid_shape = source.shape[-rank:]
 
-  # Gradient of positive sign transform is computed using negative sign
-  # transform and viceversa.
-  if j_sign == b'positive':
-    grad_j_sign = 'negative'
-  elif j_sign == b'negative':
-    grad_j_sign = 'positive'
+  # Gradient of forward transform is computed using backward transform and
+  # viceversa.
+  if fft_direction == b'backward':
+    grad_fft_direction = 'forward'
+  elif fft_direction == b'forward':
+    grad_fft_direction = 'backward'
 
   # Compute the gradients with respect to the `source` tensor.
   grad_source = nufft(grad,
                       points,
+                      grid_shape=grad_grid_shape,
                       transform_type=grad_transform_type,
-                      j_sign=grad_j_sign,
-                      tol=tol,
-                      grid_shape=grad_grid_shape)
+                      fft_direction=grad_fft_direction,
+                      tol=tol)
 
   # Handle broadcasting.
   baxis = -1 if transform_type == b'type_1' else -rank
@@ -82,39 +87,23 @@ def _nufft_grad(op, grad):
 
 def nudft(source,
           points,
+          grid_shape=None,
           transform_type='type_2',
-          j_sign='negative',
-          grid_shape=None):
+          fft_direction='forward'):
   """Compute the non-uniform discrete Fourier transform.
 
-  Args:
-    source: A `Tensor`. If `transform_type` is `"type_1"`, must have shape
-      `[..., *S]`, where `S` is a rank-1, rank-2 or rank-3 shape and `...` is
-      any number of batch dimensions. If `transform_type` is `"type_2"`, must
-      have shape `[..., N]`, where `N` is the number of nonuniform points and
-      `...` is any number of batch dimensions.
-    points: The frequency coordinates, in cycles/pixel, where the Fourier
-      transform should be evaluated. Must be a tensor of shape
-      (..., M, N), where N is the number of spatial dimensions, M is
-      the number of coordinates and `...` is any number of batch
-      dimensions. The batch dimensions for `source` and `points` must be
-      broadcastable.
-    transform_type: Type of the transform. Must be 1 (nonuniform to uniform)
-      or 2 (uniform to nonuniform).
-    j_sign: Sign of the imaginary unit in the exponential. Must be -1
-      (signal to frequency domain) or 1 (frequency to signal domain).
-    grid_shape: The shape of the gridded source/target `Tensor`, without the
-      batch dimensions. This argument is required for type-1 transforms and
-      ignored for type-2 transforms.
+  .. note::
+    This function explicitly creates a dense DFT matrix and is very
+    computationally expensive. In most cases, `tfft.nufft` should be used
+    instead. This function exists primarily for testing purposes.
 
-  Returns:
-    The non-uniform discrete Fourier transform of the input `Tensor`.
+  For the parameters, see `tfft.nufft`.
   """
   def _nudft(inputs):
     src, pts = inputs
     shape = src.shape if transform_type == 'type_2' else grid_shape
     nudft_matrix = _nudft_matrix(
-      pts, shape, j_sign=j_sign)
+      pts, shape, fft_direction=fft_direction)
     if transform_type == 'type_1':
       nudft_matrix = tf.transpose(nudft_matrix)
     src_vec = tf.reshape(src, [-1])
@@ -122,8 +111,9 @@ def nudft(source,
 
   # Validate inputs. This also broadcasts `source` and `points` to equal
   # batch shapes.
-  source, points, transform_type, j_sign, grid_shape = _validate_nudft_inputs(
-    source, points, transform_type, j_sign, grid_shape)
+  source, points, transform_type, fft_direction, grid_shape = \
+    _validate_nudft_inputs(
+      source, points, transform_type, fft_direction, grid_shape)
 
   # Flatten batch dimensions.
   rank = points.shape[-1]
@@ -153,14 +143,14 @@ def nudft(source,
   return target
 
 
-def _nudft_matrix(points, grid_shape, j_sign):
+def _nudft_matrix(points, grid_shape, fft_direction):
   """Compute the nonuniform Fourier transform matrix.
 
   Args:
     points: Nonuniform points, in the range [-pi, pi].
-    grid_shape: Shape of the gridded tensor.
-    j_sign: Sign of the imaginary unit in the exponential. Must be either
-      'positive' or 'negative'.
+    grid_shape: Shape of the grid.
+    fft_direction: Sign of the imaginary unit in the exponential. Must be either
+      'backward' or 'forward'.
 
   Returns:
     The non-uniform Fourier transform matrix.
@@ -176,9 +166,9 @@ def _nudft_matrix(points, grid_shape, j_sign):
   points_grid = tf.cast(tf.matmul(
     points, r_grid), _complex_dtype(points.dtype))
 
-  if j_sign == 'positive':
+  if fft_direction == 'backward':
     nudft_matrix = tf.exp(1j * points_grid)
-  elif j_sign == 'negative':
+  elif fft_direction == 'forward':
     nudft_matrix = tf.exp(-1j * points_grid)
 
 #   TODO: scaling?
@@ -190,7 +180,7 @@ def _nudft_matrix(points, grid_shape, j_sign):
 def _validate_nudft_inputs(source,
                            points,
                            transform_type,
-                           j_sign,
+                           fft_direction,
                            grid_shape=None,
                            expected_rank=None,
                            expected_grid_shape=None,
@@ -201,7 +191,7 @@ def _validate_nudft_inputs(source,
     source: The source tensor.
     points: The points tensor.
     transform_type: The type of the transform.
-    j_sign: The sign of the imaginary unit.
+    fft_direction: The sign of the imaginary unit.
     grid_shape: The grid shape.
     expected_rank: The expected rank.
     expected_grid_shape: The expected image shape.
@@ -226,8 +216,8 @@ def _validate_nudft_inputs(source,
   # Check flags.
   transform_type = _validate_enum(
     transform_type, {'type_1', 'type_2'}, 'transform_type')
-  j_sign = _validate_enum(
-    j_sign, {'positive', 'negative'}, 'j_sign')
+  fft_direction = _validate_enum(
+    fft_direction, {'backward', 'forward'}, 'fft_direction')
 
   # Check rank.
   rank = points.shape[-1]
@@ -310,67 +300,7 @@ def _validate_nudft_inputs(source,
   source = tf.broadcast_to(source, batch_shape + source_shape)
   points = tf.broadcast_to(points, batch_shape + points_shape)
 
-  return source, points, transform_type, j_sign, grid_shape
-
-
-def estimate_density(points, grid_shape, num_iterations=10):
-  """Estimate density compensation weights for the given set of points.
-
-  Args:
-    points: A `Tensor`. The set of points, in `[-pi, pi]`, for which sampling
-      density should be estimated. Must have shape `[..., M, N]`, where `M` is
-      the number of samples, `N` is the number of dimensions and `...` is any
-      number of batch dimensions. Must be one of the following types: `float32`,
-      `float64`.
-    grid_shape: A `tf.TensorShape` or list of `int`s. The shape of the
-      corresponding grid, without any batch dimensions.
-    num_iterations: Number of iterations of the estimation algorithm. More
-      iterations may improve accuracy at increased computational cost.
-
-  Returns:
-    A `Tensor` of shape `[..., M]` containing the density compensation weights
-    for `points`.
-
-  References:
-    [1] Zwart, N.R., Johnson, K.O. and Pipe, J.G. (2012), Efficient sample
-        density estimation by combining gridding and an optimized kernel. Magn.
-        Reson. Med., 67: 701-710. https://doi.org/10.1002/mrm.23041
-  """
-  # Functions.
-  interp = lambda weights, points: nufft(weights, points,
-                                         transform_type='type_2',
-                                         j_sign='negative',
-                                         grid_shape=grid_shape)
-
-  spread = lambda weights, points: nufft(weights, points,
-                                         transform_type='type_1',
-                                         j_sign='positive',
-                                         grid_shape=grid_shape)
-
-  # We do not check inputs here, the NUFFT op will do it.
-  batch_shape = points.shape[:-2]
-  rank = points.shape[-1]
-
-  # Initialize density compensation weights.
-  weights = tf.ones(batch_shape + points.shape[-2:-1],
-                    dtype=_complex_dtype(points.dtype))
-
-  # Run iterative algorithm.
-  for _ in range(num_iterations):
-    weights /= interp(spread(weights, points), points)
-
-  # Scale weights.
-  test_image = tf.ones(batch_shape + grid_shape,
-                       dtype=_complex_dtype(points.dtype))
-
-  test_image = spread(weights * interp(test_image, points), points)
-
-  scale = tf.math.reduce_mean(test_image, axis=list(range(-rank, 0)))
-  scale = tf.expand_dims(scale, -1)
-
-  weights /= scale
-
-  return weights
+  return source, points, transform_type, fft_direction, grid_shape
 
 
 def _validate_enum(value, valid_values, name):

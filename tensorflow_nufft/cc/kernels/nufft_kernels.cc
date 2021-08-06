@@ -35,7 +35,7 @@ namespace tensorflow {
 typedef Eigen::ThreadPoolDevice CPUDevice;
 typedef Eigen::GpuDevice GPUDevice;
 
-namespace finufft {
+namespace nufft {
 
 template<>
 struct plan_type<CPUDevice, float> {
@@ -118,6 +118,34 @@ int execute<CPUDevice, double>(
 };
 
 template<>
+int interp<CPUDevice, float>(
+    typename plan_type<CPUDevice, float>::type plan,
+    std::complex<float>* c, std::complex<float>* f) {
+  return finufftf_interp(plan, c, f);
+};
+
+template<>
+int interp<CPUDevice, double>(
+    typename plan_type<CPUDevice, double>::type plan,
+    std::complex<double>* c, std::complex<double>* f) {
+  return finufft_interp(plan, c, f);
+};
+
+template<>
+int spread<CPUDevice, float>(
+    typename plan_type<CPUDevice, float>::type plan,
+    std::complex<float>* c, std::complex<float>* f) {
+  return finufftf_spread(plan, c, f);
+};
+
+template<>
+int spread<CPUDevice, double>(
+    typename plan_type<CPUDevice, double>::type plan,
+    std::complex<double>* c, std::complex<double>* f) {
+  return finufft_spread(plan, c, f);
+};
+
+template<>
 int destroy<CPUDevice, float>(
     typename plan_type<CPUDevice, float>::type plan) {
   return finufftf_destroy(plan);
@@ -129,7 +157,7 @@ int destroy<CPUDevice, double>(
   return finufft_destroy(plan);
 };
 
-}   // namespace finufft
+}   // namespace nufft
 
 template<typename T>
 struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
@@ -139,6 +167,7 @@ struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
                     int iflag,
                     int ntrans,
                     T tol,
+                    OpType optype,
                     int64_t nbdims,
                     int64_t* source_bdims,
                     int64_t* points_bdims,
@@ -148,40 +177,19 @@ struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
                     std::complex<T>* source,
                     std::complex<T>* target) {
     return this->compute(
-      ctx, type, rank, iflag, ntrans, tol,
+      ctx, type, rank, iflag, ntrans, tol, optype,
       nbdims, source_bdims, points_bdims,
       nmodes, npts, points, source, target);
   }
 };
 
+
 template <typename Device, typename T>
-class NUFFT : public OpKernel {
+class NUFFTBaseOp : public OpKernel {
 
   public:
 
-  explicit NUFFT(OpKernelConstruction* ctx) : OpKernel(ctx) {
-
-    string transform_type_str;
-    string j_sign_str;
-
-    OP_REQUIRES_OK(ctx, ctx->GetAttr("transform_type", &transform_type_str));
-    OP_REQUIRES_OK(ctx, ctx->GetAttr("j_sign", &j_sign_str));
-    OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &tol_));
-    OP_REQUIRES_OK(ctx, ctx->GetAttr("grid_shape", &grid_shape_));
-
-    if (transform_type_str == "type_1") {
-      transform_type_ = 1;
-    } else if (transform_type_str == "type_2") {
-      transform_type_ = 2;
-    }
-
-    if (j_sign_str == "positive") {
-      j_sign_ = 1;
-    } else if (j_sign_str == "negative") {
-      j_sign_ = -1;
-    }
-
-  }
+  explicit NUFFTBaseOp(OpKernelConstruction* ctx) : OpKernel(ctx) { }
 
   void Compute(OpKernelContext* ctx) override {
 
@@ -206,7 +214,7 @@ class NUFFT : public OpKernel {
                   "Input `points` must have rank of at least 2, but got "
                   "shape: ", points.shape().DebugString()));
     
-    int64 nufft_rank = points.dim_size(points.dims() - 1);
+    int64 rank = points.dim_size(points.dims() - 1);
     int64 num_points = points.dim_size(points.dims() - 2);
 
     TensorShape grid_shape;
@@ -214,7 +222,7 @@ class NUFFT : public OpKernel {
       case 1: // nonuniform to uniform
         
         // TODO: check `grid_shape` input.
-        OP_REQUIRES(ctx, grid_shape_.dims() == nufft_rank,
+        OP_REQUIRES(ctx, grid_shape_.dims() == rank,
               errors::InvalidArgument(
                 "A valid `grid_shape` input must be provided "
                 "for NUFFT type-1, but received: ",
@@ -226,12 +234,12 @@ class NUFFT : public OpKernel {
       case 2: // uniform to nonuniform
 
         // Get shape from `source` input.
-        OP_REQUIRES(ctx, source.dims() >= nufft_rank,
+        OP_REQUIRES(ctx, source.dims() >= rank,
               errors::InvalidArgument(
                 "Input `source` must have rank of at least ",
-                nufft_rank, " but received shape: ",
+                rank, " but received shape: ",
                 source.shape().DebugString()));
-        for (int i = source.dims() - nufft_rank; i < source.dims(); i++) {
+        for (int i = source.dims() - rank; i < source.dims(); i++) {
           grid_shape.AddDim(source.dim_size(i));
         }
 
@@ -247,7 +255,7 @@ class NUFFT : public OpKernel {
         source_batch_shape.resize(source.dims() - 1);
         break;
       case 2: // uniform to nonuniform
-        source_batch_shape.resize(source.dims() - nufft_rank);
+        source_batch_shape.resize(source.dims() - rank);
         break;
     }
     points_batch_shape.resize(points.shape().dims() - 2);
@@ -443,18 +451,26 @@ class NUFFT : public OpKernel {
       ptarget = target;
     }
 
+    // The shape of the grid needs to be reversed for FINUFFT.
+    auto grid_shape_vec = grid_shape.dim_sizes();
+    if (rank == 2)
+      std::swap(grid_shape_vec[0], grid_shape_vec[1]);
+    else if (rank == 3)
+      std::swap(grid_shape_vec[0], grid_shape_vec[2]);   
+
     // Perform operation.
     OP_REQUIRES_OK(ctx, DoNUFFT<Device, T>()(
       ctx,
       transform_type_,
-      static_cast<int>(nufft_rank),
+      static_cast<int>(rank),
       j_sign_,
       num_transforms,
       static_cast<T>(tol_),
+      op_type_,
       outer_dims.size(),
       (int64_t*) psource->shape().dim_sizes().data(),
       (int64_t*) tpoints.shape().dim_sizes().data(),
-      (int64_t*) grid_shape.dim_sizes().data(),
+      grid_shape_vec.begin(),
       num_points,
       (T*) tpoints.data(),
       (std::complex<T>*) psource->data(),
@@ -469,37 +485,157 @@ class NUFFT : public OpKernel {
     }
   }
 
-  private:
+  protected:
 
   int transform_type_;
   int j_sign_;
   float tol_;
   TensorShape grid_shape_;
-
+  OpType op_type_;
 };
+
+
+template <typename Device, typename T>
+class NUFFT : public NUFFTBaseOp<Device, T> {
+
+  public:
+
+  explicit NUFFT(OpKernelConstruction* ctx) : NUFFTBaseOp<Device, T>(ctx) {
+
+    string transform_type_str;
+    string fft_direction_str;
+
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("transform_type", &transform_type_str));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("fft_direction", &fft_direction_str));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("grid_shape", &this->grid_shape_));
+
+    if (transform_type_str == "type_1") {
+      this->transform_type_ = 1;
+    } else if (transform_type_str == "type_2") {
+      this->transform_type_ = 2;
+    }
+
+    if (fft_direction_str == "backward") {
+      this->j_sign_ = 1;
+    } else if (fft_direction_str == "forward") {
+      this->j_sign_ = -1;
+    }
+
+    this->op_type_ = OpType::NUFFT;
+  }
+};
+
+
+template <typename Device, typename T>
+class Interp : public NUFFTBaseOp<Device, T> {
+
+  public:
+
+  explicit Interp(OpKernelConstruction* ctx) : NUFFTBaseOp<Device, T>(ctx) {
+
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
+
+    this->transform_type_ = 2;
+    this->j_sign_ = 1;
+
+    this->op_type_ = OpType::INTERP;
+  }
+};
+
+
+template <typename Device, typename T>
+class Spread : public NUFFTBaseOp<Device, T> {
+
+  public:
+
+  explicit Spread(OpKernelConstruction* ctx) : NUFFTBaseOp<Device, T>(ctx) {
+
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("grid_shape", &this->grid_shape_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
+
+    this->transform_type_ = 1;
+    this->j_sign_ = 1;
+
+    this->op_type_ = OpType::SPREAD;
+  }
+};
+
 
 // Register the CPU kernels.
 REGISTER_KERNEL_BUILDER(Name("NUFFT")
                             .Device(DEVICE_CPU)
+                            .TypeConstraint<complex64>("Tcomplex")
                             .TypeConstraint<float>("Treal"),
                         NUFFT<CPUDevice, float>);
 
 REGISTER_KERNEL_BUILDER(Name("NUFFT")
                             .Device(DEVICE_CPU)
+                            .TypeConstraint<complex128>("Tcomplex")
                             .TypeConstraint<double>("Treal"),
                         NUFFT<CPUDevice, double>);
+
+REGISTER_KERNEL_BUILDER(Name("Interp")
+                            .Device(DEVICE_CPU)
+                            .TypeConstraint<complex64>("Tcomplex")
+                            .TypeConstraint<float>("Treal"),
+                        Interp<CPUDevice, float>);
+
+REGISTER_KERNEL_BUILDER(Name("Interp")
+                            .Device(DEVICE_CPU)
+                            .TypeConstraint<complex128>("Tcomplex")
+                            .TypeConstraint<double>("Treal"),
+                        Interp<CPUDevice, double>);
+
+REGISTER_KERNEL_BUILDER(Name("Spread")
+                            .Device(DEVICE_CPU)
+                            .TypeConstraint<complex64>("Tcomplex")
+                            .TypeConstraint<float>("Treal"),
+                        Spread<CPUDevice, float>);
+
+REGISTER_KERNEL_BUILDER(Name("Spread")
+                            .Device(DEVICE_CPU)
+                            .TypeConstraint<complex128>("Tcomplex")
+                            .TypeConstraint<double>("Treal"),
+                        Spread<CPUDevice, double>);
 
 // Register the GPU kernels.
 #ifdef GOOGLE_CUDA
 REGISTER_KERNEL_BUILDER(Name("NUFFT")
                             .Device(DEVICE_GPU)
+                            .TypeConstraint<complex64>("Tcomplex")
                             .TypeConstraint<float>("Treal"),
                         NUFFT<GPUDevice, float>);
 
 REGISTER_KERNEL_BUILDER(Name("NUFFT")
                             .Device(DEVICE_GPU)
+                            .TypeConstraint<complex128>("Tcomplex")
                             .TypeConstraint<double>("Treal"),
                         NUFFT<GPUDevice, double>);
+
+REGISTER_KERNEL_BUILDER(Name("Interp")
+                            .Device(DEVICE_GPU)
+                            .TypeConstraint<complex64>("Tcomplex")
+                            .TypeConstraint<float>("Treal"),
+                        Interp<GPUDevice, float>);
+
+REGISTER_KERNEL_BUILDER(Name("Interp")
+                            .Device(DEVICE_GPU)
+                            .TypeConstraint<complex128>("Tcomplex")
+                            .TypeConstraint<double>("Treal"),
+                        Interp<GPUDevice, double>);
+
+REGISTER_KERNEL_BUILDER(Name("Spread")
+                            .Device(DEVICE_GPU)
+                            .TypeConstraint<complex64>("Tcomplex")
+                            .TypeConstraint<float>("Treal"),
+                        Spread<GPUDevice, float>);
+
+REGISTER_KERNEL_BUILDER(Name("Spread")
+                            .Device(DEVICE_GPU)
+                            .TypeConstraint<complex128>("Tcomplex")
+                            .TypeConstraint<double>("Treal"),
+                        Spread<GPUDevice, double>);
 #endif  // GOOGLE_CUDA
 
 }  // namespace tensorflow

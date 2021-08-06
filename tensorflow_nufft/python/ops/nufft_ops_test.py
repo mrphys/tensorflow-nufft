@@ -20,7 +20,7 @@ import itertools
 import numpy as np
 import tensorflow as tf
 
-import nufft_ops
+from tensorflow_nufft.python.ops import nufft_ops
 
 
 def parameterized(**params):
@@ -50,9 +50,8 @@ def parameterized(**params):
       # Now call decorated function with each set of parameters.
       for i, p in enumerate(params):
         with self.subTest(**p):
-          print(f"Subtest #{i + 1}/{len(params)}: {p}")
+          print(f"[{func.__name__}] - subtest #{i + 1}/{len(params)}: {p}")
           func(self, **p)
-
     return run
   return decorator
 
@@ -60,11 +59,11 @@ def parameterized(**params):
 class NUFFTOpsTest(tf.test.TestCase):
   """Test case for NUFFT functions."""
 
-  @parameterized(grid_shape=[[10, 10], [10, 10, 10]],
+  @parameterized(grid_shape=[[10, 16], [10, 10, 8]],
                  source_batch_shape=[[], [2, 4]],
                  points_batch_shape=[[], [2, 1], [1, 4]],
                  transform_type=['type_1', 'type_2'],
-                 j_sign=['negative', 'positive'],
+                 fft_direction=['forward', 'backward'],
                  dtype=[tf.dtypes.complex64, tf.dtypes.complex128],
                  device=['/cpu:0', '/gpu:0'])
   def test_nufft(self,  # pylint: disable=missing-param-doc
@@ -72,7 +71,7 @@ class NUFFTOpsTest(tf.test.TestCase):
                  source_batch_shape=None,
                  points_batch_shape=None,
                  transform_type=None,
-                 j_sign=None,
+                 fft_direction=None,
                  dtype=None,
                  device=None):
     """Test NUFFT op result and gradients against naive NUDFT results."""
@@ -81,9 +80,7 @@ class NUFFTOpsTest(tf.test.TestCase):
     # Set random seed.
     tf.random.set_seed(0)
 
-    # Skip float64 GPU tests. Something's not quite right with those. Is it
-    # due to limited support on NVIDIA card used for testing or is anything
-    # else off?
+    # Skip float64 GPU tests because it has limited support on testing hardware.
     if dtype == tf.dtypes.complex128 and device == '/gpu:0':
       return
 
@@ -113,15 +110,15 @@ class NUFFTOpsTest(tf.test.TestCase):
 
         result_nufft = nufft_ops.nufft(
           source, points,
+          grid_shape=grid_shape,
           transform_type=transform_type,
-          j_sign=j_sign,
-          grid_shape=grid_shape)
+          fft_direction=fft_direction)
 
         result_nudft = nufft_ops.nudft(
           source, points,
+          grid_shape=grid_shape,
           transform_type=transform_type,
-          j_sign=j_sign,
-          grid_shape=grid_shape)
+          fft_direction=fft_direction)
 
       # Compute gradients.
       grad_nufft = tape.gradient(result_nufft, source)
@@ -132,6 +129,131 @@ class NUFFTOpsTest(tf.test.TestCase):
                           rtol=tol, atol=tol)
       self.assertAllClose(grad_nufft, grad_nudft,
                           rtol=tol, atol=tol)
+
+
+  @parameterized(grid_shape=[[128, 128], [128, 128, 128]],
+                 dtype=[tf.complex64, tf.complex128],
+                 device=['/cpu:0', '/gpu:0'])
+  def test_interp(self, grid_shape, dtype, device): # pylint: disable=missing-function-docstring
+
+    if dtype == tf.complex128 and 'gpu' in device:
+      return
+
+    tf.random.set_seed(0)
+
+    batch_shape = []
+    num_points = 100
+    rank = len(grid_shape)
+
+    source = tf.complex(tf.ones(batch_shape + grid_shape, dtype.real_dtype),
+                        tf.zeros(batch_shape + grid_shape, dtype.real_dtype))
+    points = tf.random.uniform(batch_shape + [num_points, rank], # pylint: disable=unexpected-keyword-arg
+      minval=-np.pi, maxval=np.pi, dtype=dtype.real_dtype)
+
+    with tf.device(device):
+      target = nufft_ops.interp(source, points, tol=1e-4)
+
+    expected = tf.complex(
+      tf.ones(batch_shape + [num_points], dtype.real_dtype),
+      tf.zeros(batch_shape + [num_points], dtype.real_dtype))
+
+    self.assertAllEqual(target.shape, expected.shape)
+    self.assertAllClose(target, expected, rtol=1e-4, atol=1e-4)
+
+
+  @parameterized(grid_shape=[[64, 64], [64, 64, 64]],
+                 dtype=[tf.complex64, tf.complex128],
+                 device=['/cpu:0', '/gpu:0'])
+  def test_spread(self, grid_shape, dtype, device): # pylint: disable=missing-function-docstring
+
+    if dtype == tf.complex128 and 'gpu' in device:
+      return
+
+    tf.random.set_seed(0)
+
+    batch_shape = []
+    num_points = 1
+    for s in grid_shape:
+      num_points *= s
+    rank = len(grid_shape)
+
+    source = tf.complex(tf.ones(batch_shape + [num_points], dtype.real_dtype),
+                        tf.zeros(batch_shape + [num_points], dtype.real_dtype))
+    points = tf.random.uniform(batch_shape + [num_points, rank], # pylint: disable=unexpected-keyword-arg
+      minval=-np.pi, maxval=np.pi, dtype=dtype.real_dtype)
+
+    with tf.device(device):
+      target = nufft_ops.spread(source, points, grid_shape)
+
+    # We are spreading from random coordinates, so there will be significant
+    # deviations from 1. However, check that values are within a ballpark and
+    # that the average is 1.0.
+    self.assertAllInRange(tf.math.real(target), 0.0, 3.0)
+    self.assertAllClose(tf.math.reduce_mean(target), 1.0)
+
+
+  @parameterized(device=['/cpu:0', '/gpu:0'])
+  def test_interp_batch(self, device): # pylint: disable=missing-function-docstring
+
+    tf.random.set_seed(0)
+
+    dtype = tf.complex64
+    grid_shape = [64, 96]
+    batch_size = 4
+    num_points = 100
+    rank = len(grid_shape)
+
+    sources = []
+    for i in range(batch_size):
+      sources.append(tf.complex(i * tf.ones(grid_shape, dtype.real_dtype),
+                                tf.zeros(grid_shape, dtype.real_dtype)))
+    source = tf.stack(sources)
+
+    points = tf.random.uniform( # pylint: disable=unexpected-keyword-arg
+      [batch_size, num_points, rank],
+      minval=-np.pi, maxval=np.pi, dtype=dtype.real_dtype) # pylint: disable=unexpected-keyword-arg
+
+    with tf.device(device):
+      target = nufft_ops.interp(source, points, tol=1e-4)
+
+    self.assertAllEqual(target.shape, [batch_size, num_points])
+    for i in range(batch_size):
+      expected = tf.complex(
+        i * tf.ones([num_points], dtype.real_dtype),
+        tf.zeros([num_points], dtype.real_dtype))
+      self.assertAllClose(target[i, ...], expected, rtol=1e-4, atol=1e-4)
+
+
+  @parameterized(device=['/cpu:0', '/gpu:0'])
+  def test_spread_batch(self, device): # pylint: disable=missing-function-docstring
+
+    tf.random.set_seed(0)
+
+    dtype = tf.complex64
+    grid_shape = [64, 96]
+    batch_size = 4
+    num_points = 1
+    for s in grid_shape:
+      num_points *= s
+    rank = len(grid_shape)
+
+    sources = []
+    for i in range(batch_size):
+      sources.append(tf.complex(i * tf.ones([num_points], dtype.real_dtype),
+                                tf.zeros([num_points], dtype.real_dtype)))
+    source = tf.stack(sources)
+
+    points = tf.random.uniform( # pylint: disable=unexpected-keyword-arg
+      [batch_size, num_points, rank],
+      minval=-np.pi, maxval=np.pi, dtype=dtype.real_dtype)
+
+    with tf.device(device):
+      target = nufft_ops.spread(source, points, grid_shape, tol=1e-4)
+
+    self.assertAllEqual(target.shape, [batch_size] + grid_shape)
+    for i in range(batch_size):
+      self.assertAllClose(tf.math.reduce_mean(target[i, ...]), i,
+                          rtol=1e-4, atol=1e-4)
 
 
   def test_static_shape(self): # pylint: disable=missing-function-docstring

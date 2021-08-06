@@ -23,26 +23,11 @@ using shape_inference::DimensionHandle;
 using shape_inference::InferenceContext;
 using shape_inference::ShapeHandle;
 
-Status NUFFTShapeFn(InferenceContext* c) {
+Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
 
   // Input shapes.
   ShapeHandle source_shape = c->input(0);
   ShapeHandle points_shape = c->input(1);
-
-  // Validate `transform_type` attribute.
-  string transform_type_str;
-  TF_RETURN_IF_ERROR(c->GetAttr("transform_type", &transform_type_str));
-  int transform_type;
-  if (transform_type_str == "type_1") {
-    transform_type = 1;
-  } else if (transform_type_str == "type_2") {
-    transform_type = 2;
-  }
-  else {
-    return errors::InvalidArgument(
-      "transform_type attr must be 'type_1' or 'type_2', but is ",
-      transform_type_str);
-  }
 
   // Validate rank.
   DimensionHandle unused;
@@ -127,19 +112,117 @@ Status NUFFTShapeFn(InferenceContext* c) {
 }
 
 
+Status NUFFTShapeFn(InferenceContext* c) {
+
+  // Validate `transform_type` attribute.
+  string transform_type_str;
+  TF_RETURN_IF_ERROR(c->GetAttr("transform_type", &transform_type_str));
+  int transform_type;
+  if (transform_type_str == "type_1") {
+    transform_type = 1;
+  } else if (transform_type_str == "type_2") {
+    transform_type = 2;
+  }
+  else {
+    return errors::InvalidArgument(
+      "transform_type attr must be 'type_1' or 'type_2', but is ",
+      transform_type_str);
+  }
+
+  return NUFFTBaseShapeFn(c, transform_type);
+}
+
+
+Status InterpShapeFn(InferenceContext* c) {
+  return NUFFTBaseShapeFn(c, 2);
+}
+
+
+Status SpreadShapeFn(InferenceContext* c) {
+  return NUFFTBaseShapeFn(c, 1);
+}
+
+
+REGISTER_OP("Interp")
+  .Attr("Tcomplex: {complex64, complex128} = DT_COMPLEX64")
+  .Attr("Treal: {float32, float64} = DT_FLOAT")
+  .Input("source: Tcomplex")
+  .Input("points: Treal")
+  .Output("target: Tcomplex")
+  .Attr("tol: float = 1e-6")
+  .SetShapeFn(InterpShapeFn)
+  .Doc(R"doc(
+Interpolate a regular grid at an arbitrary set of points.
+
+This function can be used to perform the interpolation step of the NUFFT,
+without the FFT or the deconvolution.
+
+See also `tfft.nufft`, `tfft.spread`.
+
+source: The source grid. Must have shape `[...] + grid_shape`, where
+  `grid_shape` is the shape of the grid and `...` is any number of batch
+  dimensions. `grid_shape` must have rank 1, 2 or 3.
+points: The target non-uniform point coordinates. Must have shape `[..., M, N]`,
+  where `M` is the number of non-uniform points, `N` is the rank of the grid and
+  `...` is any number of batch dimensions, which must be broadcastable with the
+  batch dimensions of `source`. `N` must be 1, 2 or 3 and must be equal to the
+  rank of `grid_shape`. The non-uniform coordinates must be in units of
+  radians/pixel, i.e., in the range `[-pi, pi]`.
+tol: The desired relative precision. Should be in the range `[1e-06, 1e-01]`
+  for `complex64` types and `[1e-14, 1e-01]` for `complex128` types. The
+  computation may take longer for smaller values of `tol`.
+target: The target point set. Has shape `[..., M]`, where the batch shape `...`
+  is the result of broadcasting the batch shapes of `source` and `points`.
+)doc");
+
+
+REGISTER_OP("Spread")
+  .Attr("Tcomplex: {complex64, complex128} = DT_COMPLEX64")
+  .Attr("Treal: {float32, float64} = DT_FLOAT")
+  .Input("source: Tcomplex")
+  .Input("points: Treal")
+  .Output("target: Tcomplex")
+  .Attr("grid_shape: shape")
+  .Attr("tol: float = 1e-6")
+  .SetShapeFn(SpreadShapeFn)
+  .Doc(R"doc(
+Spread an arbitrary set of points into a regular grid.
+
+This function can be used to perform the spreading step of the NUFFT, without
+the FFT or the deconvolution.
+
+See also `tfft.nufft`, `tfft.interp`.
+
+source: The source point set. Must have shape `[..., M]`, where `M` is the
+  number of non-uniform points and `...` is any number of batch dimensions.
+points: The source non-uniform point coordinates. Must have shape `[..., M, N]`,
+  where `M` is the number of non-uniform points, `N` is the rank of the grid and
+  `...` is any number of batch dimensions, which must be broadcastable with the
+  batch dimensions of `source`. `N` must be 1, 2 or 3 and must be equal to the
+  rank of `grid_shape`. The non-uniform coordinates must be in units of
+  radians/pixel, i.e., in the range `[-pi, pi]`.
+grid_shape: The shape of the output grid.
+tol: The desired relative precision. Should be in the range `[1e-06, 1e-01]`
+  for `complex64` types and `[1e-14, 1e-01]` for `complex128` types. The
+  computation may take longer for smaller values of `tol`.
+target: The target grid. Has shape `[...] + grid_shape`, where the batch shape
+  `...` is the result of broadcasting the batch shapes of `source` and `points`.
+)doc");
+
+
 REGISTER_OP("NUFFT")
   .Attr("Tcomplex: {complex64, complex128} = DT_COMPLEX64")
   .Attr("Treal: {float32, float64} = DT_FLOAT")
   .Input("source: Tcomplex")
   .Input("points: Treal")
   .Output("target: Tcomplex")
-  .Attr("transform_type: {'type_1', 'type_2'} = 'type_2'")
-  .Attr("j_sign: {'positive', 'negative'} = 'negative'")
-  .Attr("tol: float = 1e-6")
   .Attr("grid_shape: shape = { unknown_rank: true }")
+  .Attr("transform_type: {'type_1', 'type_2'} = 'type_2'")
+  .Attr("fft_direction: {'forward', 'backward'} = 'forward'")
+  .Attr("tol: float = 1e-6")
   .SetShapeFn(NUFFTShapeFn)
   .Doc(R"doc(
-Compute the non-uniform discrete Fourier transform via non-uniform FFT.
+Compute the non-uniform discrete Fourier transform via NUFFT.
 
 This op supports 1D, 2D and 3D type-1 and type-2 transforms.
 
@@ -169,22 +252,21 @@ points: The target non-uniform point coordinates, for type-2 transforms, or the
   broadcastable with the batch dimensions of `source`. `N` must be 1, 2 or 3 and
   must be equal to the rank of `grid_shape`. The non-uniform coordinates must be
   in units of radians/pixel, i.e., in the range `[-pi, pi]`.
+grid_shape: The shape of the output grid. This argument is required for type-1
+  transforms and ignored for type-2 transforms.
 transform_type: The type of the transform. A type-2 transform evaluates the DFT
   on a set of arbitrary points given points on a grid (uniform to non-uniform).
   A type-1 transform evaluates the DFT on grid points given a set of arbitrary
   points (non-uniform to uniform).
-j_sign: The sign of the imaginary unit in the exponential. Use a negative sign
-  to evaluate frequency domain points given a signal domain source. Use a
-  positive sign to evaluate signal domain points given a frequency domain
-  source.
+fft_direction: Defines the sign of the exponent in the formula of the Fourier
+  transform. A `"forward"` transform has negative sign and a `"backward"`
+  transform has positive sign.
 tol: The desired relative precision. Should be in the range `[1e-06, 1e-01]`
   for `complex64` types and `[1e-14, 1e-01]` for `complex128` types. The
   computation may take longer for smaller values of `tol`.
-grid_shape: The shape of the output grid. This argument is required for type-1
-  transforms and ignored for type-2 transforms.
 target: The target point set, for type-2 transforms, or the target grid, for
   type-1 transforms. If `transform_type` is `"type_2"`, the output has shape
-  `[..., M, N]`, where the batch shape `...` is the result of broadcasting the
+  `[..., M]`, where the batch shape `...` is the result of broadcasting the
   batch shapes of `source` and `points`. If `transform_type` is `"type_1"`, the
   output has shape `[...] + grid_shape`, where the batch shape `...` is the
   result of broadcasting the batch shapes of `source` and `points`.

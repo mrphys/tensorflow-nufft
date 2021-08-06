@@ -28,7 +28,7 @@ namespace tensorflow {
 
 typedef Eigen::GpuDevice GPUDevice;
 
-namespace finufft {
+namespace nufft {
 
 template<>
 struct plan_type<GPUDevice, float> {
@@ -133,6 +133,46 @@ int execute<GPUDevice, double>(
 };
 
 template<>
+int interp<GPUDevice, float>(
+    typename plan_type<GPUDevice, float>::type plan,
+    std::complex<float>* c, std::complex<float>* f) {
+  return cufinufftf_interp(
+    reinterpret_cast<cuFloatComplex*>(c),
+    reinterpret_cast<cuFloatComplex*>(f),
+    plan);
+};
+
+template<>
+int interp<GPUDevice, double>(
+    typename plan_type<GPUDevice, double>::type plan,
+    std::complex<double>* c, std::complex<double>* f) {
+  return cufinufft_interp(
+    reinterpret_cast<cuDoubleComplex*>(c),
+    reinterpret_cast<cuDoubleComplex*>(f),
+    plan);
+};
+
+template<>
+int spread<GPUDevice, float>(
+    typename plan_type<GPUDevice, float>::type plan,
+    std::complex<float>* c, std::complex<float>* f) {
+  return cufinufftf_spread(
+    reinterpret_cast<cuFloatComplex*>(c),
+    reinterpret_cast<cuFloatComplex*>(f),
+    plan);
+};
+
+template<>
+int spread<GPUDevice, double>(
+    typename plan_type<GPUDevice, double>::type plan,
+    std::complex<double>* c, std::complex<double>* f) {
+  return cufinufft_spread(
+    reinterpret_cast<cuDoubleComplex*>(c),
+    reinterpret_cast<cuDoubleComplex*>(f),
+    plan);
+};
+
+template<>
 int destroy<GPUDevice, float>(
     typename plan_type<GPUDevice, float>::type plan) {
   return cufinufftf_destroy(plan);
@@ -144,7 +184,7 @@ int destroy<GPUDevice, double>(
   return cufinufft_destroy(plan);
 };
 
-}   // namespace finufft
+}   // namespace nufft
 
 template<typename T>
 struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
@@ -154,6 +194,7 @@ struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
                     int iflag,
                     int ntrans,
                     T tol,
+                    OpType optype,
                     int64_t nbdims,
                     int64_t* source_bdims,
                     int64_t* points_bdims,
@@ -163,7 +204,7 @@ struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
                     std::complex<T>* source,
                     std::complex<T>* target) {
     return this->compute(
-      ctx, type, rank, iflag, ntrans, tol,
+      ctx, type, rank, iflag, ntrans, tol, optype,
       nbdims, source_bdims, points_bdims,
       nmodes, npts, points, source, target);
   }

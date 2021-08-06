@@ -84,7 +84,7 @@ wheel:
 	./tools/build/build_pip_pkg.sh make --python $(PYTHON) artifacts
 
 test:
-	$(PYTHON) tensorflow_nufft/python/ops/nufft_ops_test.py
+	$(PYTHON) -m unittest discover -v -p *_test.py
 
 benchmark: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)
 	$(PYTHON) tensorflow_nufft/python/ops/nufft_ops_test.py --benchmarks=.*
@@ -93,7 +93,10 @@ lint: $(wildcard tensorflow_nufft/python/ops/*.py)
 	pylint --rcfile=pylintrc tensorflow_nufft/python
 
 docs: $(TARGET)
+	ln -sf tensorflow_nufft tfft
+	rm -rf tools/docs/_*
 	$(MAKE) -C tools/docs html
+	rm tfft
 
 clean:
 	rm -f $(TARGET_LIB)

@@ -93,7 +93,10 @@ lint: $(wildcard tensorflow_nufft/python/ops/*.py)
 	pylint --rcfile=pylintrc tensorflow_nufft/python
 
 docs: $(TARGET)
+	ln -sf tensorflow_nufft tfft
+	rm -rf tools/docs/_*
 	$(MAKE) -C tools/docs html
+	rm tfft
 
 clean:
 	rm -f $(TARGET_LIB)

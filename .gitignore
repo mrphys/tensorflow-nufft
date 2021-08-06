@@ -3,6 +3,7 @@
 *.pyc
 *.so
 
+*.ipynb_checkpoints*
 __pycache__/
 artifacts/
 tools/docs/_*

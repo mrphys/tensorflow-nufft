@@ -42,6 +42,7 @@ version = '.'.join(map(str, (_version.major, _version.minor)))
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
+    'sphinx.ext.autosummary',
     'nbsphinx'
 ]
 
@@ -67,8 +68,8 @@ html_theme = 'furo'
 html_static_path = []
 
 
-def md_to_rst(app, what, name, obj, options, lines):
-    """Convert some markdown syntax to reStructuredText."""
+def process_docstring(app, what, name, obj, options, lines):
+    """Process autodoc docstrings."""
 
     # Replace markdown literal markers (`) by ReST literal markers (``).
     myst = '\n'.join(lines)
@@ -77,4 +78,4 @@ def md_to_rst(app, what, name, obj, options, lines):
 
 
 def setup(app):
-    app.connect('autodoc-process-docstring', md_to_rst)
+    app.connect('autodoc-process-docstring', process_docstring)

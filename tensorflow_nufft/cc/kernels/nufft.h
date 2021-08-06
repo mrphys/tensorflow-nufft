@@ -25,7 +25,7 @@ limitations under the License.
 
 namespace tensorflow {
 
-namespace finufft {
+namespace nufft {
 
 template<typename Device, typename T>
 struct plan_type;
@@ -54,9 +54,21 @@ int execute(
     std::complex<T>* c, std::complex<T>* f);
 
 template<typename Device, typename T>
+int interp(
+    typename plan_type<Device, T>::type plan,
+    std::complex<T>* c, std::complex<T>* f);
+
+template<typename Device, typename T>
+int spread(
+    typename plan_type<Device, T>::type plan,
+    std::complex<T>* c, std::complex<T>* f);
+
+template<typename Device, typename T>
 int destroy(typename plan_type<Device, T>::type plan);
 
-}   // namespace finufft
+}   // namespace nufft
+
+enum class OpType { NUFFT, INTERP, SPREAD };
 
 template<typename Device, typename T>
 struct DoNUFFTBase {
@@ -67,6 +79,7 @@ struct DoNUFFTBase {
                  int iflag,
                  int ntrans,
                  T tol,
+                 OpType optype,
                  int64_t nbdims,
                  int64_t* source_bdims,
                  int64_t* points_bdims,
@@ -129,18 +142,22 @@ struct DoNUFFTBase {
     }
 
     // NUFFT options.
-    typename finufft::opts_type<Device, T>::type opts;
-    finufft::default_opts<Device, T>(type, rank, &opts);
+    typename nufft::opts_type<Device, T>::type opts;
+    nufft::default_opts<Device, T>(type, rank, &opts);
+
+    if (optype != OpType::NUFFT) {
+      opts.spreadinterponly = true;
+      opts.upsampfac = 2.0;
+    }
 
     // Make the NUFFT plan.
     int err;
-    typename finufft::plan_type<Device, T>::type plan;
-    err = finufft::makeplan<Device, T>(type, rank, nmodes, iflag,
+    typename nufft::plan_type<Device, T>::type plan;
+    err = nufft::makeplan<Device, T>(type, rank, nmodes, iflag,
                                        ntrans, tol, &plan, &opts);
 
-    if (err > 1) {
-      return errors::Internal(
-        "Failed during `finufft::makeplan`: ", err);
+    if (err > 0) {
+      return errors::Internal("Failed during `nufft::makeplan`: ", err);
     }
 
     // Pointers to a certain batch.
@@ -174,14 +191,13 @@ struct DoNUFFTBase {
       }
       
       // Set the point coordinates.
-      err = finufft::setpts<Device, T>(
+      err = nufft::setpts<Device, T>(
         plan,
         npts, points_x, points_y, points_z,
         0, NULL, NULL, NULL);
         
-      if (err > 1) {
-        return errors::Internal(
-          "Failed during `finufft::setpts`: ", err);
+      if (err > 0) {
+        return errors::Internal("Failed during `nufft::setpts`: ", err);
       }
 
       // Compute indices.
@@ -201,20 +217,34 @@ struct DoNUFFTBase {
       bcoeffs = coeffs + *pcc * ntrans * ncoeffs;
 
       // Execute the NUFFT.
-      err = finufft::execute<Device, T>(plan, bstrengths, bcoeffs);
-
-      if (err > 1) {
-        return errors::Internal(
-          "Failed during `finufft::execute`: ", err);
+      switch (optype)
+      {
+      case OpType::NUFFT:
+        err = nufft::execute<Device, T>(plan, bstrengths, bcoeffs);
+        if (err > 0) {
+          return errors::Internal("Failed during `nufft::execute`: ", err);
+        }
+        break;
+      case OpType::INTERP:
+        err = nufft::interp<Device, T>(plan, bstrengths, bcoeffs);
+        if (err > 0) {
+          return errors::Internal("Failed during `nufft::interp`: ", err);
+        }
+        break;
+      case OpType::SPREAD:
+        err = nufft::spread<Device, T>(plan, bstrengths, bcoeffs);
+        if (err > 0) {
+          return errors::Internal("Failed during `nufft::spread`: ", err);
+        }
+        break;
       }
     }
 
     // Clean up the plan.
-    err = finufft::destroy<Device, T>(plan);
+    err = nufft::destroy<Device, T>(plan);
 
-    if (err > 1) {
-      return errors::Internal(
-        "Failed during `finufft::destroy`: ", err);
+    if (err > 0) {
+      return errors::Internal("Failed during `nufft::destroy`: ", err);
     }
 
     return Status::OK();
@@ -230,6 +260,7 @@ struct DoNUFFT : DoNUFFTBase<Device, T> {
                     int iflag,
                     int ntrans,
                     T tol,
+                    OpType optype,
                     int64_t nbdims,
                     int64_t* source_bdims,
                     int64_t* points_bdims,

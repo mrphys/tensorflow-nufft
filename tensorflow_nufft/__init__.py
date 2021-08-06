@@ -14,12 +14,6 @@
 # ==============================================================================
 "TensorFlow NUFFT."
 
-import importlib
-import types
-
 from tensorflow_nufft.__about__ import *
 
-_nufft_ops = importlib.import_module('tensorflow_nufft.python.ops.nufft_ops')
-nufft = _nufft_ops.nufft
-util = types.SimpleNamespace(estimate_density=_nufft_ops.estimate_density)
-del _nufft_ops
+from tensorflow_nufft.python.ops.nufft_ops import *

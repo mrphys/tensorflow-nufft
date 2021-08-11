@@ -256,6 +256,70 @@ class NUFFTOpsTest(tf.test.TestCase):
                           rtol=1e-4, atol=1e-4)
 
 
+  @parameterized(transform_type=['type_1', 'type_2'],
+                 which=['source', 'points'],
+                 device=['/cpu:0', '/gpu:0'])
+  def test_nufft_different_batch_ranks(self, transform_type, which, device):
+
+    # Set random seed.
+    tf.random.set_seed(0)
+
+    grid_shape = [24, 24]
+    if which == 'points':
+      source_batch_shape = [2, 4]
+      points_batch_shape = [1]
+    else:
+      points_batch_shape = [2, 4]
+      source_batch_shape = [1]
+    dtype = tf.complex64
+    fft_direction='forward'
+
+    rank = len(grid_shape)
+    num_points = tf.math.reduce_prod(grid_shape)
+
+    with tf.device(device):
+      # Generate random signal and points.
+      if transform_type == 'type_1':    # nonuniform to uniform
+        source_shape = source_batch_shape + [num_points]
+      elif transform_type == 'type_2':  # uniform to nonuniform
+        source_shape = source_batch_shape + grid_shape
+
+      source = tf.Variable(tf.dtypes.complex(
+        tf.random.uniform(
+          source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
+        tf.random.uniform(
+          source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
+
+      points_shape = points_batch_shape + [num_points, rank]
+      points = tf.Variable(tf.random.uniform(
+        points_shape, minval=-np.pi, maxval=np.pi,
+        dtype=dtype.real_dtype))
+
+      with tf.GradientTape(persistent=True) as tape:
+
+        result_nufft = nufft_ops.nufft(
+          source, points,
+          grid_shape=grid_shape,
+          transform_type=transform_type,
+          fft_direction=fft_direction)
+
+        result_nudft = nufft_ops.nudft(
+          source, points,
+          grid_shape=grid_shape,
+          transform_type=transform_type,
+          fft_direction=fft_direction)
+
+      # Compute gradients.
+      grad_nufft = tape.gradient(result_nufft, source)
+      grad_nudft = tape.gradient(result_nudft, source)
+
+      tol = 1.e-3
+      self.assertAllClose(result_nudft, result_nufft,
+                          rtol=tol, atol=tol)
+      self.assertAllClose(grad_nufft, grad_nudft,
+                          rtol=tol, atol=tol)
+
+
   def test_static_shape(self): # pylint: disable=missing-function-docstring
 
     tf.compat.v1.disable_v2_behavior()

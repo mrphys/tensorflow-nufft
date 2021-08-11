@@ -267,13 +267,17 @@ class NUFFTBaseOp : public OpKernel {
       points_batch_shape[i] = points.dim_size(i);
     }
 
-    // Reshaped input tensors if either is has batch shape and the other
-    // doesn't.
+    // Reshape input tensors if either has less batch dimensions than the
+    // other, by adding leading ones as necessary so that both have the same
+    // shape.
     Tensor spoints;
-    if (points_batch_shape.size() == 0 && source_batch_shape.size() != 0) {
-      // Scalar points, non-scalar source. Add ones to points dimension.
-      points_batch_shape.resize(source_batch_shape.size());
-      std::fill(points_batch_shape.begin(), points_batch_shape.end(), 1);
+    if (points_batch_shape.size() < source_batch_shape.size()) {
+      // Points has less batch dims than source. Insert ones at the beginning
+      // until the two sizes match.
+      int diff = source_batch_shape.size() - points_batch_shape.size();
+      for (int i = 0; i < diff; i++) {
+        points_batch_shape.insert(points_batch_shape.begin(), 1);
+      }
 
       TensorShape points_shape(points_batch_shape);
       points_shape.AppendShape(points.shape());
@@ -289,10 +293,13 @@ class NUFFTBaseOp : public OpKernel {
     }
 
     Tensor ssource;
-    if (source_batch_shape.size() == 0 && points_batch_shape.size() != 0) {
-      // Scalar points, non-scalar source. Add ones to points dimension.
-      source_batch_shape.resize(points_batch_shape.size());
-      std::fill(source_batch_shape.begin(), source_batch_shape.end(), 1);
+    if (source_batch_shape.size() < points_batch_shape.size()) {
+      // Source has less batch dims than points. Insert ones at the beginning
+      // until the two sizes match.
+      int diff = points_batch_shape.size() - source_batch_shape.size();
+      for (int i = 0; i < diff; i++) {
+        source_batch_shape.insert(source_batch_shape.begin(), 1);
+      }
 
       TensorShape source_shape(source_batch_shape);
       source_shape.AppendShape(source.shape());
@@ -312,7 +319,7 @@ class NUFFTBaseOp : public OpKernel {
                 errors::InvalidArgument(
                   "Incompatible shapes: ", source.shape().DebugString(),
                   " vs. ", points.shape().DebugString()));
-    
+
     // Allocate output tensor.
     Tensor* target = nullptr;
     TensorShape target_shape(bcast.output_shape());

@@ -259,7 +259,8 @@ class NUFFTOpsTest(tf.test.TestCase):
   @parameterized(transform_type=['type_1', 'type_2'],
                  which=['source', 'points'],
                  device=['/cpu:0', '/gpu:0'])
-  def test_nufft_different_batch_ranks(self, transform_type, which, device):
+  def test_nufft_different_batch_ranks(self, transform_type, which, device): # pylint: disable=missing-function-docstring
+    # pylint: disable=unexpected-keyword-arg
 
     # Set random seed.
     tf.random.set_seed(0)

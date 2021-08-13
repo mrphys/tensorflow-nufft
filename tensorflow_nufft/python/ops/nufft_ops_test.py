@@ -433,8 +433,8 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
 
           target = nufft_ops.nufft(source,
                                    points,
-                                   transform_type=transform_type,
-                                   grid_shape=grid_shape)
+                                   grid_shape=grid_shape,
+                                   transform_type=transform_type)
 
           result = self.run_op_benchmark(
             sess,

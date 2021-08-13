@@ -92,7 +92,7 @@ def nudft(source,
           fft_direction='forward'):
   """Compute the non-uniform discrete Fourier transform.
 
-  .. note::
+  .. warning::
     This function explicitly creates a dense DFT matrix and is very
     computationally expensive. In most cases, `tfft.nufft` should be used
     instead. This function exists primarily for testing purposes.

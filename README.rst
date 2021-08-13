@@ -65,4 +65,4 @@ Citation
 --------
 
 If you find this software useful in your work, please
-`cite us <https://doi.org/10.5281/zenodo.5198289>`_.
+`cite us <https://doi.org/10.5281/zenodo.5198288>`_.

@@ -1,8 +1,4 @@
-Release 0.3.2
+Release 0.4.0
 =============
 
-Bug Fixes and Other Changes
----------------------------
-
-* Fixed a bug in GPU kernel that would ignore internal CUFFT errors and simply
-  return an incorrect result. An error will be raised now. 
+This release bumps the supported TensorFlow version to 2.7.0.

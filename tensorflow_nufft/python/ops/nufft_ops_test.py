@@ -256,6 +256,71 @@ class NUFFTOpsTest(tf.test.TestCase):
                           rtol=1e-4, atol=1e-4)
 
 
+  @parameterized(transform_type=['type_1', 'type_2'],
+                 which=['source', 'points'],
+                 device=['/cpu:0', '/gpu:0'])
+  def test_nufft_different_batch_ranks(self, transform_type, which, device): # pylint: disable=missing-function-docstring
+    # pylint: disable=unexpected-keyword-arg
+
+    # Set random seed.
+    tf.random.set_seed(0)
+
+    grid_shape = [24, 24]
+    if which == 'points':
+      source_batch_shape = [2, 4]
+      points_batch_shape = [1]
+    else:
+      points_batch_shape = [2, 4]
+      source_batch_shape = [1]
+    dtype = tf.complex64
+    fft_direction='forward'
+
+    rank = len(grid_shape)
+    num_points = tf.math.reduce_prod(grid_shape)
+
+    with tf.device(device):
+      # Generate random signal and points.
+      if transform_type == 'type_1':    # nonuniform to uniform
+        source_shape = source_batch_shape + [num_points]
+      elif transform_type == 'type_2':  # uniform to nonuniform
+        source_shape = source_batch_shape + grid_shape
+
+      source = tf.Variable(tf.dtypes.complex(
+        tf.random.uniform(
+          source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
+        tf.random.uniform(
+          source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
+
+      points_shape = points_batch_shape + [num_points, rank]
+      points = tf.Variable(tf.random.uniform(
+        points_shape, minval=-np.pi, maxval=np.pi,
+        dtype=dtype.real_dtype))
+
+      with tf.GradientTape(persistent=True) as tape:
+
+        result_nufft = nufft_ops.nufft(
+          source, points,
+          grid_shape=grid_shape,
+          transform_type=transform_type,
+          fft_direction=fft_direction)
+
+        result_nudft = nufft_ops.nudft(
+          source, points,
+          grid_shape=grid_shape,
+          transform_type=transform_type,
+          fft_direction=fft_direction)
+
+      # Compute gradients.
+      grad_nufft = tape.gradient(result_nufft, source)
+      grad_nudft = tape.gradient(result_nudft, source)
+
+      tol = 1.e-3
+      self.assertAllClose(result_nudft, result_nufft,
+                          rtol=tol, atol=tol)
+      self.assertAllClose(grad_nufft, grad_nudft,
+                          rtol=tol, atol=tol)
+
+
   def test_static_shape(self): # pylint: disable=missing-function-docstring
 
     tf.compat.v1.disable_v2_behavior()
@@ -313,6 +378,24 @@ class NUFFTOpsTest(tf.test.TestCase):
                         grid_shape=grid_shape)
 
 
+  @parameterized(device=['/cpu:0', '/gpu:0'])
+  def test_interp_3d_many_points(self, device): # pylint: disable=missing-param-doc
+    """Test 3D interpolation with a large points array."""
+    for _ in range(5):
+      # We repeat this test several times because non-deterministic behaviour
+      # has been observed with this kind of data, so make sure it's not
+      # happening.
+      with tf.device(device):
+        num_points = 3000000
+        rng = tf.random.Generator.from_seed(0)
+        points = rng.uniform([num_points, 3], minval=-np.pi, maxval=np.pi)
+        source = tf.complex(tf.ones([128, 128, 128]),
+                            tf.zeros([128, 128, 128]))
+        result = nufft_ops.interp(source, points)
+        self.assertAllClose(tf.math.real(result), tf.ones([num_points]),
+                            rtol=1e-5, atol=1e-5)
+
+
 class NUFFTOpsBenchmark(tf.test.Benchmark):
   """Benchmark for NUFFT functions."""
 
@@ -368,8 +451,8 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
 
           target = nufft_ops.nufft(source,
                                    points,
-                                   transform_type=transform_type,
-                                   grid_shape=grid_shape)
+                                   grid_shape=grid_shape,
+                                   transform_type=transform_type)
 
           result = self.run_op_benchmark(
             sess,

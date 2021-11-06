@@ -1,7 +1,7 @@
 TensorFlow NUFFT
 ================
 
-|pypi| |build| |docs|
+|pypi| |build| |docs| |doi|
 
 .. |pypi| image:: https://badge.fury.io/py/tensorflow-nufft.svg
     :target: https://badge.fury.io/py/tensorflow-nufft
@@ -9,6 +9,8 @@ TensorFlow NUFFT
     :target: https://github.com/mrphys/tensorflow-nufft/actions/workflows/build-package.yml
 .. |docs| image:: https://img.shields.io/badge/api-reference-blue.svg
     :target: https://mrphys.github.io/tensorflow-nufft
+.. |doi| image:: https://zenodo.org/badge/382718757.svg
+    :target: https://zenodo.org/badge/latestdoi/382718757
 
 .. start-intro
 
@@ -62,4 +64,5 @@ to make a contribution.
 Citation
 --------
 
-If you find this software useful in your work, please cite our Zenodo record.
+If you find this software useful in your work, please
+`cite us <https://doi.org/10.5281/zenodo.5198288>`_.

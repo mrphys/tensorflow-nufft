@@ -95,7 +95,7 @@ lint: $(wildcard tensorflow_nufft/python/ops/*.py)
 docs: $(TARGET)
 	ln -sf tensorflow_nufft tfft
 	rm -rf tools/docs/_*
-	$(MAKE) -C tools/docs html
+	$(MAKE) -C tools/docs html PY_VERSION=$(PY_VERSION)
 	rm tfft
 
 clean:

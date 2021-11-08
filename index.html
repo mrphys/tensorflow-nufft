@@ -5,10 +5,10 @@
     <meta name="color-scheme" content="light dark"><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 <link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="NUFFT" href="nufft_ops.html" />
 
-    <meta name="generator" content="sphinx-4.1.2, furo 2021.08.17.beta43"/>
-        <title>tensorflow-nufft 0.3.2 documentation</title>
+    <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
+        <title>tensorflow-nufft 0.4.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=910ac4ccc9d7c023151c34010d7b500fb9777a51" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?digest=0254c309f5cadf746f1a613e7677379ac9c8cdcd" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
     
     
@@ -32,9 +32,11 @@
   
     }
   }
-</style>
-    <link media="(prefers-color-scheme: dark)" rel="stylesheet" href="_static/pygments_dark.css"></head>
+</style></head>
   <body>
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
     
 <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
   <symbol id="svg-toc" viewBox="0 0 24 24">
@@ -121,7 +123,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="#"><div class="brand">tensorflow-nufft 0.3.2 documentation</div></a>
+      <a href="#"><div class="brand">tensorflow-nufft 0.4.0 documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -144,7 +146,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="#">
   
   
-  <span class="sidebar-brand-text">tensorflow-nufft 0.3.2 documentation</span>
+  <span class="sidebar-brand-text">tensorflow-nufft 0.4.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -175,7 +177,7 @@
   </aside>
   <div class="main">
     <div class="content">
-      <article role="main">
+      <div class="article-container">
         <div class="content-icon-container">
           <div class="theme-toggle-container theme-toggle-content">
             <button class="theme-toggle">
@@ -190,7 +192,8 @@
             <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
           </label>
         </div>
-        <section id="welcome-to-tensorflow-nufft">
+        <article role="main">
+          <section id="welcome-to-tensorflow-nufft">
 <h1>Welcome to TensorFlow NUFFT<a class="headerlink" href="#welcome-to-tensorflow-nufft" title="Permalink to this headline">¶</a></h1>
 <p>TensorFlow NUFFT is a fast, native non-uniform fast Fourier transform op for
 TensorFlow. It provides:</p>
@@ -212,14 +215,40 @@ details.</p>
 </pre></div>
 </div>
 <p>Note that only Linux wheels are currently being provided.</p>
+<section id="tensorflow-compatibility">
+<h3>TensorFlow Compatibility<a class="headerlink" href="#tensorflow-compatibility" title="Permalink to this headline">¶</a></h3>
+<p>Each TensorFlow NUFFT release is compiled against a specific version of
+TensorFlow. Please see the compatibility table below to see what versions of
+each package you can expect to work together.</p>
+<div class="table-wrapper"><table class="docutils align-default">
+<colgroup>
+<col style="width: 62%"/>
+<col style="width: 38%"/>
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>TensorFlow NUFFT</p></th>
+<th class="head"><p>TensorFlow</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>v0.3</p></td>
+<td><p>v2.6</p></td>
+</tr>
+<tr class="row-odd"><td><p>v0.4</p></td>
+<td><p>v2.7</p></td>
+</tr>
+</tbody>
+</table></div>
 <div class="toctree-wrapper compound">
 </div>
 <div class="toctree-wrapper compound">
 </div>
+</section>
 </section>
 </section>
 
-      </article>
+        </article>
+      </div>
       <footer>
         
         <div class="related-pages">
@@ -236,13 +265,11 @@ details.</p>
         </div>
 
         <div class="related-information">
-              Copyright &#169; 2021 University College London
-            |
+              Copyright &#169; 2021 University College London |
             Built with <a href="https://www.sphinx-doc.org/">Sphinx</a>
               and
               <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
-              <a href="https://github.com/pradyunsg/furo">Furo theme</a>.
-            |
+              <a href="https://github.com/pradyunsg/furo">Furo theme</a>. |
             <a class="muted-link" href="_sources/index.rst.txt"
                rel="nofollow">
               Show Source
@@ -265,6 +292,9 @@ details.</p>
             <ul>
 <li><a class="reference internal" href="#">Welcome to TensorFlow NUFFT</a><ul>
 <li><a class="reference internal" href="#installation">Installation</a><ul>
+<li><a class="reference internal" href="#tensorflow-compatibility">TensorFlow Compatibility</a><ul>
+</ul>
+</li>
 </ul>
 </li>
 </ul>

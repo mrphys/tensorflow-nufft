@@ -28,7 +28,7 @@ CFLAGS = -O3 -march=x86-64 -mtune=generic
 
 -include make.inc
 
-CFLAGS += -fPIC -std=c++11
+CFLAGS += -fPIC -std=c++14
 
 ifeq ($(CUDA), 1)
 TF_CFLAGS += -DGOOGLE_CUDA=1

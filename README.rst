@@ -43,6 +43,20 @@ You can install TensorFlow NUFFT with ``pip``:
 
 Note that only Linux wheels are currently being provided.
 
+TensorFlow Compatibility
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Each TensorFlow NUFFT release is compiled against a specific version of
+TensorFlow. Please see the compatibility table below to see what versions of
+each package you can expect to work together.
+
+================  ==========
+TensorFlow NUFFT  TensorFlow
+================  ==========
+v0.3              v2.6
+v0.4              v2.7
+================  ==========
+
 .. end-install
 
 Documentation

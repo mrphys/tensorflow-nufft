@@ -17,14 +17,14 @@ limitations under the License.
 #define EIGEN_USE_GPU
 #endif  // GOOGLE_CUDA
 
-#include "nufft.h"
+#include "tensorflow_nufft/cc/kernels/nufft.h"
 
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_util.h"
 #include "tensorflow/core/util/bcast.h"
 
-#include "finufft.h"
+#include "tensorflow_nufft/cc/kernels/finufft/include/finufft.h"
 
 #include "transpose_functor.h"
 #include "reverse_functor.h"

@@ -45,20 +45,11 @@ Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
   }
   int64 rank = c->Value(rank_handle);
 
-  // Validate `grid_shape` attribute.
+  // Get `grid_shape` input.
   ShapeHandle grid_shape;
   if (transform_type == 1) {
-    PartialTensorShape grid_tensor_shape;
-    TF_RETURN_IF_ERROR(c->GetAttr("grid_shape", &grid_tensor_shape));
-    TF_RETURN_IF_ERROR(
-      c->MakeShapeFromPartialTensorShape(grid_tensor_shape, &grid_shape));
+    TF_RETURN_IF_ERROR(c->MakeShapeFromShapeTensor(2, &grid_shape));
     TF_RETURN_IF_ERROR(c->WithRank(grid_shape, rank, &grid_shape));
-    // if (!c->RankKnown(grid_shape)) {
-    //   return errors::InvalidArgument("grid_shape attr must have known rank")
-    // } 
-    if (!c->FullyDefined(grid_shape)) {
-      return errors::InvalidArgument("grid_shape attr must be fully defined");
-    }
   }
 
   // Get number of nonuniform points.
@@ -117,6 +108,7 @@ Status NUFFTShapeFn(InferenceContext* c) {
   // Validate `transform_type` attribute.
   string transform_type_str;
   TF_RETURN_IF_ERROR(c->GetAttr("transform_type", &transform_type_str));
+
   int transform_type;
   if (transform_type_str == "type_1") {
     transform_type = 1;
@@ -179,10 +171,11 @@ target: The target point set. Has shape `[..., M]`, where the batch shape `...`
 REGISTER_OP("Spread")
   .Attr("Tcomplex: {complex64, complex128} = DT_COMPLEX64")
   .Attr("Treal: {float32, float64} = DT_FLOAT")
+  .Attr("Tshape: {int32, int64} = DT_INT32")
   .Input("source: Tcomplex")
   .Input("points: Treal")
+  .Input("grid_shape: Tshape")
   .Output("target: Tcomplex")
-  .Attr("grid_shape: shape")
   .Attr("tol: float = 1e-6")
   .SetShapeFn(SpreadShapeFn)
   .Doc(R"doc(
@@ -213,10 +206,11 @@ target: The target grid. Has shape `[...] + grid_shape`, where the batch shape
 REGISTER_OP("NUFFT")
   .Attr("Tcomplex: {complex64, complex128} = DT_COMPLEX64")
   .Attr("Treal: {float32, float64} = DT_FLOAT")
+  .Attr("Tshape: {int32, int64} = DT_INT32")
   .Input("source: Tcomplex")
   .Input("points: Treal")
+  .Input("grid_shape: Tshape")
   .Output("target: Tcomplex")
-  .Attr("grid_shape: shape = { unknown_rank: true }")
   .Attr("transform_type: {'type_1', 'type_2'} = 'type_2'")
   .Attr("fft_direction: {'forward', 'backward'} = 'forward'")
   .Attr("tol: float = 1e-6")

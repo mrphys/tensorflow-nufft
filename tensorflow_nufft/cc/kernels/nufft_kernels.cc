@@ -213,27 +213,36 @@ class NUFFTBaseOp : public OpKernel {
                 errors::InvalidArgument(
                   "Input `points` must have rank of at least 2, but got "
                   "shape: ", points.shape().DebugString()));
-    
+
     int64 rank = points.dim_size(points.dims() - 1);
     int64 num_points = points.dim_size(points.dims() - 2);
 
     TensorShape grid_shape;
     switch (transform_type_) {
-      case 1: // nonuniform to uniform
-        
-        // TODO: check `grid_shape` input.
-        OP_REQUIRES(ctx, grid_shape_.dims() == rank,
-              errors::InvalidArgument(
-                "A valid `grid_shape` input must be provided "
-                "for NUFFT type-1, but received: ",
-                grid_shape_.DebugString()));
-        grid_shape = grid_shape_;
+      case 1: {   // nonuniform to uniform
+        // Get shape of grid from the `grid_shape` input.
+        const Tensor& grid_shape_tensor = ctx->input(2);
+        OP_REQUIRES(ctx, TensorShapeUtils::IsVector(grid_shape_tensor.shape()),
+                    errors::InvalidArgument(
+                        "grid_shape must be 1D, but got shape: ",
+                        grid_shape_tensor.shape().DebugString()));
+
+        if (grid_shape_tensor.dtype() == DT_INT32) {
+          OP_REQUIRES_OK(ctx, TensorShapeUtils::MakeShape(
+              grid_shape_tensor.vec<int32>(), &grid_shape));
+
+        } else if (grid_shape_tensor.dtype() == DT_INT64) {
+          OP_REQUIRES_OK(ctx, TensorShapeUtils::MakeShape(
+              grid_shape_tensor.vec<int64>(), &grid_shape));
+
+        } else {
+          LOG(FATAL) << "shape must have type int32 or int64.";
+        }
 
         break;
-
-      case 2: // uniform to nonuniform
-
-        // Get shape from `source` input.
+      }
+      case 2: {   // uniform to nonuniform
+        // Get shape of grid from `source` input.
         OP_REQUIRES(ctx, source.dims() >= rank,
               errors::InvalidArgument(
                 "Input `source` must have rank of at least ",
@@ -244,6 +253,7 @@ class NUFFTBaseOp : public OpKernel {
         }
 
         break;
+      }
     }
 
     // Handle broadcasting.
@@ -497,7 +507,6 @@ class NUFFTBaseOp : public OpKernel {
   int transform_type_;
   int j_sign_;
   float tol_;
-  TensorShape grid_shape_;
   OpType op_type_;
 };
 
@@ -515,7 +524,6 @@ class NUFFT : public NUFFTBaseOp<Device, T> {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("transform_type", &transform_type_str));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("fft_direction", &fft_direction_str));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
-    OP_REQUIRES_OK(ctx, ctx->GetAttr("grid_shape", &this->grid_shape_));
 
     if (transform_type_str == "type_1") {
       this->transform_type_ = 1;
@@ -558,7 +566,6 @@ class Spread : public NUFFTBaseOp<Device, T> {
 
   explicit Spread(OpKernelConstruction* ctx) : NUFFTBaseOp<Device, T>(ctx) {
 
-    OP_REQUIRES_OK(ctx, ctx->GetAttr("grid_shape", &this->grid_shape_));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
 
     this->transform_type_ = 1;
@@ -573,13 +580,15 @@ class Spread : public NUFFTBaseOp<Device, T> {
 REGISTER_KERNEL_BUILDER(Name("NUFFT")
                             .Device(DEVICE_CPU)
                             .TypeConstraint<complex64>("Tcomplex")
-                            .TypeConstraint<float>("Treal"),
+                            .TypeConstraint<float>("Treal")
+                            .HostMemory("grid_shape"),
                         NUFFT<CPUDevice, float>);
 
 REGISTER_KERNEL_BUILDER(Name("NUFFT")
                             .Device(DEVICE_CPU)
                             .TypeConstraint<complex128>("Tcomplex")
-                            .TypeConstraint<double>("Treal"),
+                            .TypeConstraint<double>("Treal")
+                            .HostMemory("grid_shape"),
                         NUFFT<CPUDevice, double>);
 
 REGISTER_KERNEL_BUILDER(Name("Interp")
@@ -597,13 +606,15 @@ REGISTER_KERNEL_BUILDER(Name("Interp")
 REGISTER_KERNEL_BUILDER(Name("Spread")
                             .Device(DEVICE_CPU)
                             .TypeConstraint<complex64>("Tcomplex")
-                            .TypeConstraint<float>("Treal"),
+                            .TypeConstraint<float>("Treal")
+                            .HostMemory("grid_shape"),
                         Spread<CPUDevice, float>);
 
 REGISTER_KERNEL_BUILDER(Name("Spread")
                             .Device(DEVICE_CPU)
                             .TypeConstraint<complex128>("Tcomplex")
-                            .TypeConstraint<double>("Treal"),
+                            .TypeConstraint<double>("Treal")
+                            .HostMemory("grid_shape"),
                         Spread<CPUDevice, double>);
 
 // Register the GPU kernels.
@@ -611,13 +622,15 @@ REGISTER_KERNEL_BUILDER(Name("Spread")
 REGISTER_KERNEL_BUILDER(Name("NUFFT")
                             .Device(DEVICE_GPU)
                             .TypeConstraint<complex64>("Tcomplex")
-                            .TypeConstraint<float>("Treal"),
+                            .TypeConstraint<float>("Treal")
+                            .HostMemory("grid_shape"),
                         NUFFT<GPUDevice, float>);
 
 REGISTER_KERNEL_BUILDER(Name("NUFFT")
                             .Device(DEVICE_GPU)
                             .TypeConstraint<complex128>("Tcomplex")
-                            .TypeConstraint<double>("Treal"),
+                            .TypeConstraint<double>("Treal")
+                            .HostMemory("grid_shape"),
                         NUFFT<GPUDevice, double>);
 
 REGISTER_KERNEL_BUILDER(Name("Interp")
@@ -635,13 +648,15 @@ REGISTER_KERNEL_BUILDER(Name("Interp")
 REGISTER_KERNEL_BUILDER(Name("Spread")
                             .Device(DEVICE_GPU)
                             .TypeConstraint<complex64>("Tcomplex")
-                            .TypeConstraint<float>("Treal"),
+                            .TypeConstraint<float>("Treal")
+                            .HostMemory("grid_shape"),
                         Spread<GPUDevice, float>);
 
 REGISTER_KERNEL_BUILDER(Name("Spread")
                             .Device(DEVICE_GPU)
                             .TypeConstraint<complex128>("Tcomplex")
-                            .TypeConstraint<double>("Treal"),
+                            .TypeConstraint<double>("Treal")
+                            .HostMemory("grid_shape"),
                         Spread<GPUDevice, double>);
 #endif  // GOOGLE_CUDA
 

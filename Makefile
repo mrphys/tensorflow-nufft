@@ -4,7 +4,6 @@ PY_VERSION ?= 3.8
 PYTHON = python$(PY_VERSION)
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-# FINUFFT_INCLUDE = /dt7/usr/include/finufft/include
 FINUFFT_ROOT = tensorflow_nufft/cc/kernels/finufft
 CUFINUFFT_INCLUDE = /dt7/usr/include/cufinufft/include
 
@@ -29,17 +28,19 @@ CFLAGS = -O3 -march=x86-64 -mtune=generic
 
 -include make.inc
 
-CFLAGS += -fPIC -std=c++14
+CFLAGS += -fPIC
 
 ifeq ($(CUDA), 1)
 TF_CFLAGS += -DGOOGLE_CUDA=1
 endif
 
-CXXFLAGS = $(CFLAGS) $(TF_CFLAGS)
+CXXFLAGS = -std=c++14 $(CFLAGS) $(TF_CFLAGS)
 CXXFLAGS += -I$(ROOT_DIR)
 ifeq ($(CUDA), 1)
 CXXFLAGS += -I$(CUDA_INCLUDE)
 endif
+
+FINUFFT_CFLAGS = -DFFTW_PLAN_SAFE -funroll-loops -fcx-limited-range
 
 NVARCH ?= \
 	-gencode=arch=compute_35,code=sm_35 \
@@ -69,21 +70,21 @@ LDFLAGS += -lcudart -lnvToolsExt
 endif
 
 # FINUFFT
-FINUFFT_LIB = $(FINUFFT_ROOT)/lib/libfinufft.a
+FINUFFT_LIB = $(FINUFFT_ROOT)/libfinufft.a
 FINUFFT_HEADERS = $(wildcard $(FINUFFT_ROOT)/include/*.h)
 
 # spreader is subset of the library with self-contained testing, hence own objs:
 # double-prec spreader object files that also need single precision...
-SOBJS = $(FINUFFT_ROOT)/src/spreadinterp.o $(FINUFFT_ROOT)/src/utils.o
+SOBJS = $(FINUFFT_ROOT)/spreadinterp.o $(FINUFFT_ROOT)/utils.o
 # their single-prec versions
 SOBJSF = $(SOBJS:%.o=%_32.o)
 # precision-dependent spreader object files (compiled & linked only once)...
-SOBJS_PI = $(FINUFFT_ROOT)/src/utils_precindep.o
+SOBJS_PI = $(FINUFFT_ROOT)/utils_precindep.o
 # spreader dual-precision objs
 SOBJSD = $(SOBJS) $(SOBJSF) $(SOBJS_PI)
 
 # double-prec library object files that also need single precision...
-OBJS = $(SOBJS) $(FINUFFT_ROOT)/src/finufft.o $(FINUFFT_ROOT)/src/simpleinterfaces.o $(FINUFFT_ROOT)/fortran/finufftfort.o
+OBJS = $(SOBJS) $(FINUFFT_ROOT)/finufft.o $(FINUFFT_ROOT)/simpleinterfaces.o
 # their single-prec versions
 OBJSF = $(OBJS:%.o=%_32.o)
 # precision-dependent library object files (compiled & linked only once)...
@@ -106,17 +107,13 @@ $(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK)
 
 # implicit rules for objects (note -o ensures writes to correct dir)
 %.o: %.cpp $(FINUFFT_HEADERS)
-	$(CXX) -c $(CXXFLAGS) $< -o $@
+	$(CXX) -c $(CXXFLAGS) $(FINUFFT_CFLAGS) $< -o $@
 %_32.o: %.cpp $(FINUFFT_HEADERS)
-	$(CXX) -DSINGLE -c $(CXXFLAGS) $< -o $@
+	$(CXX) -DSINGLE -c $(CXXFLAGS) $(FINUFFT_CFLAGS) $< -o $@
 %.o: %.c $(FINUFFT_HEADERS)
-	$(CC) -c $(CFLAGS) $< -o $@
+	$(CC) -c $(CFLAGS) $(FINUFFT_CFLAGS) $< -o $@
 %_32.o: %.c $(FINUFFT_HEADERS)
-	$(CC) -DSINGLE -c $(CFLAGS) $< -o $@
-%.o: %.f
-	$(FC) -c $(FFLAGS) $< -o $@
-%_32.o: %.f
-	$(FC) -DSINGLE -c $(FFLAGS) $< -o $@
+	$(CC) -DSINGLE -c $(CFLAGS) $(FINUFFT_CFLAGS) $< -o $@
 
 finufft: $(FINUFFT_LIB)
 
@@ -151,7 +148,6 @@ clean:
 # Cleans FINUFFT.
 allclean: clean
 	rm -f $(FINUFFT_LIB)
-	rm -f $(FINUFFT_ROOT)/src/*.o $(FINUFFT_ROOT)/test/directft/*.o $(FINUFFT_ROOT)/test/*.o $(FINUFFT_ROOT)/examples/*.o $(FINUFFT_ROOT)/matlab/*.o $(FINUFFT_ROOT)/contrib/*.o
-	# rm -f $(FINUFFT_ROOT)/fortran/*.o $(FE_DIR)/*.o $(FD)/*.o
+	rm -f $(FINUFFT_ROOT)/*.o $(FINUFFT_ROOT)/contrib/*.o
 
 .PHONY: all lib finufft wheel test benchmark lint docs clean allclean

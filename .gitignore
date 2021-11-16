@@ -1,3 +1,4 @@
+*.a
 *.egg-info
 *.o
 *.pyc

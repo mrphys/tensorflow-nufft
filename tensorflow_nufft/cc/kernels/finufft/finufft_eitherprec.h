@@ -1,3 +1,18 @@
+/* Copyright 2017-2021 The Simons Foundation. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
+
 // Switchable-precision interface template for FINUFFT. Used by finufft.h
 // Internal use only: users should link to finufft.h
 // Barnett 7/1/20
@@ -114,49 +129,6 @@ int FINUFFT_EXECUTE(FINUFFT_PLAN plan, CPX* weights, CPX* result);
 int FINUFFT_INTERP(FINUFFT_PLAN plan, CPX* weights, CPX* result);
 int FINUFFT_SPREAD(FINUFFT_PLAN plan, CPX* weights, CPX* result);
 int FINUFFT_DESTROY(FINUFFT_PLAN plan);
-
-
-// ----------------- the 18 simple interfaces -------------------------------
-// (sources in simpleinterfaces.cpp)
-
-int FINUFFT1D1(BIGINT nj,FLT* xj,CPX* cj,int iflag,FLT eps,BIGINT ms,
-	       CPX* fk, nufft_opts *opts);
-int FINUFFT1D1MANY(int ntransf, BIGINT nj,FLT* xj,CPX* cj,int iflag,FLT eps,BIGINT ms,
-	       CPX* fk, nufft_opts *opts);
-
-int FINUFFT1D2(BIGINT nj,FLT* xj,CPX* cj,int iflag,FLT eps,BIGINT ms,
-	       CPX* fk, nufft_opts *opts);
-int FINUFFT1D2MANY(int ntransf, BIGINT nj,FLT* xj,CPX* cj,int iflag,FLT eps,BIGINT ms,
-	       CPX* fk, nufft_opts *opts);
-int FINUFFT1D3(BIGINT nj,FLT* x,CPX* c,int iflag,FLT eps,BIGINT nk, FLT* s, CPX* f, nufft_opts *opts);
-int FINUFFT1D3MANY(int ntransf, BIGINT nj,FLT* x,CPX* c,int iflag,FLT eps,BIGINT nk, FLT* s, CPX* f, nufft_opts *opts);
-int FINUFFT2D1(BIGINT nj,FLT* xj,FLT *yj,CPX* cj,int iflag,FLT eps,
-	       BIGINT ms, BIGINT mt, CPX* fk, nufft_opts *opts);
-int FINUFFT2D1MANY(int ndata, BIGINT nj, FLT* xj, FLT *yj, CPX* c, int iflag,
-                   FLT eps, BIGINT ms, BIGINT mt, CPX* fk, nufft_opts *opts);
-int FINUFFT2D2(BIGINT nj,FLT* xj,FLT *yj,CPX* cj,int iflag,FLT eps,
-	       BIGINT ms, BIGINT mt, CPX* fk, nufft_opts *opts);
-int FINUFFT2D2MANY(int ndata, BIGINT nj, FLT* xj, FLT *yj, CPX* c, int iflag,
-                   FLT eps, BIGINT ms, BIGINT mt, CPX* fk, nufft_opts *opts);
-int FINUFFT2D3(BIGINT nj,FLT* x,FLT *y,CPX* cj,int iflag,FLT eps,BIGINT nk, FLT* s, FLT* t, CPX* fk, nufft_opts *opts);
-
-int FINUFFT2D3MANY(int ntransf, BIGINT nj,FLT* x,FLT *y,CPX* cj,int iflag,FLT eps,BIGINT nk, FLT* s, FLT* t, CPX* fk, nufft_opts *opts);
-
-int FINUFFT3D1(BIGINT nj,FLT* xj,FLT *yj,FLT *zj,CPX* cj,int iflag,FLT eps,
-	       BIGINT ms, BIGINT mt, BIGINT mu, CPX* fk, nufft_opts *opts);
-int FINUFFT3D1MANY(int ntransfs, BIGINT nj,FLT* xj,FLT *yj,FLT *zj,CPX* cj,int iflag,FLT eps,
-	       BIGINT ms, BIGINT mt, BIGINT mu, CPX* fk, nufft_opts *opts);
-
-int FINUFFT3D2(BIGINT nj,FLT* xj,FLT *yj,FLT *zj,CPX* cj,int iflag,FLT eps,
-	       BIGINT ms, BIGINT mt, BIGINT mu, CPX* fk, nufft_opts *opts);
-int FINUFFT3D2MANY(int ntransf, BIGINT nj,FLT* xj,FLT *yj,FLT *zj,CPX* cj,int iflag,FLT eps,
-	       BIGINT ms, BIGINT mt, BIGINT mu, CPX* fk, nufft_opts *opts);
-int FINUFFT3D3(BIGINT nj,FLT* x,FLT *y,FLT *z, CPX* cj,int iflag,
-	       FLT eps,BIGINT nk,FLT* s, FLT* t, FLT *u,
-	       CPX* fk, nufft_opts *opts);
-int FINUFFT3D3MANY(int ntransf, BIGINT nj,FLT* x,FLT *y,FLT *z, CPX* cj,int iflag,
-	       FLT eps,BIGINT nk,FLT* s, FLT* t, FLT *u,
-	       CPX* fk, nufft_opts *opts);
 
   
 #ifdef __cplusplus

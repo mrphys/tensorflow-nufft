@@ -43,7 +43,7 @@ Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
     c->set_output(0, c->UnknownShape());
     return Status::OK();
   }
-  int64 rank = c->Value(rank_handle);
+  int64_t rank = c->Value(rank_handle);
 
   // Get `grid_shape` input.
   ShapeHandle grid_shape;
@@ -64,7 +64,7 @@ Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
   // The `source` input is potentially an N-D batch of elements. Each element
   // in the batch is 1D for type-1 transforms and N-D for type-2 transforms,
   // where N is the rank of the op.
-  int64 source_first_elem_axis;
+  int64_t source_first_elem_axis;
   switch (transform_type) {
     case 1: // nonuniform to uniform
       source_first_elem_axis = -1;

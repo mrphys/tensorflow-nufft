@@ -214,8 +214,8 @@ class NUFFTBaseOp : public OpKernel {
                   "Input `points` must have rank of at least 2, but got "
                   "shape: ", points.shape().DebugString()));
 
-    int64 rank = points.dim_size(points.dims() - 1);
-    int64 num_points = points.dim_size(points.dims() - 2);
+    int64_t rank = points.dim_size(points.dims() - 1);
+    int64_t num_points = points.dim_size(points.dims() - 2);
 
     TensorShape grid_shape;
     switch (transform_type_) {
@@ -233,10 +233,10 @@ class NUFFTBaseOp : public OpKernel {
 
         } else if (grid_shape_tensor.dtype() == DT_INT64) {
           OP_REQUIRES_OK(ctx, TensorShapeUtils::MakeShape(
-              grid_shape_tensor.vec<int64>(), &grid_shape));
+              grid_shape_tensor.vec<int64_t>(), &grid_shape));
 
         } else {
-          LOG(FATAL) << "shape must have type int32 or int64.";
+          LOG(FATAL) << "shape must have type int32 or int64_t.";
         }
 
         break;
@@ -257,8 +257,8 @@ class NUFFTBaseOp : public OpKernel {
     }
 
     // Handle broadcasting.
-    gtl::InlinedVector<int64, 4> source_batch_shape;
-    gtl::InlinedVector<int64, 4> points_batch_shape;
+    gtl::InlinedVector<int64_t, 4> source_batch_shape;
+    gtl::InlinedVector<int64_t, 4> points_batch_shape;
 
     switch (transform_type_) {
       case 1: // nonuniform to uniform
@@ -343,8 +343,8 @@ class NUFFTBaseOp : public OpKernel {
     }
     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, target_shape, &target));
 
-    int64 num_batch_dims = source_batch_shape.size();
-    int64 num_transforms = 1;
+    int64_t num_batch_dims = source_batch_shape.size();
+    int64_t num_transforms = 1;
 
     gtl::InlinedVector<int32, 8> outer_dims;
     gtl::InlinedVector<int32, 8> inner_dims;

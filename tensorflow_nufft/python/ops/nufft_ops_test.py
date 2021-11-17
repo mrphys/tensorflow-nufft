@@ -60,6 +60,9 @@ class NUFFTOpsTest(tf.test.TestCase):
   """Test case for NUFFT functions."""
 
   def test_parallel_iteration(self):
+    
+    tf.config.threading.set_intra_op_parallelism_threads(1)
+    print("intraop", tf.config.threading.get_intra_op_parallelism_threads())
     with tf.device('/cpu:0'):
       rank = 2
       num_points = 20000
@@ -77,7 +80,7 @@ class NUFFTOpsTest(tf.test.TestCase):
                                 transform_type='type_1',
                                 fft_direction='backward')
         return tf.map_fn(nufft_adjoint, [source, points],
-                        parallel_iterations=4,
+                        parallel_iterations=2,
                         fn_output_signature=tf.TensorSpec(grid_shape, tf.complex64))
       
       result = parallel_nufft_adjoint(source, points)

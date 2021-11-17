@@ -150,6 +150,12 @@ struct DoNUFFTBase {
       opts.upsampfac = 2.0;
     }
 
+    // Intra-op threading.
+    const DeviceBase::CpuWorkerThreads& worker_threads =
+        *ctx->device()->tensorflow_cpu_worker_threads();
+    opts.num_threads = worker_threads.num_threads;
+    std::cout << "num_threads" << opts.num_threads << std::endl;
+
     // Make the NUFFT plan.
     int err;
     typename nufft::plan_type<Device, T>::type plan;
@@ -190,15 +196,15 @@ struct DoNUFFTBase {
           break;
       }
       
-      // Set the point coordinates.
-      err = nufft::setpts<Device, T>(
-        plan,
-        npts, points_x, points_y, points_z,
-        0, NULL, NULL, NULL);
+      // // Set the point coordinates.
+      // err = nufft::setpts<Device, T>(
+      //   plan,
+      //   npts, points_x, points_y, points_z,
+      //   0, NULL, NULL, NULL);
         
-      if (err > 0) {
-        return errors::Internal("Failed during `nufft::setpts`: ", err);
-      }
+      // if (err > 0) {
+      //   return errors::Internal("Failed during `nufft::setpts`: ", err);
+      // }
 
       // Compute indices.
       csrc = 0;
@@ -217,27 +223,27 @@ struct DoNUFFTBase {
       bcoeffs = coeffs + *pcc * ntrans * ncoeffs;
 
       // Execute the NUFFT.
-      switch (optype)
-      {
-      case OpType::NUFFT:
-        err = nufft::execute<Device, T>(plan, bstrengths, bcoeffs);
-        if (err > 0) {
-          return errors::Internal("Failed during `nufft::execute`: ", err);
-        }
-        break;
-      case OpType::INTERP:
-        err = nufft::interp<Device, T>(plan, bstrengths, bcoeffs);
-        if (err > 0) {
-          return errors::Internal("Failed during `nufft::interp`: ", err);
-        }
-        break;
-      case OpType::SPREAD:
-        err = nufft::spread<Device, T>(plan, bstrengths, bcoeffs);
-        if (err > 0) {
-          return errors::Internal("Failed during `nufft::spread`: ", err);
-        }
-        break;
-      }
+      // switch (optype)
+      // {
+      // case OpType::NUFFT:
+      //   err = nufft::execute<Device, T>(plan, bstrengths, bcoeffs);
+      //   if (err > 0) {
+      //     return errors::Internal("Failed during `nufft::execute`: ", err);
+      //   }
+      //   break;
+      // case OpType::INTERP:
+      //   err = nufft::interp<Device, T>(plan, bstrengths, bcoeffs);
+      //   if (err > 0) {
+      //     return errors::Internal("Failed during `nufft::interp`: ", err);
+      //   }
+      //   break;
+      // case OpType::SPREAD:
+      //   err = nufft::spread<Device, T>(plan, bstrengths, bcoeffs);
+      //   if (err > 0) {
+      //     return errors::Internal("Failed during `nufft::spread`: ", err);
+      //   }
+      //   break;
+      // }
     }
 
     // Clean up the plan.

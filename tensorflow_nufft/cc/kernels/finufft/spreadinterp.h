@@ -14,7 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 // Defines interface to spreading/interpolation code.
-// Note: see defs.h for definition of MAX_NSPREAD (as of 9/24/18).
+// Note: see finufft_definitions.h for definition of MAX_NSPREAD (as of 9/24/18).
 // RESCALE macro moved to spreadinterp.cpp, 7/15/20.
 
 #ifndef SPREADINTERP_H

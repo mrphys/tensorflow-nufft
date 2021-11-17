@@ -27,7 +27,7 @@ limitations under the License.
 #define FINUFFTF_PLAN_H
 #endif
 
-#include "tensorflow_nufft/cc/kernels/finufft/fftw_defs.h"
+#include "tensorflow_nufft/cc/kernels/finufft/fftw_definitions.h"
 #include "tensorflow_nufft/cc/kernels/finufft/nufft_opts.h"
 #include "tensorflow_nufft/cc/kernels/finufft/spread_opts.h"
 
@@ -107,7 +107,7 @@ typedef struct FINUFFT_PLAN_S {  // the main plan struct; note C-compatible stru
   FINUFFT_PLAN innerT2plan;   // ptr used for type 2 in step 2 of type 3
   
   // other internal structs; each is C-compatible of course
-  FFTW_PLAN fftwPlan;
+  FFTW_PLAN fft_plan;
   nufft_opts opts;     // this and spopts could be made ptrs
   spread_opts spopts;
   

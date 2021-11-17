@@ -21,7 +21,7 @@ limitations under the License.
 
 #include "tensorflow_nufft/cc/kernels/finufft/utils_precindep.h"
 #include "tensorflow_nufft/cc/kernels/finufft/dataTypes.h"
-#include "tensorflow_nufft/cc/kernels/finufft/defs.h"
+#include "tensorflow_nufft/cc/kernels/finufft/finufft_definitions.h"
 
 BIGINT next235even(BIGINT n)
 // finds even integer not less than n, with prime factors no larger than 5
@@ -79,14 +79,14 @@ int get_num_threads_parallel_block()
 #pragma omp parallel
   {
 #pragma omp single
-    nth_used = MY_OMP_GET_NUM_THREADS();
+    nth_used = FINUFFT_GET_NUM_THREADS();
   }
   return nth_used;
 }
 
 
 // ---------- thread-safe rand number generator for Windows platform ---------
-// (note this is used by macros in defs.h, and supplied in linux/macosx)
+// (note this is used by macros in finufft_definitions.h, and supplied in linux/macosx)
 #ifdef _WIN32
 int rand_r(unsigned int *seedp)
 // Libin Lu, 6/18/20

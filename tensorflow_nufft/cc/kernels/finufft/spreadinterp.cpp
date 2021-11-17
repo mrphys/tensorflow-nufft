@@ -15,7 +15,7 @@ limitations under the License.
 
 #include "tensorflow_nufft/cc/kernels/finufft/spreadinterp.h"
 #include "tensorflow_nufft/cc/kernels/finufft/dataTypes.h"
-#include "tensorflow_nufft/cc/kernels/finufft/defs.h"
+#include "tensorflow_nufft/cc/kernels/finufft/finufft_definitions.h"
 #include "tensorflow_nufft/cc/kernels/finufft/utils.h"
 #include "tensorflow_nufft/cc/kernels/finufft/utils_precindep.h"
 
@@ -272,9 +272,9 @@ int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M,
 
   timer.start();                 // if needed, sort all the NU pts...
   int did_sort=0;
-  int maxnthr = MY_OMP_GET_MAX_THREADS();
-  if (opts.nthreads>0)           // user override up to max avail
-    maxnthr = min(maxnthr,opts.nthreads);
+  int maxnthr = FINUFFT_GET_MAX_THREADS();
+  if (opts.num_threads>0)           // user override up to max avail
+    maxnthr = min(maxnthr,opts.num_threads);
   
   if (opts.sort==1 || (opts.sort==2 && better_to_sort)) {
     // store a good permutation ordering of all NU pts (dim=1,2 or 3)
@@ -329,9 +329,9 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
   int ndims = ndims_from_Ns(N1,N2,N3);
   BIGINT N=N1*N2*N3;            // output array size
   int ns=opts.nspread;          // abbrev. for w, kernel width
-  int nthr = MY_OMP_GET_MAX_THREADS();  // # threads to use to spread
-  if (opts.nthreads>0)
-    nthr = min(nthr,opts.nthreads);     // user override up to max avail
+  int nthr = FINUFFT_GET_MAX_THREADS();  // # threads to use to spread
+  if (opts.num_threads>0)
+    nthr = min(nthr,opts.num_threads);     // user override up to max avail
   if (opts.debug)
     printf("\tspread %dD (M=%lld; N1=%lld,N2=%lld,N3=%lld; pir=%d), nthr=%d\n",ndims,(long long)M,(long long)N1,(long long)N2,(long long)N3,opts.pirange,nthr);
   
@@ -354,7 +354,7 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
     
   } else {           // ------- Fancy multi-core blocked t1 spreading ----
                      // Splits sorted inds (jfm's advanced2), could double RAM.
-    // choose nb (# subprobs) via used nthreads:
+    // choose nb (# subprobs) via used num_threads:
     int nb = min((BIGINT)nthr,M);         // simply split one subprob per thr...
     if (nb*(BIGINT)opts.max_subproblem_size<M) {  // ...or more subprobs to cap size
       nb = 1 + (M-1)/opts.max_subproblem_size;  // int div does ceil(M/opts.max_subproblem_size)
@@ -458,9 +458,9 @@ int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
   int ndims = ndims_from_Ns(N1,N2,N3);
   int ns=opts.nspread;          // abbrev. for w, kernel width
   FLT ns2 = (FLT)ns/2;          // half spread width, used as stencil shift
-  int nthr = MY_OMP_GET_MAX_THREADS();   // # threads to use to interp
-  if (opts.nthreads>0)
-    nthr = min(nthr,opts.nthreads);      // user override up to max avail
+  int nthr = FINUFFT_GET_MAX_THREADS();   // # threads to use to interp
+  if (opts.num_threads>0)
+    nthr = min(nthr,opts.num_threads);      // user override up to max avail
   if (opts.debug)
     printf("\tinterp %dD (M=%lld; N1=%lld,N2=%lld,N3=%lld; pir=%d), nthr=%d\n",ndims,(long long)M,(long long)N1,(long long)N2,(long long)N3,opts.pirange,nthr);
 
@@ -600,7 +600,7 @@ int setup_spreader(spread_opts &opts, FLT eps, double upsampfac,
      0  : success
      WARN_EPS_TOO_SMALL : requested eps cannot be achieved, but proceed with
                           best possible eps
-     otherwise : failure (see codes in defs.h); spreading must not proceed
+     otherwise : failure (see codes in finufft_definitions.h); spreading must not proceed
    Barnett 2017. debug, loosened eps logic 6/14/20.
 */
 {
@@ -626,7 +626,7 @@ int setup_spreader(spread_opts &opts, FLT eps, double upsampfac,
   opts.kerpad = 0;              // affects only evaluate_kernel_vector
   opts.kerevalmeth = kerevalmeth;
   opts.upsampfac = upsampfac;
-  opts.nthreads = 0;            // all avail
+  opts.num_threads = 0;            // all avail
   opts.sort_threads = 0;        // 0:auto-choice
   // heuristic dir=1 chunking for nthr>>1, typical for intel i7 and skylake...
   opts.max_subproblem_size = (dim==1) ? 10000 : 100000;
@@ -1281,7 +1281,7 @@ void bin_sort_multithread(BIGINT *ret, BIGINT M, FLT *kx, FLT *ky, FLT *kz,
     
 #pragma omp parallel num_threads(nt)
     {  // parallel binning to each thread's count. Block done once per thread
-      int t = MY_OMP_GET_THREAD_NUM();     // (we assume all nt threads created)
+      int t = FINUFFT_GET_THREAD_NUM();     // (we assume all nt threads created)
       //printf("\tt=%d: [%d,%d]\n",t,jlo[t],jhi[t]);
       for (BIGINT i=brk[t]; i<brk[t+1]; i++) {
         // find the bin index in however many dims are needed
@@ -1314,7 +1314,7 @@ void bin_sort_multithread(BIGINT *ret, BIGINT M, FLT *kx, FLT *ky, FLT *kz,
   std::vector<BIGINT> inv(M);           // fill inverse map, in parallel
 #pragma omp parallel num_threads(nt)
   {
-    int t = MY_OMP_GET_THREAD_NUM();
+    int t = FINUFFT_GET_THREAD_NUM();
     for (BIGINT i=brk[t]; i<brk[t+1]; i++) {
       // find the bin index (again! but better than using RAM)
       BIGINT i1=FOLDRESCALE(kx[i],N1,pirange)/bin_size_x, i2=0, i3=0;

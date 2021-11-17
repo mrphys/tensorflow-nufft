@@ -20,7 +20,7 @@ limitations under the License.
 
 #include "tensorflow_nufft/cc/kernels/finufft/utils.h"
 #include "tensorflow_nufft/cc/kernels/finufft/dataTypes.h"
-#include "tensorflow_nufft/cc/kernels/finufft/defs.h"
+#include "tensorflow_nufft/cc/kernels/finufft/finufft_definitions.h"
 
 // ------------ complex array utils ---------------------------------
 
@@ -81,7 +81,7 @@ void arrayrange(BIGINT n, FLT* a, FLT *lo, FLT *hi)
 void arraywidcen(BIGINT n, FLT* a, FLT *w, FLT *c)
 // Writes out w = half-width and c = center of an interval enclosing all a[n]'s
 // Only chooses a nonzero center if this increases w by less than fraction
-// ARRAYWIDCEN_GROWFRAC defined in defs.h.
+// ARRAYWIDCEN_GROWFRAC defined in finufft_definitions.h.
 // This prevents rephasings which don't grow nf by much. 6/8/17
 // If n==0, w and c are not finite.
 {

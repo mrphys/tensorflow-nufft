@@ -59,100 +59,100 @@ def parameterized(**params):
 class NUFFTOpsTest(tf.test.TestCase):
   """Test case for NUFFT functions."""
 
-  # def test_parallel_iteration(self):
-  #   with tf.device('/cpu:0'):
-  #     rank = 2
-  #     num_points = 20000
-  #     grid_shape = [128] * rank
-  #     batch_size = 100
-  #     rng = tf.random.Generator.from_seed(10)
-  #     points = rng.uniform([batch_size, num_points, rank], minval=-np.pi, maxval=np.pi)
-  #     source = tf.complex(tf.ones([batch_size, num_points]),
-  #                         tf.zeros([batch_size, num_points]))
-  #     @tf.function
-  #     def parallel_nufft_adjoint(source, points):
-  #       def nufft_adjoint(inputs):
-  #         src, pts = inputs
-  #         return nufft_ops.nufft(src, pts, grid_shape=grid_shape,
-  #                               transform_type='type_1',
-  #                               fft_direction='backward')
-  #       return tf.map_fn(nufft_adjoint, [source, points],
-  #                       parallel_iterations=4,
-  #                       fn_output_signature=tf.TensorSpec(grid_shape, tf.complex64))
+  def test_parallel_iteration(self):
+    with tf.device('/cpu:0'):
+      rank = 2
+      num_points = 20000
+      grid_shape = [128] * rank
+      batch_size = 100
+      rng = tf.random.Generator.from_seed(10)
+      points = rng.uniform([batch_size, num_points, rank], minval=-np.pi, maxval=np.pi)
+      source = tf.complex(tf.ones([batch_size, num_points]),
+                          tf.zeros([batch_size, num_points]))
+      @tf.function
+      def parallel_nufft_adjoint(source, points):
+        def nufft_adjoint(inputs):
+          src, pts = inputs
+          return nufft_ops.nufft(src, pts, grid_shape=grid_shape,
+                                transform_type='type_1',
+                                fft_direction='backward')
+        return tf.map_fn(nufft_adjoint, [source, points],
+                        parallel_iterations=4,
+                        fn_output_signature=tf.TensorSpec(grid_shape, tf.complex64))
       
-  #     result = parallel_nufft_adjoint(source, points)
-  #     print(result.shape)
+      result = parallel_nufft_adjoint(source, points)
+      print(result.shape)
 
-  @parameterized(grid_shape=[[10, 16], [10, 10, 8]],
-                 source_batch_shape=[[], [2, 4]],
-                 points_batch_shape=[[], [2, 1], [1, 4]],
-                 transform_type=['type_1', 'type_2'],
-                 fft_direction=['forward', 'backward'],
-                 dtype=[tf.dtypes.complex64, tf.dtypes.complex128],
-                 device=['/cpu:0']) # TODO: re-enable GPU checks.
-  def test_nufft(self,  # pylint: disable=missing-param-doc
-                 grid_shape=None,
-                 source_batch_shape=None,
-                 points_batch_shape=None,
-                 transform_type=None,
-                 fft_direction=None,
-                 dtype=None,
-                 device=None):
-    """Test NUFFT op result and gradients against naive NUDFT results."""
-    # pylint: disable=unexpected-keyword-arg
+  # @parameterized(grid_shape=[[10, 16], [10, 10, 8]],
+  #                source_batch_shape=[[], [2, 4]],
+  #                points_batch_shape=[[], [2, 1], [1, 4]],
+  #                transform_type=['type_1', 'type_2'],
+  #                fft_direction=['forward', 'backward'],
+  #                dtype=[tf.dtypes.complex64, tf.dtypes.complex128],
+  #                device=['/cpu:0']) # TODO: re-enable GPU checks.
+  # def test_nufft(self,  # pylint: disable=missing-param-doc
+  #                grid_shape=None,
+  #                source_batch_shape=None,
+  #                points_batch_shape=None,
+  #                transform_type=None,
+  #                fft_direction=None,
+  #                dtype=None,
+  #                device=None):
+  #   """Test NUFFT op result and gradients against naive NUDFT results."""
+  #   # pylint: disable=unexpected-keyword-arg
 
-    # Set random seed.
-    tf.random.set_seed(0)
+  #   # Set random seed.
+  #   tf.random.set_seed(0)
 
-    # Skip float64 GPU tests because it has limited support on testing hardware.
-    if dtype == tf.dtypes.complex128 and device == '/gpu:0':
-      return
+  #   # Skip float64 GPU tests because it has limited support on testing hardware.
+  #   if dtype == tf.dtypes.complex128 and device == '/gpu:0':
+  #     return
 
-    with tf.device(device):
+  #   with tf.device(device):
 
-      rank = len(grid_shape)
-      num_points = tf.math.reduce_prod(grid_shape)
+  #     rank = len(grid_shape)
+  #     num_points = tf.math.reduce_prod(grid_shape)
 
-      # Generate random signal and points.
-      if transform_type == 'type_1':    # nonuniform to uniform
-        source_shape = source_batch_shape + [num_points]
-      elif transform_type == 'type_2':  # uniform to nonuniform
-        source_shape = source_batch_shape + grid_shape
+  #     # Generate random signal and points.
+  #     if transform_type == 'type_1':    # nonuniform to uniform
+  #       source_shape = source_batch_shape + [num_points]
+  #     elif transform_type == 'type_2':  # uniform to nonuniform
+  #       source_shape = source_batch_shape + grid_shape
 
-      source = tf.Variable(tf.dtypes.complex(
-        tf.random.uniform(
-          source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
-        tf.random.uniform(
-          source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
+  #     source = tf.Variable(tf.dtypes.complex(
+  #       tf.random.uniform(
+  #         source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
+  #       tf.random.uniform(
+  #         source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
 
-      points_shape = points_batch_shape + [num_points, rank]
-      points = tf.Variable(tf.random.uniform(
-        points_shape, minval=-np.pi, maxval=np.pi,
-        dtype=dtype.real_dtype))
+  #     points_shape = points_batch_shape + [num_points, rank]
+  #     points = tf.Variable(tf.random.uniform(
+  #       points_shape, minval=-np.pi, maxval=np.pi,
+  #       dtype=dtype.real_dtype))
 
-      with tf.GradientTape(persistent=True) as tape:
+  #     with tf.GradientTape(persistent=True) as tape:
 
-        result_nufft = nufft_ops.nufft(
-          source, points,
-          grid_shape=grid_shape,
-          transform_type=transform_type,
-          fft_direction=fft_direction)
+  #       result_nufft = nufft_ops.nufft(
+  #         source, points,
+  #         grid_shape=grid_shape,
+  #         transform_type=transform_type,
+  #         fft_direction=fft_direction)
 
-        result_nudft = nufft_ops.nudft(
-          source, points,
-          grid_shape=grid_shape,
-          transform_type=transform_type,
-          fft_direction=fft_direction)
+  #       result_nudft = nufft_ops.nudft(
+  #         source, points,
+  #         grid_shape=grid_shape,
+  #         transform_type=transform_type,
+  #         fft_direction=fft_direction)
 
-      # Compute gradients.
-      grad_nufft = tape.gradient(result_nufft, source)
-      grad_nudft = tape.gradient(result_nudft, source)
+  #     # Compute gradients.
+  #     grad_nufft = tape.gradient(result_nufft, source)
+  #     grad_nudft = tape.gradient(result_nudft, source)
 
-      tol = 1.e-3
-      self.assertAllClose(result_nudft, result_nufft,
-                          rtol=tol, atol=tol)
-      self.assertAllClose(grad_nufft, grad_nudft,
-                          rtol=tol, atol=tol)
+  #     tol = 1.e-3
+  #     self.assertAllClose(result_nudft, result_nufft,
+  #                         rtol=tol, atol=tol)
+  #     self.assertAllClose(grad_nufft, grad_nudft,
+  #                         rtol=tol, atol=tol)
 
 
   # @parameterized(grid_shape=[[128, 128], [128, 128, 128]],

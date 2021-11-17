@@ -58,7 +58,6 @@ CUFLAGS = $(NVARCH) -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-
 CUFLAGS += -I$(CUFINUFFT_INCLUDE)
 
 LDFLAGS = $(TF_LDFLAGS)
-LDFLAGS += -lfinufft
 ifeq ($(CUDA), 1)
 LDFLAGS += -lcufinufft
 endif
@@ -102,7 +101,7 @@ lib: $(TARGET_LIB)
 $(TARGET_DLINK): $(CUOBJECTS)
 	$(NVCC) -ccbin $(CXX) -dlink $(CUFLAGS) -o $@ $^
 
-$(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK)
+$(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK) $(FINUFFT_LIB)
 	$(CXX) -shared $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 # implicit rules for objects (note -o ensures writes to correct dir)

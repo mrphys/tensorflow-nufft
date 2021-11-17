@@ -13,6 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#ifndef TENSORFLOW_NUFFT_KERNELS_FINUFFT_FINUFFT_H
+#define TENSORFLOW_NUFFT_KERNELS_FINUFFT_FINUFFT_H
 
 // Defines the C++/C user interface to FINUFFT library.
 
@@ -39,3 +41,5 @@ limitations under the License.
 #ifdef WAS_SINGLE
 #define SINGLE
 #endif
+
+#endif // TENSORFLOW_NUFFT_KERNELS_FINUFFT_FINUFFT_H

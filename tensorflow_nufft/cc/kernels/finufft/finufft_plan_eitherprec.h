@@ -51,7 +51,7 @@ limitations under the License.
 
 // the plan handle that we pass around is just a pointer to the struct that
 // contains all the info
-typedef struct FINUFFT_PLAN_S * FINUFFT_PLAN;
+typedef struct FINUFFT_PLAN_S* FINUFFT_PLAN;
 
 // group together a bunch of type 3 rescaling/centering/phasing parameters:
 typedef struct {

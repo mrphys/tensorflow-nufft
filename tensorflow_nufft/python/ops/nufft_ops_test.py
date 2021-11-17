@@ -63,28 +63,42 @@ class NUFFTOpsTest(tf.test.TestCase):
     
     tf.config.threading.set_intra_op_parallelism_threads(1)
     print("intraop", tf.config.threading.get_intra_op_parallelism_threads())
-    with tf.device('/cpu:0'):
-      rank = 2
-      num_points = 20000
-      grid_shape = [128] * rank
-      batch_size = 100
-      rng = tf.random.Generator.from_seed(10)
-      points = rng.uniform([batch_size, num_points, rank], minval=-np.pi, maxval=np.pi)
-      source = tf.complex(tf.ones([batch_size, num_points]),
-                          tf.zeros([batch_size, num_points]))
-      @tf.function
-      def parallel_nufft_adjoint(source, points):
-        def nufft_adjoint(inputs):
-          src, pts = inputs
-          return nufft_ops.nufft(src, pts, grid_shape=grid_shape,
-                                transform_type='type_1',
-                                fft_direction='backward')
-        return tf.map_fn(nufft_adjoint, [source, points],
-                        parallel_iterations=2,
-                        fn_output_signature=tf.TensorSpec(grid_shape, tf.complex64))
-      
-      result = parallel_nufft_adjoint(source, points)
-      print(result.shape)
+    for _ in range(2):
+      with tf.device('/cpu:0'):
+        rank = 2
+        num_points = 300
+        grid_shape = [24] * rank
+        batch_size = 8
+        rng = tf.random.Generator.from_seed(10)
+        points = rng.uniform([batch_size, num_points, rank], minval=-np.pi, maxval=np.pi)
+        source = tf.complex(tf.ones([batch_size, num_points]),
+                            tf.zeros([batch_size, num_points]))
+        @tf.function
+        def parallel_nufft_adjoint(source, points):
+          def nufft_adjoint(inputs):
+            src, pts = inputs
+            return nufft_ops.nufft(src, pts, grid_shape=grid_shape,
+                                   transform_type='type_1',
+                                   fft_direction='backward')
+          return tf.map_fn(nufft_adjoint, [source, points],
+                           parallel_iterations=2,
+                           fn_output_signature=tf.TensorSpec(grid_shape, tf.complex64))
+        
+        @tf.function
+        def parallel_nudft_adjoint(source, points):
+          def nudft_adjoint(inputs):
+            src, pts = inputs
+            return nufft_ops.nudft(src, pts, grid_shape=grid_shape,
+                                   transform_type='type_1',
+                                   fft_direction='backward')
+          return tf.map_fn(nudft_adjoint, [source, points],
+                           parallel_iterations=2,
+                           fn_output_signature=tf.TensorSpec(grid_shape, tf.complex64))
+        
+        result_nufft = parallel_nufft_adjoint(source, points)
+        result_nudft = parallel_nudft_adjoint(source, points)
+
+        self.assertAllClose(result_nufft, result_nudft, rtol=1e-4, atol=1e-4)
 
   # @parameterized(grid_shape=[[10, 16], [10, 10, 8]],
   #                source_batch_shape=[[], [2, 4]],
@@ -92,7 +106,7 @@ class NUFFTOpsTest(tf.test.TestCase):
   #                transform_type=['type_1', 'type_2'],
   #                fft_direction=['forward', 'backward'],
   #                dtype=[tf.dtypes.complex64, tf.dtypes.complex128],
-  #                device=['/cpu:0']) # TODO: re-enable GPU checks.
+  #                device=['/cpu:0', '/gpu:0']) # TODO: re-enable GPU checks.
   # def test_nufft(self,  # pylint: disable=missing-param-doc
   #                grid_shape=None,
   #                source_batch_shape=None,

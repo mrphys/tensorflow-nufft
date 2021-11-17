@@ -569,29 +569,29 @@ void FINUFFT_DEFAULT_OPTS(nufft_opts *o)
 
 
 // PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
-int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
-                     int ntrans, FLT tol, FINUFFT_PLAN *pp, nufft_opts* opts)
 // Populates the fields of finufft_plan which is pointed to by "p".
 // opts is ptr to a nufft_opts to set options, or NULL to use defaults.
 // For some of the fields, if "auto" selected, choose the actual setting.
 // For types 1,2 allocates memory for internal working arrays,
 // evaluates spreading kernel coefficients, and instantiates the fft_plan
+int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
+                     int ntrans, FLT tol, FINUFFT_PLAN *plan, nufft_opts* opts)
 {
-  FINUFFT_PLAN p;
   cout << scientific << setprecision(15);  // for commented-out low-lev debug
 
-  p = new FINUFFT_PLAN_S;                // allocate fresh plan struct
-  *pp = p;                               // pass out plan as ptr to plan struct
+  // Allocate fresh plan struct.
+  FINUFFT_PLAN p = new FINUFFT_PLAN_S;
+  *plan = p;
 
-  if (opts==NULL)                        // use default opts
+  if (opts == NULL)
+    // Use default options.
     FINUFFT_DEFAULT_OPTS(&(p->opts));
-  else                                   // or read from what's passed in
-    p->opts = *opts;    // keep a deep copy; changing *opts now has no effect
+  else
+    // Use specified options. We keep a deep copy; changing the input structure
+    // after this has no effect.
+    p->opts = *opts;
 
-  if (p->opts.debug)    // do a hello world
-    printf("[%s] new plan: FINUFFT version " FINUFFT_VER " .................\n",__func__);
-  
-  if((type!=1)&&(type!=2)&&(type!=3)) {
+  if ((type != 1) && (type != 2) && (type != 3)) {
     fprintf(stderr, "[%s] Invalid type (%d), should be 1, 2 or 3.\n",__func__,type);
     return ERR_TYPE_NOTVALID;
   }
@@ -677,14 +677,11 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
       static bool is_fftw_initialized = 0; // the only global state of FINUFFT
 
       if (!is_fftw_initialized) {
-        std::cout << "initializing FFTW" << std::endl;
         FFTW_INIT(); // setup FFTW global state; should only do once
         FFTW_PLAN_TH(fftw_threads); // ditto
         FFTW_PLAN_SF(); // if -DFFTW_PLAN_SAFE, make FFTW thread-safe
         is_fftw_initialized = 1;      // insure other FINUFFT threads don't clash
       }
-      else
-        std::cout << "FFTW initalized, skip" << std::endl;
     }
 
     p->spopts.spread_direction = type;
@@ -712,8 +709,6 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
       if (nfier) return nfier;
       p->phiHat3 = (FLT*)malloc(sizeof(FLT)*(p->nf3/2 + 1));
     }
-
-    std::cout << "ckpt1" << std::endl;
 
     if (p->opts.debug) { // "long long" here is to avoid warnings with printf...
       printf("[%s] %dd%d: (ms,mt,mu)=(%lld,%lld,%lld) (nf1,nf2,nf3)=(%lld,%lld,%lld)\n               ntrans=%d num_threads=%d batchSize=%d ", __func__,
@@ -747,13 +742,9 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
       return ERR_ALLOC;
     }
 
-    std::cout << "ckpt2" << std::endl;
-
     timer.restart();            // plan the FFTW
 
     int *ns = GRIDSIZE_FOR_FFTW(p);
-
-    printf("[%s] FFTW plan (mode %d, num_threads=%d):\t%.3g s\n", __func__,p->opts.fftw, fftw_threads, timer.elapsedsec());
 
     p->fft_plan = FFTW_PLAN_MANY_DFT(
         /* int rank */ dim, /* const int *n */ ns, /* int howmany */ p->batchSize,
@@ -762,9 +753,6 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
         /* fftw_complex *out */ p->fwBatch, /* const int *onembed */ NULL,
         /* int ostride */ 1, /* int odist */ p->nf,
         /* int sign */ p->fftSign, /* unsigned flags */ p->opts.fftw);
-        std::cout << "plan done" << std::endl;
-
-    std::cout << "ckpt3" << std::endl;
 
     if (p->opts.debug) printf("[%s] FFTW plan (mode %d, num_threads=%d):\t%.3g s\n", __func__,p->opts.fftw, fftw_threads, timer.elapsedsec());
     delete []ns;
@@ -782,7 +770,6 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
     // Type 3 will call finufft_makeplan for type 2; no need to init FFTW
     // Note we don't even know nj or nk yet, so can't do anything else!
   }
-  std::cout << "plan complete" << std::endl;
 
   return ier;         // report setup_spreader status (could be warning)
 }
@@ -1185,9 +1172,7 @@ int FINUFFT_DESTROY(FINUFFT_PLAN p)
   FFTW_FREE(p->fwBatch);   // free the big FFTW (or t3 spread) working array
   free(p->sortIndices);
   if (p->type==1 || p->type==2) {
-    std::cout << "destroy fft plan" << std::endl;
     FFTW_DESTROY_PLAN(p->fft_plan);
-    std::cout << "fft plan destroyed" << std::endl;
     free(p->phiHat1);
     free(p->phiHat2);
     free(p->phiHat3);

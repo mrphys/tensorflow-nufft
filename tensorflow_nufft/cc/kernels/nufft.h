@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef NUFFT_H_
-#define NUFFT_H_
+#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_H
+#define TENSORFLOW_NUFFT_KERNELS_NUFFT_H
 
 #include <complex>
 #include <cstdint>
@@ -154,16 +154,21 @@ struct DoNUFFTBase {
     const DeviceBase::CpuWorkerThreads& worker_threads =
         *ctx->device()->tensorflow_cpu_worker_threads();
     opts.num_threads = worker_threads.num_threads;
-    std::cout << "num_threads" << opts.num_threads << std::endl;
 
     // Make the NUFFT plan.
-    int err;
     typename nufft::plan_type<Device, T>::type plan;
-    err = nufft::makeplan<Device, T>(type, rank, nmodes, iflag,
-                                       ntrans, tol, &plan, &opts);
+    int err;
+    { // critical code block
+      // NOTE: In fact, it's only the FFTW planning within nufft::makeplan that
+      // cannot be performed multi-threaded. Consider moving the critical
+      // code block to that section for a small performance gain.
+      mutex_lock lock(mu_);
+      err = nufft::makeplan<Device, T>(type, rank, nmodes, iflag,
+                                      ntrans, tol, &plan, &opts);
 
-    if (err > 0) {
-      return errors::Internal("Failed during `nufft::makeplan`: ", err);
+      if (err > 0) {
+        return errors::Internal("Failed during `nufft::makeplan`: ", err);
+      }
     }
 
     // Pointers to a certain batch.
@@ -196,15 +201,15 @@ struct DoNUFFTBase {
           break;
       }
       
-      // // Set the point coordinates.
-      // err = nufft::setpts<Device, T>(
-      //   plan,
-      //   npts, points_x, points_y, points_z,
-      //   0, NULL, NULL, NULL);
+      // Set the point coordinates.
+      err = nufft::setpts<Device, T>(
+        plan,
+        npts, points_x, points_y, points_z,
+        0, NULL, NULL, NULL);
         
-      // if (err > 0) {
-      //   return errors::Internal("Failed during `nufft::setpts`: ", err);
-      // }
+      if (err > 0) {
+        return errors::Internal("Failed during `nufft::setpts`: ", err);
+      }
 
       // Compute indices.
       csrc = 0;
@@ -223,38 +228,45 @@ struct DoNUFFTBase {
       bcoeffs = coeffs + *pcc * ntrans * ncoeffs;
 
       // Execute the NUFFT.
-      // switch (optype)
-      // {
-      // case OpType::NUFFT:
-      //   err = nufft::execute<Device, T>(plan, bstrengths, bcoeffs);
-      //   if (err > 0) {
-      //     return errors::Internal("Failed during `nufft::execute`: ", err);
-      //   }
-      //   break;
-      // case OpType::INTERP:
-      //   err = nufft::interp<Device, T>(plan, bstrengths, bcoeffs);
-      //   if (err > 0) {
-      //     return errors::Internal("Failed during `nufft::interp`: ", err);
-      //   }
-      //   break;
-      // case OpType::SPREAD:
-      //   err = nufft::spread<Device, T>(plan, bstrengths, bcoeffs);
-      //   if (err > 0) {
-      //     return errors::Internal("Failed during `nufft::spread`: ", err);
-      //   }
-      //   break;
-      // }
+      switch (optype)
+      {
+      case OpType::NUFFT:
+        err = nufft::execute<Device, T>(plan, bstrengths, bcoeffs);
+        if (err > 0) {
+          return errors::Internal("Failed during `nufft::execute`: ", err);
+        }
+        break;
+      case OpType::INTERP:
+        err = nufft::interp<Device, T>(plan, bstrengths, bcoeffs);
+        if (err > 0) {
+          return errors::Internal("Failed during `nufft::interp`: ", err);
+        }
+        break;
+      case OpType::SPREAD:
+        err = nufft::spread<Device, T>(plan, bstrengths, bcoeffs);
+        if (err > 0) {
+          return errors::Internal("Failed during `nufft::spread`: ", err);
+        }
+        break;
+      }
     }
 
     // Clean up the plan.
-    err = nufft::destroy<Device, T>(plan);
+    { // critical block
+      mutex_lock lock(mu_);
+      err = nufft::destroy<Device, T>(plan);
 
-    if (err > 0) {
-      return errors::Internal("Failed during `nufft::destroy`: ", err);
+      if (err > 0) {
+        return errors::Internal("Failed during `nufft::destroy`: ", err);
+      }
     }
 
     return Status::OK();
   }
+
+ private:
+  // Mutex for NUFFT planner.
+  mutex mu_;
 };
 
 template<typename Device, typename T>
@@ -279,4 +291,4 @@ struct DoNUFFT : DoNUFFTBase<Device, T> {
 
 }   // namespace tensorflow
 
-#endif  // NUFFT_H_
+#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_H

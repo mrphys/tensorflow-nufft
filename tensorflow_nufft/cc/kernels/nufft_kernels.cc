@@ -187,7 +187,7 @@ struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
 template <typename Device, typename T>
 class NUFFTBaseOp : public OpKernel {
 
-  public:
+ public:
 
   explicit NUFFTBaseOp(OpKernelConstruction* ctx) : OpKernel(ctx) { }
 
@@ -476,7 +476,7 @@ class NUFFTBaseOp : public OpKernel {
       std::swap(grid_shape_vec[0], grid_shape_vec[2]);   
 
     // Perform operation.
-    OP_REQUIRES_OK(ctx, DoNUFFT<Device, T>()(
+    OP_REQUIRES_OK(ctx, functor_(
       ctx,
       transform_type_,
       static_cast<int>(rank),
@@ -502,12 +502,14 @@ class NUFFTBaseOp : public OpKernel {
     }
   }
 
-  protected:
+ protected:
 
   int transform_type_;
   int j_sign_;
   float tol_;
   OpType op_type_;
+
+  DoNUFFT<Device, T> functor_;
 };
 
 

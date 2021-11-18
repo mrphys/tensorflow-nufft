@@ -595,11 +595,11 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
     fprintf(stderr, "[%s] Invalid type (%d), should be 1, 2 or 3.\n",__func__,type);
     return ERR_TYPE_NOTVALID;
   }
-  if((dim!=1)&&(dim!=2)&&(dim!=3)) {
+  if ((dim != 1) && (dim != 2) && (dim != 3)) {
     fprintf(stderr, "[%s] Invalid dim (%d), should be 1, 2 or 3.\n",__func__,dim);
     return ERR_DIM_NOTVALID;
   }
-  if (ntrans<1) {
+  if (ntrans < 1) {
     fprintf(stderr,"[%s] ntrans (%d) should be at least 1.\n",__func__,ntrans);
     return ERR_NTRANS_NOTVALID;
   }
@@ -746,13 +746,16 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
 
     int *ns = GRIDSIZE_FOR_FFTW(p);
 
-    p->fft_plan = FFTW_PLAN_MANY_DFT(
-        /* int rank */ dim, /* const int *n */ ns, /* int howmany */ p->batchSize,
-        /* fftw_complex *in */ p->fwBatch, /* const int *inembed */ NULL,
-        /* int istride */ 1, /* int idist */ p->nf,
-        /* fftw_complex *out */ p->fwBatch, /* const int *onembed */ NULL,
-        /* int ostride */ 1, /* int odist */ p->nf,
-        /* int sign */ p->fftSign, /* unsigned flags */ p->opts.fftw);
+    #pragma omp critical
+    {
+      p->fft_plan = FFTW_PLAN_MANY_DFT(
+          /* int rank */ dim, /* const int *n */ ns, /* int howmany */ p->batchSize,
+          /* fftw_complex *in */ p->fwBatch, /* const int *inembed */ NULL,
+          /* int istride */ 1, /* int idist */ p->nf,
+          /* fftw_complex *out */ p->fwBatch, /* const int *onembed */ NULL,
+          /* int ostride */ 1, /* int odist */ p->nf,
+          /* int sign */ p->fftSign, /* unsigned flags */ p->opts.fftw);
+    }
 
     if (p->opts.debug) printf("[%s] FFTW plan (mode %d, num_threads=%d):\t%.3g s\n", __func__,p->opts.fftw, fftw_threads, timer.elapsedsec());
     delete []ns;

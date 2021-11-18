@@ -24,6 +24,7 @@ CUDA_INCLUDE = /usr/local/cuda/targets/x86_64-linux/include
 CUDA_LIBDIR = /usr/local/cuda/targets/x86_64-linux/lib
 
 CUDA ?= 1
+OMP ?= 1
 CFLAGS = -O3 -march=x86-64 -mtune=generic
 
 -include make.inc
@@ -32,6 +33,10 @@ CFLAGS += -fPIC
 
 ifeq ($(CUDA), 1)
 TF_CFLAGS += -DGOOGLE_CUDA=1
+endif
+
+ifeq ($(OMP), 1)
+CFLAGS += -fopenmp
 endif
 
 CXXFLAGS = -std=c++14 $(CFLAGS) $(TF_CFLAGS)
@@ -58,11 +63,17 @@ CUFLAGS = $(NVARCH) -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-
 CUFLAGS += -I$(CUFINUFFT_INCLUDE)
 
 LDFLAGS = $(TF_LDFLAGS)
+LDFLAGS += -lfftw3 -lfftw3f
+
 ifeq ($(CUDA), 1)
 LDFLAGS += -lcufinufft
 endif
-LDFLAGS += -lfftw3 -lfftw3_omp -lfftw3f -lfftw3f_omp
-LDFLAGS += -lgomp
+
+ifeq ($(OMP), 1)
+CFLAGS += -fopenmp
+LDFLAGS += -lfftw3_omp -lfftw3f_omp
+endif
+
 ifeq ($(CUDA), 1)
 LDFLAGS += -L$(CUDA_LIBDIR)
 LDFLAGS += -lcudart -lnvToolsExt

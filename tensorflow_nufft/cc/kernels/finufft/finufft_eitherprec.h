@@ -39,24 +39,6 @@ limitations under the License.
 #undef FINUFFT_INTERP
 #undef FINUFFT_SPREAD
 #undef FINUFFT_DESTROY
-#undef FINUFFT1D1
-#undef FINUFFT1D1MANY
-#undef FINUFFT1D2
-#undef FINUFFT1D2MANY
-#undef FINUFFT1D3
-#undef FINUFFT1D3MANY
-#undef FINUFFT2D1
-#undef FINUFFT2D1MANY
-#undef FINUFFT2D2
-#undef FINUFFT2D2MANY
-#undef FINUFFT2D3
-#undef FINUFFT2D3MANY
-#undef FINUFFT3D1
-#undef FINUFFT3D1MANY
-#undef FINUFFT3D2
-#undef FINUFFT3D2MANY
-#undef FINUFFT3D3
-#undef FINUFFT3D3MANY
 // precision-switching macros for interfaces FINUFFT provides to outside world
 #ifdef SINGLE
 #define FINUFFT_DEFAULT_OPTS finufftf_default_opts
@@ -66,24 +48,6 @@ limitations under the License.
 #define FINUFFT_INTERP finufftf_interp
 #define FINUFFT_SPREAD finufftf_spread
 #define FINUFFT_DESTROY finufftf_destroy
-#define FINUFFT1D1 finufftf1d1
-#define FINUFFT1D1MANY finufftf1d1many
-#define FINUFFT1D2 finufftf1d2
-#define FINUFFT1D2MANY finufftf1d2many
-#define FINUFFT1D3 finufftf1d3
-#define FINUFFT1D3MANY finufftf1d3many
-#define FINUFFT2D1 finufftf2d1
-#define FINUFFT2D1MANY finufftf2d1many
-#define FINUFFT2D2 finufftf2d2
-#define FINUFFT2D2MANY finufftf2d2many
-#define FINUFFT2D3 finufftf2d3
-#define FINUFFT2D3MANY finufftf2d3many
-#define FINUFFT3D1 finufftf3d1
-#define FINUFFT3D1MANY finufftf3d1many
-#define FINUFFT3D2 finufftf3d2
-#define FINUFFT3D2MANY finufftf3d2many
-#define FINUFFT3D3 finufftf3d3
-#define FINUFFT3D3MANY finufftf3d3many
 #else
 #define FINUFFT_DEFAULT_OPTS finufft_default_opts
 #define FINUFFT_MAKEPLAN finufft_makeplan
@@ -92,24 +56,6 @@ limitations under the License.
 #define FINUFFT_INTERP finufft_interp
 #define FINUFFT_SPREAD finufft_spread
 #define FINUFFT_DESTROY finufft_destroy
-#define FINUFFT1D1 finufft1d1
-#define FINUFFT1D1MANY finufft1d1many
-#define FINUFFT1D2 finufft1d2
-#define FINUFFT1D2MANY finufft1d2many
-#define FINUFFT1D3 finufft1d3
-#define FINUFFT1D3MANY finufft1d3many
-#define FINUFFT2D1 finufft2d1
-#define FINUFFT2D1MANY finufft2d1many
-#define FINUFFT2D2 finufft2d2
-#define FINUFFT2D2MANY finufft2d2many
-#define FINUFFT2D3 finufft2d3
-#define FINUFFT2D3MANY finufft2d3many
-#define FINUFFT3D1 finufft3d1
-#define FINUFFT3D1MANY finufft3d1many
-#define FINUFFT3D2 finufft3d2
-#define FINUFFT3D2MANY finufft3d2many
-#define FINUFFT3D3 finufft3d3
-#define FINUFFT3D3MANY finufft3d3many
 #endif
 
 

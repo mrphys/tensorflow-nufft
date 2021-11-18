@@ -24,7 +24,6 @@ limitations under the License.
 
 
 namespace tensorflow {
-
 namespace nufft {
 
 template<typename Device, typename T>
@@ -158,17 +157,11 @@ struct DoNUFFTBase {
     // Make the NUFFT plan.
     typename nufft::plan_type<Device, T>::type plan;
     int err;
-    { // critical code block
-      // NOTE: In fact, it's only the FFTW planning within nufft::makeplan that
-      // cannot be performed multi-threaded. Consider moving the critical
-      // code block to that section for a small performance gain.
-      mutex_lock lock(mu_);
-      err = nufft::makeplan<Device, T>(type, rank, nmodes, iflag,
-                                      ntrans, tol, &plan, &opts);
+    err = nufft::makeplan<Device, T>(type, rank, nmodes, iflag,
+                                     ntrans, tol, &plan, &opts);
 
-      if (err > 0) {
-        return errors::Internal("Failed during `nufft::makeplan`: ", err);
-      }
+    if (err > 0) {
+      return errors::Internal("Failed during `nufft::makeplan`: ", err);
     }
 
     // Pointers to a certain batch.
@@ -252,21 +245,13 @@ struct DoNUFFTBase {
     }
 
     // Clean up the plan.
-    { // critical block
-      mutex_lock lock(mu_);
-      err = nufft::destroy<Device, T>(plan);
-
-      if (err > 0) {
-        return errors::Internal("Failed during `nufft::destroy`: ", err);
-      }
+    err = nufft::destroy<Device, T>(plan);
+    if (err > 0) {
+      return errors::Internal("Failed during `nufft::destroy`: ", err);
     }
 
     return Status::OK();
   }
-
- private:
-  // Mutex for NUFFT planner.
-  mutex mu_;
 };
 
 template<typename Device, typename T>

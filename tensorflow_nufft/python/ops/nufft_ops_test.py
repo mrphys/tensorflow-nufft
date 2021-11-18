@@ -61,7 +61,7 @@ class NUFFTOpsTest(tf.test.TestCase):
 
   def test_parallel_iteration(self):
     
-    tf.config.threading.set_intra_op_parallelism_threads(1)
+    # tf.config.threading.set_intra_op_parallelism_threads(8)
     print("intraop", tf.config.threading.get_intra_op_parallelism_threads())
     for _ in range(2):
       with tf.device('/cpu:0'):
@@ -69,6 +69,7 @@ class NUFFTOpsTest(tf.test.TestCase):
         num_points = 300
         grid_shape = [24] * rank
         batch_size = 8
+        parallel_iterations = 4
         rng = tf.random.Generator.from_seed(10)
         points = rng.uniform([batch_size, num_points, rank], minval=-np.pi, maxval=np.pi)
         source = tf.complex(tf.ones([batch_size, num_points]),
@@ -81,7 +82,7 @@ class NUFFTOpsTest(tf.test.TestCase):
                                    transform_type='type_1',
                                    fft_direction='backward')
           return tf.map_fn(nufft_adjoint, [source, points],
-                           parallel_iterations=2,
+                           parallel_iterations=parallel_iterations,
                            fn_output_signature=tf.TensorSpec(grid_shape, tf.complex64))
         
         @tf.function
@@ -92,7 +93,7 @@ class NUFFTOpsTest(tf.test.TestCase):
                                    transform_type='type_1',
                                    fft_direction='backward')
           return tf.map_fn(nudft_adjoint, [source, points],
-                           parallel_iterations=2,
+                           parallel_iterations=parallel_iterations,
                            fn_output_signature=tf.TensorSpec(grid_shape, tf.complex64))
         
         result_nufft = parallel_nufft_adjoint(source, points)

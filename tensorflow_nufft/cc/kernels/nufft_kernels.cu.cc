@@ -21,7 +21,7 @@ limitations under the License.
 
 #include "tensorflow/core/framework/op_kernel.h"
 
-#include "tensorflow_nufft/cc/kernels/cufinufft/cufinufft.h"
+#include "tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft.h"
 
 
 namespace tensorflow {

@@ -4,8 +4,8 @@ PY_VERSION ?= 3.8
 PYTHON = python$(PY_VERSION)
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-FINUFFT_ROOT = tensorflow_nufft/cc/kernels/finufft
-CUFINUFFT_ROOT = tensorflow_nufft/cc/kernels/cufinufft
+FINUFFT_ROOT = tensorflow_nufft/cc/kernels/finufft/cpu
+CUFINUFFT_ROOT = tensorflow_nufft/cc/kernels/finufft/gpu
 
 KERNELS_DIR = tensorflow_nufft/cc/kernels
 OPS_DIR = tensorflow_nufft/cc/ops

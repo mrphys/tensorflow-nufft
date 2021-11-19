@@ -1,5 +1,5 @@
 #include "common.h"
-#include <cufinufft_eitherprec.h>
+#include <tensorflow_nufft/cc/kernels/cufinufft/cufinufft_eitherprec.h>
 #include <math.h>
 #include <stdio.h>
 #include <vector>

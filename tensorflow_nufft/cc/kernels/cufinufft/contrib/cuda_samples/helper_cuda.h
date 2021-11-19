@@ -38,7 +38,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <helper_string.h>
+#include "tensorflow_nufft/cc/kernels/cufinufft/contrib/cuda_samples/helper_string.h"
 
 #ifndef EXIT_WAIVED
 #define EXIT_WAIVED 2

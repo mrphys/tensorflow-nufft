@@ -3,6 +3,7 @@
 *.o
 *.pyc
 *.so
+*.dlink
 
 *.ipynb_checkpoints*
 __pycache__/

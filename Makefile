@@ -5,7 +5,7 @@ PYTHON = python$(PY_VERSION)
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 FINUFFT_ROOT = tensorflow_nufft/cc/kernels/finufft
-CUFINUFFT_INCLUDE = /dt7/usr/include/cufinufft/include
+CUFINUFFT_ROOT = tensorflow_nufft/cc/kernels/cufinufft
 
 KERNELS_DIR = tensorflow_nufft/cc/kernels
 OPS_DIR = tensorflow_nufft/cc/ops
@@ -46,6 +46,12 @@ CXXFLAGS += -I$(CUDA_INCLUDE)
 endif
 
 FINUFFT_CFLAGS = -DFFTW_PLAN_SAFE -funroll-loops -fcx-limited-range
+CUFINUFFT_CFLAGS = -funroll-loops
+
+
+# ==============================================================================
+# NVCC options
+# ==============================================================================
 
 NVARCH ?= \
 	-gencode=arch=compute_35,code=sm_35 \
@@ -60,17 +66,23 @@ NVARCH ?= \
 	-gencode=arch=compute_86,code=compute_86
 
 CUFLAGS = $(NVARCH) -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-constexpr
-CUFLAGS += -I$(CUFINUFFT_INCLUDE)
+CUFLAGS += -I$(ROOT_DIR)
+
+CUFINUFFT_CUFLAGS ?= -std=c++14 -ccbin=$(CXX) -O3 $(NVARCH) \
+	-Wno-deprecated-gpu-targets --default-stream per-thread \
+	-Xcompiler "$(CXXFLAGS)"
+CUFINUFFT_CUFLAGS += -I$(CUFINUFFT_ROOT)
+
+
+# ==============================================================================
+# Linker options
+# ==============================================================================
 
 LDFLAGS = $(TF_LDFLAGS)
 LDFLAGS += -lfftw3 -lfftw3f
 
-ifeq ($(CUDA), 1)
-LDFLAGS += -lcufinufft
-endif
-
 ifeq ($(OMP), 1)
-CFLAGS += -fopenmp
+LDFLAGS += -lgomp
 LDFLAGS += -lfftw3_omp -lfftw3f_omp
 endif
 
@@ -79,7 +91,11 @@ LDFLAGS += -L$(CUDA_LIBDIR)
 LDFLAGS += -lcudart -lnvToolsExt
 endif
 
+
+# ==============================================================================
 # FINUFFT
+# ==============================================================================
+
 FINUFFT_LIB = $(FINUFFT_ROOT)/libfinufft.a
 FINUFFT_HEADERS = $(wildcard $(FINUFFT_ROOT)/include/*.h)
 
@@ -102,6 +118,86 @@ OBJS_PI = $(SOBJS_PI) $(FINUFFT_ROOT)/contrib/legendre_rule_fast.o
 # all lib dual-precision objs
 OBJSD = $(OBJS) $(OBJSF) $(OBJS_PI)
 
+finufft: $(FINUFFT_LIB)
+
+$(FINUFFT_LIB): $(OBJSD)
+	ar rcs $(FINUFFT_LIB) $(OBJSD)
+
+# implicit rules for objects (note -o ensures writes to correct dir)
+$(FINUFFT_ROOT)/%.o: $(FINUFFT_ROOT)/%.cpp $(FINUFFT_HEADERS)
+	$(CXX) -c $(CXXFLAGS) $(FINUFFT_CFLAGS) $< -o $@
+$(FINUFFT_ROOT)/%_32.o: $(FINUFFT_ROOT)/%.cpp $(FINUFFT_HEADERS)
+	$(CXX) -DSINGLE -c $(CXXFLAGS) $(FINUFFT_CFLAGS) $< -o $@
+$(FINUFFT_ROOT)/%.o: $(FINUFFT_ROOT)/%.c $(FINUFFT_HEADERS)
+	$(CC) -c $(CFLAGS) $(FINUFFT_CFLAGS) $< -o $@
+$(FINUFFT_ROOT)/%_32.o: $(FINUFFT_ROOT)/%.c $(FINUFFT_HEADERS)
+	$(CC) -DSINGLE -c $(CFLAGS) $(FINUFFT_CFLAGS) $< -o $@
+
+
+# ==============================================================================
+# CUFINUFFT
+# ==============================================================================
+
+CUFINUFFT_LIB = $(CUFINUFFT_ROOT)/libcufinufft.a
+CUFINUFFT_DLINK = $(CUFINUFFT_ROOT)/libcufinufft.dlink
+CUFINUFFT_HEADERS = $(CUFINUFFT_ROOT)/cufinufft.h \
+					$(CUFINUFFT_ROOT)/cudeconvolve.h \
+					$(CUFINUFFT_ROOT)/memtransfer.h \
+					$(CUFINUFFT_ROOT)/profile.h \
+					$(CUFINUFFT_ROOT)/cuspreadinterp.h \
+					$(CUFINUFFT_ROOT)/cufinufft_eitherprec.h \
+					$(CUFINUFFT_ROOT)/cufinufft_errors.h
+CONTRIBOBJS=$(CUFINUFFT_ROOT)/contrib/dirft2d.o \
+			$(CUFINUFFT_ROOT)/contrib/common.o \
+			$(CUFINUFFT_ROOT)/contrib/spreadinterp.o \
+			$(CUFINUFFT_ROOT)/contrib/utils_fp.o
+
+# We create three collections of objects:
+#  Double (_64), Single (_32), and floating point agnostic (no suffix)
+CUFINUFFTOBJS=$(CUFINUFFT_ROOT)/precision_independent.o \
+			  $(CUFINUFFT_ROOT)/profile.o \
+			  $(CUFINUFFT_ROOT)/contrib/legendre_rule_fast.o \
+			  $(CUFINUFFT_ROOT)/contrib/utils.o
+CUFINUFFTOBJS_64=$(CUFINUFFT_ROOT)/spreadinterp2d.o \
+				 $(CUFINUFFT_ROOT)/cufinufft2d.o \
+				 $(CUFINUFFT_ROOT)/spread2d_wrapper.o \
+				 $(CUFINUFFT_ROOT)/spread2d_wrapper_paul.o \
+				 $(CUFINUFFT_ROOT)/interp2d_wrapper.o \
+				 $(CUFINUFFT_ROOT)/memtransfer_wrapper.o \
+				 $(CUFINUFFT_ROOT)/deconvolve_wrapper.o \
+				 $(CUFINUFFT_ROOT)/cufinufft.o \
+				 $(CUFINUFFT_ROOT)/spreadinterp3d.o \
+				 $(CUFINUFFT_ROOT)/spread3d_wrapper.o \
+				 $(CUFINUFFT_ROOT)/interp3d_wrapper.o \
+				 $(CUFINUFFT_ROOT)/cufinufft3d.o \
+				 $(CONTRIBOBJS)
+CUFINUFFTOBJS_32=$(CUFINUFFTOBJS_64:%.o=%_32.o)
+
+
+cufinufft: $(CUFINUFFT_LIB)
+
+$(CUFINUFFT_LIB): $(CUFINUFFTOBJS) $(CUFINUFFTOBJS_64) $(CUFINUFFTOBJS_32) $(CONTRIBOBJS)
+	$(NVCC) -dlink $(CUFINUFFT_CUFLAGS) $^ -o $(CUFINUFFT_DLINK)
+	ar rcs $(CUFINUFFT_LIB) $^ $(CUFINUFFT_DLINK)
+
+$(CUFINUFFT_ROOT)/%_32.o: $(CUFINUFFT_ROOT)/%.cpp $(CUFINUFFT_HEADERS)
+	$(CXX) -DSINGLE -c $(CXXFLAGS) $(CUFINUFFT_CFLAGS) $< -o $@
+$(CUFINUFFT_ROOT)/%_32.o: $(CUFINUFFT_ROOT)/%.c $(CUFINUFFT_HEADERS)
+	$(CC) -DSINGLE -c $(CFLAGS) $(CUFINUFFT_CFLAGS) $< -o $@
+$(CUFINUFFT_ROOT)/%_32.o: $(CUFINUFFT_ROOT)/%.cu $(CUFINUFFT_HEADERS)
+	$(NVCC) -DSINGLE --device-c -c $(CUFINUFFT_CUFLAGS) $< -o $@
+$(CUFINUFFT_ROOT)/%.o: $(CUFINUFFT_ROOT)/%.cpp $(CUFINUFFT_HEADERS)
+	$(CXX) -c $(CXXFLAGS) $(CUFINUFFT_CFLAGS) $< -o $@
+$(CUFINUFFT_ROOT)/%.o: $(CUFINUFFT_ROOT)/%.c $(CUFINUFFT_HEADERS)
+	$(CC) -c $(CFLAGS) $(CUFINUFFT_CFLAGS) $< -o $@
+$(CUFINUFFT_ROOT)/%.o: $(CUFINUFFT_ROOT)/%.cu $(CUFINUFFT_HEADERS)
+	$(NVCC) --device-c -c $(CUFINUFFT_CUFLAGS) $< -o $@
+
+
+# ==============================================================================
+# TensorFlow NUFFT
+# ==============================================================================
+
 all: lib wheel
 
 lib: $(TARGET_LIB)
@@ -112,23 +208,13 @@ lib: $(TARGET_LIB)
 $(TARGET_DLINK): $(CUOBJECTS)
 	$(NVCC) -ccbin $(CXX) -dlink $(CUFLAGS) -o $@ $^
 
-$(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK) $(FINUFFT_LIB)
+$(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK) $(FINUFFT_LIB) $(CUFINUFFT_LIB)
 	$(CXX) -shared $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
-# implicit rules for objects (note -o ensures writes to correct dir)
-%.o: %.cpp $(FINUFFT_HEADERS)
-	$(CXX) -c $(CXXFLAGS) $(FINUFFT_CFLAGS) $< -o $@
-%_32.o: %.cpp $(FINUFFT_HEADERS)
-	$(CXX) -DSINGLE -c $(CXXFLAGS) $(FINUFFT_CFLAGS) $< -o $@
-%.o: %.c $(FINUFFT_HEADERS)
-	$(CC) -c $(CFLAGS) $(FINUFFT_CFLAGS) $< -o $@
-%_32.o: %.c $(FINUFFT_HEADERS)
-	$(CC) -DSINGLE -c $(CFLAGS) $(FINUFFT_CFLAGS) $< -o $@
 
-finufft: $(FINUFFT_LIB)
-
-$(FINUFFT_LIB): $(OBJSD)
-	ar rcs $(FINUFFT_LIB) $(OBJSD)
+# ==============================================================================
+# Miscellaneous
+# ==============================================================================
 
 wheel:
 	./tools/build/build_pip_pkg.sh make --python $(PYTHON) artifacts
@@ -159,5 +245,8 @@ clean:
 allclean: clean
 	rm -f $(FINUFFT_LIB)
 	rm -f $(FINUFFT_ROOT)/*.o $(FINUFFT_ROOT)/contrib/*.o
+	rm -f $(CUFINUFFT_LIB)
+	rm -f $(CUFINUFFT_DLINK)
+	rm -f $(CUFINUFFT_ROOT)/*.o $(CUFINUFFT_ROOT)/contrib/*.o
 
 .PHONY: all lib finufft wheel test benchmark lint docs clean allclean

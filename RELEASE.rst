@@ -6,15 +6,14 @@ Release 0.5.0
 Breaking Changes
 ----------------
 
-* <DOCUMENT BREAKING CHANGES HERE>
-* <THIS SECTION SHOULD CONTAIN API, ABI AND BEHAVIORAL BREAKING CHANGES>
+This release does not contain known breaking changes.
 
 Known Caveats
 -------------
 
-* <CAVEATS REGARDING THE RELEASE (BUT NOT BREAKING CHANGES).>
-* <ADDING/BUMPING DEPENDENCIES SHOULD GO HERE>
-* <KNOWN LACK OF SUPPORT ON SOME PLATFORM, SHOULD GO HERE>
+* A major refactoring of the code has begun in order to improve the integration
+  of FINUFFT with the TensorFlow framework. This process is not complete yet and
+  will continue on future releases.
 
 Major Features and Improvements
 -------------------------------
@@ -26,6 +25,11 @@ Major Features and Improvements
 Bug Fixes and Other Changes
 ---------------------------
 
-* <SIMILAR TO ABOVE SECTION, BUT FOR OTHER IMPORTANT CHANGES / BUG FIXES>
-* <IF A CHANGE CLOSES A GITHUB ISSUE, IT SHOULD BE DOCUMENTED HERE>
-* <NOTES SHOULD BE GROUPED PER AREA>
+* Fixed a bug on the CPU kernel that would cause a segmentation fault when
+  running with inter-op parallelism. The issue was caused by the FFTW planner,
+  which is not thread-safe, being accessed concurrently by multiple op
+  instances. Access to the FFTW planner is now protected in a critical section. 
+* `nufft`, `interp` and `spread` will now honour the TensorFlow framework's
+  intra-op parallelism setting. From now on, the number of intra-op threads used
+  by the CPU kernel can be specified by the user with
+  `tf.config.threading.set_intra_op_parallelism_threads`.

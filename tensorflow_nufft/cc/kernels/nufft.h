@@ -22,6 +22,8 @@ limitations under the License.
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/lib/core/status.h"
 
+#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
+
 
 namespace tensorflow {
 namespace nufft {
@@ -39,7 +41,8 @@ template<typename Device, typename T>
 int makeplan(
     int type, int dim, int64_t* nmodes, int iflag, int ntr, T eps,
     typename plan_type<Device, T>::type* plan,
-    typename opts_type<Device, T>::type* opts);
+    typename opts_type<Device, T>::type* opts,
+    const Options& options);
 
 template<typename Device, typename T>
 int setpts(
@@ -141,24 +144,26 @@ struct DoNUFFTBase {
     }
 
     // NUFFT options.
+    nufft::Options options;
+    
     typename nufft::opts_type<Device, T>::type opts;
     nufft::default_opts<Device, T>(type, rank, &opts);
 
     if (optype != OpType::NUFFT) {
-      opts.spreadinterponly = true;
-      opts.upsampfac = 2.0;
+      options.spread_interp_only = true;
+      options.upsampling_factor = 2.0;
     }
 
     // Intra-op threading.
     const DeviceBase::CpuWorkerThreads& worker_threads =
         *ctx->device()->tensorflow_cpu_worker_threads();
-    opts.num_threads = worker_threads.num_threads;
+    options.num_threads = worker_threads.num_threads;
 
     // Make the NUFFT plan.
     typename nufft::plan_type<Device, T>::type plan;
     int err;
     err = nufft::makeplan<Device, T>(type, rank, nmodes, iflag,
-                                     ntrans, tol, &plan, &opts);
+                                     ntrans, tol, &plan, &opts, options);
 
     if (err > 0) {
       return errors::Internal("Failed during `nufft::makeplan`: ", err);

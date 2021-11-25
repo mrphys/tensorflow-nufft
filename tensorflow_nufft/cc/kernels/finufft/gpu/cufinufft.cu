@@ -82,7 +82,8 @@ extern "C" {
 #endif
 int CUFINUFFT_MAKEPLAN(int type, int dim, int *nmodes, int iflag,
 		       int ntransf, FLT tol, int maxbatchsize,
-		       CUFINUFFT_PLAN *d_plan_ptr, cufinufft_opts *opts)
+		       CUFINUFFT_PLAN *d_plan_ptr, cufinufft_opts *opts,
+			   const tensorflow::nufft::Options& options)
 /*
 	"plan" stage (in single or double precision).
         See ../docs/cppdoc.md for main user-facing documentation.
@@ -103,6 +104,10 @@ This performs:
 	Melody Shih 07/25/19. Use-facing moved to markdown, Barnett 2/16/21.
 */
 {
+	// TODO: check options.
+	//  - If mode_order == FFT, raise unimplemented error.
+	//  - If check_bounds == true, raise unimplemented error.
+
         // Mult-GPU support: set the CUDA Device ID:
         int orig_gpu_device_id;
         cudaGetDevice(& orig_gpu_device_id);
@@ -136,12 +141,21 @@ This performs:
 	} else {    // or read from what's passed in
 	  d_plan->opts = *opts;    // keep a deep copy; changing *opts now has no effect
 	}
-	
+
+	// Copy options.
+	d_plan->options = options;
+
+	// Select upsampling factor. Currently always defaults to 2.
+	if (d_plan->options.upsampling_factor == 0.0) {
+	  d_plan->options.upsampling_factor = 2.0;
+	}
+
 	// this must be set before calling "setup_spreader_for_nufft"
-	d_plan->spopts.spreadinterponly = d_plan->opts.spreadinterponly;
+	d_plan->spopts.spread_interp_only = d_plan->options.spread_interp_only;
 
 	/* Setup Spreader */
-	ier = setup_spreader_for_nufft(d_plan->spopts,tol,d_plan->opts,dim);
+	ier = setup_spreader_for_nufft(d_plan->spopts, tol, d_plan->opts,
+								   d_plan->options, dim);
 	if (ier>1)                           // proceed if success or warning
 	  return ier;
 
@@ -152,16 +166,16 @@ This performs:
 
 	SETUP_BINSIZE(type, dim, &d_plan->opts);
 	BIGINT nf1=1, nf2=1, nf3=1;
-	ier = SET_NF_TYPE12(d_plan->ms, d_plan->opts, d_plan->spopts, &nf1,
+	ier = SET_NF_TYPE12(d_plan->ms, d_plan->opts, d_plan->spopts, d_plan->options, &nf1,
 				  		d_plan->opts.gpu_obinsizex);
 	if (ier > 0) return ier;
 	if(dim > 1) {
-		ier = SET_NF_TYPE12(d_plan->mt, d_plan->opts, d_plan->spopts, &nf2,
+		ier = SET_NF_TYPE12(d_plan->mt, d_plan->opts, d_plan->spopts, d_plan->options, &nf2,
                       d_plan->opts.gpu_obinsizey);
 		if (ier > 0) return ier;
 	}
 	if(dim > 2) {
-		ier = SET_NF_TYPE12(d_plan->mu, d_plan->opts, d_plan->spopts, &nf3,
+		ier = SET_NF_TYPE12(d_plan->mu, d_plan->opts, d_plan->spopts, d_plan->options, &nf3,
                       d_plan->opts.gpu_obinsizez);
 		if (ier > 0) return ier;
 	}
@@ -184,7 +198,7 @@ This performs:
 	// this may move to gpu
 	cufinufft::CNTime timer; timer.start();
 	FLT *fwkerhalf1, *fwkerhalf2, *fwkerhalf3;
-	if (!d_plan->opts.spreadinterponly) { // no need to do this if spread/interp only
+	if (!d_plan->options.spread_interp_only) { // no need to do this if spread/interp only
 		
 		fwkerhalf1 = (FLT*)malloc(sizeof(FLT)*(nf1/2+1));
 		onedim_fseries_kernel(nf1, fwkerhalf1, d_plan->spopts);
@@ -229,7 +243,7 @@ This performs:
 	printf("[time  ] \tAllocate GPU memory plan %.3g s\n", milliseconds/1000);
 #endif
 	cudaEventRecord(start);
-	if (!d_plan->opts.spreadinterponly)
+	if (!d_plan->options.spread_interp_only)
 	{
 		checkCudaErrors(cudaMemcpy(d_plan->fwkerhalf1,fwkerhalf1,(nf1/2+1)*
 			sizeof(FLT),cudaMemcpyHostToDevice));
@@ -248,7 +262,7 @@ This performs:
 #endif
 
 	cudaEventRecord(start);
-	if (!d_plan->opts.spreadinterponly) {
+	if (!d_plan->options.spread_interp_only) {
 		cufftHandle fftplan;
 		switch(d_plan->dim)
 		{
@@ -298,7 +312,7 @@ This performs:
 	cudaEventElapsedTime(&milliseconds, start, stop);
 	printf("[time  ] \tCUFFT Plan\t\t %.3g s\n", milliseconds/1000);
 #endif
-	if (!d_plan->opts.spreadinterponly) {
+	if (!d_plan->options.spread_interp_only) {
 		free(fwkerhalf1);
 		if(dim > 1)
 			free(fwkerhalf2);
@@ -723,7 +737,6 @@ int CUFINUFFT_DEFAULT_OPTS(int type, int dim, cufinufft_opts *opts)
 */
 {
 	int ier;
-	opts->upsampfac = (FLT)2.0;
 
 	/* following options are for gpu */
 	opts->gpu_nstreams = 0;
@@ -738,8 +751,6 @@ int CUFINUFFT_DEFAULT_OPTS(int type, int dim, cufinufft_opts *opts)
 	opts->gpu_binsizex = -1;
 	opts->gpu_binsizey = -1;
 	opts->gpu_binsizez = -1;
-
-	opts->spreadinterponly = 0; // default to do the whole nufft
 
 	switch(dim)
 	{

@@ -28,8 +28,8 @@ limitations under the License.
 
 // Here just what's needed to describe the headers for what finufft provides
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/dataTypes.h"
-#include "tensorflow_nufft/cc/kernels/finufft/cpu/nufft_opts.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft_plan_eitherprec.h"
+#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
 
 // clear the macros so we can define w/o warnings...
 #undef FINUFFT_DEFAULT_OPTS
@@ -68,8 +68,7 @@ extern "C"
 // ------------------ the guru interface ------------------------------------
 // (sources in finufft.cpp)
   
-void FINUFFT_DEFAULT_OPTS(nufft_opts *o);
-int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag, int n_transf, FLT tol, FINUFFT_PLAN* plan, nufft_opts* o);
+int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag, int n_transf, FLT tol, FINUFFT_PLAN* plan, const tensorflow::nufft::Options& options);
 int FINUFFT_SETPTS(FINUFFT_PLAN plan , BIGINT M, FLT *xj, FLT *yj, FLT *zj, BIGINT N, FLT *s, FLT *t, FLT *u); 
 int FINUFFT_EXECUTE(FINUFFT_PLAN plan, CPX* weights, CPX* result);
 int FINUFFT_INTERP(FINUFFT_PLAN plan, CPX* weights, CPX* result);

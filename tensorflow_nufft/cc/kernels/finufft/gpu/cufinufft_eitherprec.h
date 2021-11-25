@@ -33,6 +33,7 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/dataTypes.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/spreadinterp.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/utils_fp.h"
+#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
 
 
 #ifndef SINGLE
@@ -233,6 +234,7 @@ limitations under the License.
 typedef struct CUFINUFFT_PLAN_S {
 	cufinufft_opts  opts;
 	SPREAD_OPTS     spopts;
+	tensorflow::nufft::Options options;
 
 	int type;
 	int dim;
@@ -300,7 +302,8 @@ extern "C" {
 int CUFINUFFT_DEFAULT_OPTS(int type, int dim, cufinufft_opts *opts);
 int CUFINUFFT_MAKEPLAN(int type, int dim, int *n_modes, int iflag,
 		       int ntransf, FLT tol, int maxbatchsize,
-		       CUFINUFFT_PLAN *d_plan_ptr, cufinufft_opts *opts);
+		       CUFINUFFT_PLAN *d_plan_ptr, cufinufft_opts *opts,
+			   const tensorflow::nufft::Options& options);
 int CUFINUFFT_SETPTS(int M, FLT* h_kx, FLT* h_ky, FLT* h_kz, int N, FLT *h_s,
 	FLT *h_t, FLT *h_u, CUFINUFFT_PLAN d_plan);
 int CUFINUFFT_EXECUTE(CUCPX* h_c, CUCPX* h_fk, CUFINUFFT_PLAN d_plan);

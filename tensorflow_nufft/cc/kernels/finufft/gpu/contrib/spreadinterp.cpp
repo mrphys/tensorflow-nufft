@@ -28,7 +28,7 @@ FLT calculate_scale_factor(SPREAD_OPTS &opts, int dim, FLT dummy = 0.0) {
   return 1.0 / scale;
 }
 
-int setup_spreader(SPREAD_OPTS &opts,FLT eps, FLT upsampfac,
+int setup_spreader(SPREAD_OPTS &opts,FLT eps, FLT upsampling_factor,
                    int spread_kerevalmeth, int dim)
 // Initializes spreader kernel parameters given desired NUFFT tolerance eps,
 // upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), and ker eval meth
@@ -37,24 +37,24 @@ int setup_spreader(SPREAD_OPTS &opts,FLT eps, FLT upsampfac,
 // Must call before any kernel evals done.
 // Returns: 0 success, 1, warning, >1 failure (see error codes in utils.h)
 {
-  if (upsampfac!=2.0) {   // nonstandard sigma
+  if (upsampling_factor != 2.0) {   // nonstandard sigma
     if (spread_kerevalmeth==1) {
-      fprintf(stderr,"setup_spreader: nonstandard upsampfac=%.3g cannot be handled by spread_kerevalmeth=1\n",(double)upsampfac);
+      fprintf(stderr,"setup_spreader: nonstandard upsampling_factor=%.3g cannot be handled by spread_kerevalmeth=1\n",(double)upsampling_factor);
       return HORNER_WRONG_BETA;
     }
-    if (upsampfac<=1.0) {
-      fprintf(stderr,"setup_spreader: error, upsampfac=%.3g is <=1.0\n",(double)upsampfac);
+    if (upsampling_factor<=1.0) {
+      fprintf(stderr,"setup_spreader: error, upsampling_factor=%.3g is <=1.0\n",(double)upsampling_factor);
       return ERR_UPSAMPFAC_TOO_SMALL;
     }
     // calling routine must abort on above errors, since opts is garbage!
-    if (upsampfac>4.0)
-      fprintf(stderr,"setup_spreader: warning, upsampfac=%.3g is too large to be beneficial!\n",(double)upsampfac);
+    if (upsampling_factor>4.0)
+      fprintf(stderr,"setup_spreader: warning, upsampling_factor=%.3g is too large to be beneficial!\n",(double)upsampling_factor);
   }
     
   // defaults... (user can change after this function called)
   opts.spread_direction = 1;    // user should always set to 1 or 2 as desired
   opts.pirange = 1;             // user also should always set this
-  opts.upsampfac = upsampfac;
+  opts.upsampling_factor = upsampling_factor;
 
   // as in FINUFFT v2.0, allow too-small-eps by truncating to eps_mach...
   int ier = 0;
@@ -66,12 +66,12 @@ int setup_spreader(SPREAD_OPTS &opts,FLT eps, FLT upsampfac,
 
   // Set kernel width w (aka ns) and ES kernel beta parameter, in opts...
   int ns = std::ceil(-log10(eps/(FLT)10.0));   // 1 digit per power of ten
-  if (upsampfac!=2.0)           // override ns for custom sigma
-    ns = std::ceil(-log(eps) / (PI*sqrt(1-1/upsampfac)));  // formula, gamma=1
+  if (upsampling_factor != 2.0)           // override ns for custom sigma
+    ns = std::ceil(-log(eps) / (PI*sqrt(1-1/upsampling_factor)));  // formula, gamma=1
   ns = max(2,ns);               // we don't have ns=1 version yet
   if (ns>MAX_NSPREAD) {         // clip to match allocated arrays
-    fprintf(stderr,"%s warning: at upsampfac=%.3g, tol=%.3g would need kernel width ns=%d; clipping to max %d.\n",__func__,
-	    upsampfac,(double)eps,ns,MAX_NSPREAD);
+    fprintf(stderr,"%s warning: at upsampling_factor=%.3g, tol=%.3g would need kernel width ns=%d; clipping to max %d.\n",__func__,
+	    upsampling_factor,(double)eps,ns,MAX_NSPREAD);
     ns = MAX_NSPREAD;
     ier = WARN_EPS_TOO_SMALL;
   }
@@ -83,14 +83,14 @@ int setup_spreader(SPREAD_OPTS &opts,FLT eps, FLT upsampfac,
   if (ns==2) betaoverns = 2.20;  // some small-width tweaks...
   if (ns==3) betaoverns = 2.26;
   if (ns==4) betaoverns = 2.38;
-  if (upsampfac!=2.0) {          // again, override beta for custom sigma
+  if (upsampling_factor != 2.0) {          // again, override beta for custom sigma
     FLT gamma=0.97;              // must match devel/gen_all_horner_C_code.m
-    betaoverns = gamma*PI*(1-1/(2*upsampfac));  // formula based on cutoff
+    betaoverns = gamma*PI*(1-1/(2*upsampling_factor));  // formula based on cutoff
   }
   opts.ES_beta = betaoverns * (FLT)ns;    // set the kernel beta parameter
-  if (opts.spreadinterponly)
+  if (opts.spread_interp_only)
     opts.ES_scale = calculate_scale_factor(opts, dim);
-  //fprintf(stderr,"setup_spreader: sigma=%.6f, chose ns=%d beta=%.6f\n",(double)upsampfac,ns,(double)opts.ES_beta); // user hasn't set debug yet
+  //fprintf(stderr,"setup_spreader: sigma=%.6f, chose ns=%d beta=%.6f\n",(double)upsampling_factor,ns,(double)opts.ES_beta); // user hasn't set debug yet
   return ier;
 }
 

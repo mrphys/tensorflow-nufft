@@ -93,7 +93,7 @@ int ALLOCGPUMEM2D_PLAN(CUFINUFFT_PLAN d_plan)
 			cerr << "err: invalid method " << endl;
 	}
 
-	if(!d_plan->opts.spreadinterponly){
+	if(!d_plan->options.spread_interp_only){
 		checkCudaErrors(cudaMalloc(&d_plan->fw, maxbatchsize*nf1*nf2*
 				sizeof(CUCPX)));
 		checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf1,(nf1/2+1)*sizeof(FLT)));
@@ -166,7 +166,7 @@ void FREEGPUMEMORY2D(CUFINUFFT_PLAN d_plan)
         cudaGetDevice(& orig_gpu_device_id);
         cudaSetDevice(d_plan->opts.gpu_device_id);
 
-	if(!d_plan->opts.spreadinterponly){
+	if(!d_plan->options.spread_interp_only){
 		checkCudaErrors(cudaFree(d_plan->fw));
 		checkCudaErrors(cudaFree(d_plan->fwkerhalf1));
 		checkCudaErrors(cudaFree(d_plan->fwkerhalf2));
@@ -316,7 +316,7 @@ int ALLOCGPUMEM3D_PLAN(CUFINUFFT_PLAN d_plan)
 			cerr << "err: invalid method" << endl;
 	}
 
-	if(!d_plan->opts.spreadinterponly){
+	if(!d_plan->options.spread_interp_only){
 		checkCudaErrors(cudaMalloc(&d_plan->fw, maxbatchsize*nf1*nf2*nf3*
 			sizeof(CUCPX)));
 		checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf1,(nf1/2+1)*sizeof(FLT)));
@@ -391,7 +391,7 @@ void FREEGPUMEMORY3D(CUFINUFFT_PLAN d_plan)
         cudaSetDevice(d_plan->opts.gpu_device_id);
 
 
-	if(!d_plan->opts.spreadinterponly){
+	if(!d_plan->options.spread_interp_only){
 		cudaFree(d_plan->fw);
 		cudaFree(d_plan->fwkerhalf1);
 		cudaFree(d_plan->fwkerhalf2);

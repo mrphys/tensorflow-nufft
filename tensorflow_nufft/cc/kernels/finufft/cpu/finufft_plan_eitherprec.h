@@ -28,8 +28,8 @@ limitations under the License.
 #endif
 
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/fftw_definitions.h"
-#include "tensorflow_nufft/cc/kernels/finufft/cpu/nufft_opts.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/spread_opts.h"
+#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
 
 #ifndef __cplusplus
 #include <stdbool.h>     // for bools in C
@@ -108,9 +108,9 @@ typedef struct FINUFFT_PLAN_S {  // the main plan struct; note C-compatible stru
   
   // other internal structs; each is C-compatible of course
   FFTW_PLAN fft_plan;
-  nufft_opts opts;     // this and spopts could be made ptrs
   spread_opts spopts;
-  
+  tensorflow::nufft::Options options;
+
 } FINUFFT_PLAN_S;
 
 #endif  // FINUFFT_PLAN_H or FINUFFTF_PLAN_H

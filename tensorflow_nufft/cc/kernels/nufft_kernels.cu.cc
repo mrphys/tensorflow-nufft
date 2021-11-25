@@ -14,14 +14,13 @@ limitations under the License.
 ==============================================================================*/
 
 #if GOOGLE_CUDA
-
 #define EIGEN_USE_GPU
-
-#include "nufft.h"
 
 #include "tensorflow/core/framework/op_kernel.h"
 
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft.h"
+#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft.h"
 
 
 namespace tensorflow {
@@ -66,14 +65,15 @@ template<>
 int makeplan<GPUDevice, float>(
     int type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
     typename plan_type<GPUDevice, float>::type* plan,
-    typename opts_type<GPUDevice, float>::type* opts) {
+    typename opts_type<GPUDevice, float>::type* opts,
+    const Options& options) {
 
   int* nmodes_int = new int[dim];
   for (int d = 0; d < dim; d++)
     nmodes_int[d] = static_cast<int>(nmodes[d]);
 
   int err = cufinufftf_makeplan(
-    type, dim, nmodes_int, iflag, ntr, eps, 0, plan, opts);
+    type, dim, nmodes_int, iflag, ntr, eps, 0, plan, opts, options);
   
   delete[] nmodes_int;
   return err;
@@ -83,14 +83,15 @@ template<>
 int makeplan<GPUDevice, double>(
     int type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
     typename plan_type<GPUDevice, double>::type* plan,
-    typename opts_type<GPUDevice, double>::type* opts) {
+    typename opts_type<GPUDevice, double>::type* opts,
+    const Options& options) {
 
   int* nmodes_int = new int[dim];
   for (int d = 0; d < dim; d++)
     nmodes_int[d] = static_cast<int>(nmodes[d]);
 
   int err = cufinufft_makeplan(
-    type, dim, nmodes_int, iflag, ntr, eps, 0, plan, opts);
+    type, dim, nmodes_int, iflag, ntr, eps, 0, plan, opts, options);
   
   delete[] nmodes_int;
   return err;

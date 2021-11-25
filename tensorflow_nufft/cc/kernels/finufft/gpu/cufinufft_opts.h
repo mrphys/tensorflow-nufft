@@ -17,7 +17,7 @@ limitations under the License.
 #define __CUFINUFFT_OPTS_H__
 
 typedef struct cufinufft_opts {   // see cufinufft_default_opts() for defaults
-	double upsampfac;   // upsampling ratio sigma, only 2.0 (standard) is implemented
+
 	/* following options are for gpu */
         int gpu_method;  // 1: nonuniform-pts driven, 2: shared mem (SM)
 	int gpu_sort;    // when NU-pts driven: 0: no sort (GM), 1: sort (GM-sort)
@@ -34,7 +34,6 @@ typedef struct cufinufft_opts {   // see cufinufft_default_opts() for defaults
 	int gpu_nstreams;
 	int spread_kerevalmeth; // 0: direct exp(sqrt()), 1: Horner ppval
 
-	int spreadinterponly; 	// 0: NUFFT, 1: spread or interpolation only
 	int debug; 				// currently not used. added for consistency with
 							// CPU version of FINUFFT (Montalt 8/6/2021)
 	int num_threads; 		// ignored, only added for consistency with CPU code

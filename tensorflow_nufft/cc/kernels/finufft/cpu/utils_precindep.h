@@ -21,8 +21,6 @@ limitations under the License.
 
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/dataTypes.h"
 
-BIGINT next235even(BIGINT n);
-
 // jfm's timer class
 #include <sys/time.h>
 class CNTime {

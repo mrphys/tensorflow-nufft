@@ -1,8 +1,10 @@
 #include "common.h"
-#include <tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft_eitherprec.h>
 #include <math.h>
 #include <stdio.h>
 #include <vector>
+
+#include "tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft_eitherprec.h"
+#include "tensorflow_nufft/cc/kernels/finufft/nufft_util.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,39 +14,45 @@ extern "C" {
   #include "legendre_rule_fast.h"
 #endif
 
+using namespace tensorflow::nufft;
+
+
 int setup_spreader_for_nufft(SPREAD_OPTS &spopts, FLT eps, cufinufft_opts opts,
+                             const Options& options,
                              int dim)
 // Set up the spreader parameters given eps, and pass across various nufft
 // options. Report status of setup_spreader.  Barnett 10/30/17
 {
-  int ier=setup_spreader(spopts, eps, opts.upsampfac, opts.spread_kerevalmeth, dim);
+  int ier = setup_spreader(spopts, eps, options.upsampling_factor, opts.spread_kerevalmeth, dim);
   spopts.pirange = 1;                 // could allow user control?
   return ier;
 }
 
+
 int SET_NF_TYPE12(BIGINT ms, cufinufft_opts opts, SPREAD_OPTS spopts,
-				   BIGINT *nf, BIGINT bs)
+                  const Options& options,
+				          BIGINT *nf, BIGINT bs)
 // type 1 & 2 recipe for how to set 1d size of upsampled array, nf, given opts
 // and requested number of Fourier modes ms.
 {
   // for spread/interp only mode, do not apply oversampling (Montalt 6/8/2021)
-  if (opts.spreadinterponly) {
+  if (options.spread_interp_only) {
     *nf = ms;
   } else {
-    *nf = (BIGINT)(opts.upsampfac*ms);
+    *nf = (BIGINT)(options.upsampling_factor * ms);
   }
   if (*nf<2*spopts.nspread) *nf=2*spopts.nspread; // otherwise spread fails
   if (*nf<MAX_NF){                                // otherwise will fail anyway
     if (opts.gpu_method == 4)                     // expensive at huge nf
-      *nf = next235beven(*nf, bs);
+      *nf = next_smooth_int(*nf, bs);
     else
-      *nf = next235beven(*nf, 1);
+      *nf = next_smooth_int(*nf, 1);
   } else {
     fprintf(stderr,"[%s] nf=%.3g exceeds MAX_NF of %.3g, so exit without attempting even a malloc\n",__func__,(double)*nf,(double)MAX_NF);
     return ERR_MAXNALLOC;
   }
   // for spread/interp only mode, make sure grid size is valid (Montalt 6/8/2021).
-  if (opts.spreadinterponly && *nf != ms) {
+  if (options.spread_interp_only && *nf != ms) {
     fprintf(stderr,"[%s] ms=%d is not a valid grid size. It should be even, larger than the kernel (%d) and have no prime factors larger than 5.\n",__func__,ms,2*spopts.nspread);
     return ERR_GRIDSIZE_NOTVALID;
   }

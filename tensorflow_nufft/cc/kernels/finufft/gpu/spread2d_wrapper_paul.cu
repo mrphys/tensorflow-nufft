@@ -342,7 +342,7 @@ int CUSPREAD2D_PAUL(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan, int blksize)
 	int *d_subprob_to_bin = d_plan->subprob_to_bin;
 
 	int pirange=d_plan->spopts.pirange;
-	FLT sigma=d_plan->opts.upsampfac;
+	FLT sigma=d_plan->options.upsampling_factor;
 	cudaEventRecord(start);
 	size_t sharedplanorysize = (bin_size_x+2*ceil(ns/2.0))*(bin_size_y+
 			2*ceil(ns/2.0))*sizeof(CUCPX);

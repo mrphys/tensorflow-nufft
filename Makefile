@@ -4,6 +4,7 @@ PY_VERSION ?= 3.8
 PYTHON = python$(PY_VERSION)
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+FINUFFT_COMMON = tensorflow_nufft/cc/kernels/finufft
 FINUFFT_ROOT = tensorflow_nufft/cc/kernels/finufft/cpu
 CUFINUFFT_ROOT = tensorflow_nufft/cc/kernels/finufft/gpu
 
@@ -97,7 +98,8 @@ endif
 # ==============================================================================
 
 FINUFFT_LIB = $(FINUFFT_ROOT)/libfinufft.a
-FINUFFT_HEADERS = $(wildcard $(FINUFFT_ROOT)/include/*.h)
+FINUFFT_HEADERS = $(wildcard $(FINUFFT_COMMON)/*.h) \
+				  $(wildcard $(FINUFFT_COMMON)/cpu/*.h)
 
 # spreader is subset of the library with self-contained testing, hence own objs:
 # double-prec spreader object files that also need single precision...
@@ -109,12 +111,15 @@ SOBJS_PI = $(FINUFFT_ROOT)/utils_precindep.o
 # spreader dual-precision objs
 SOBJSD = $(SOBJS) $(SOBJSF) $(SOBJS_PI)
 
+# precision-independent
+COMMON_OBJS = $(FINUFFT_COMMON)/nufft_util.o
+
 # double-prec library object files that also need single precision...
 OBJS = $(SOBJS) $(FINUFFT_ROOT)/finufft.o
 # their single-prec versions
 OBJSF = $(OBJS:%.o=%_32.o)
 # precision-dependent library object files (compiled & linked only once)...
-OBJS_PI = $(SOBJS_PI) $(FINUFFT_ROOT)/contrib/legendre_rule_fast.o
+OBJS_PI = $(SOBJS_PI) $(COMMON_OBJS) $(FINUFFT_ROOT)/contrib/legendre_rule_fast.o
 # all lib dual-precision objs
 OBJSD = $(OBJS) $(OBJSF) $(OBJS_PI)
 

@@ -24,8 +24,8 @@ struct SPREAD_OPTS {      // see cnufftspread:setup_spreader for defaults.
   int nspread;            // w, the kernel width in grid pts
   int spread_direction;   // 1 means spread NU->U, 2 means interpolate U->NU
   int pirange;            // 0: coords in [0,N), 1 coords in [-pi,pi)
-  FLT upsampfac;          // sigma, upsampling factor, default 2.0
-  int spreadinterponly;   // 0: NUFFT, 1: spread or interpolation only
+  FLT upsampling_factor;          // sigma, upsampling factor, default 2.0
+  bool spread_interp_only; // 0: NUFFT, 1: spread or interpolation only
   // ES kernel specific...
   FLT ES_beta;
   FLT ES_halfwidth;
@@ -43,7 +43,7 @@ namespace cufinufft {
 FLT evaluate_kernel(FLT x, const SPREAD_OPTS &opts);
 } // namespace cufinufft
 
-int setup_spreader(SPREAD_OPTS &opts, FLT eps, FLT upsampfac,
+int setup_spreader(SPREAD_OPTS &opts, FLT eps, FLT upsampling_factor,
                    int spread_kerevalmeth, int dim);
 
 #endif  // SPREADINTERP_H

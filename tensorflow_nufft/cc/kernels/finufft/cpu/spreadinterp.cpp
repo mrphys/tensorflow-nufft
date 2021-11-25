@@ -18,6 +18,7 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft_definitions.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/utils.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/utils_precindep.h"
+#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
 
 #include <stdlib.h>
 #include <vector>
@@ -127,8 +128,8 @@ int spreadinterp(
 		These should lie in the box 0<=kx<=N1 etc (if pirange=0),
                 or -pi<=kx<=pi (if pirange=1). However, points up to +-1 period
                 outside this domain are also correctly folded back into this
-                domain, but pts beyond this either raise an error (if chkbnds=1)
-                or a crash (if chkbnds=0).
+                domain, but pts beyond this either raise an error (if check_bounds=1)
+                or a crash (if check_bounds=0).
    opts - spread/interp options struct, documented in ../include/spread_opts.h
 
    Inputs/Outputs:
@@ -147,7 +148,7 @@ int spreadinterp(
    error codes 3/13/17. pirange 3/28/17. Rewritten 6/15/17. parallel sort 2/9/18
    No separate subprob indices in t-1 2/11/18.
    sort_threads (since for M<<N, multithread sort slower than single) 3/27/18
-   kereval, kerpad 4/24/18
+   kereval, pad_kernel 4/24/18
    Melody Shih split into 3 routines: check, sort, spread. Jun 2018, making
    this routine just a caller to them. Name change, Barnett 7/27/18
    Tidy, Barnett 5/20/20. Tidy doc, Barnett 10/22/20.
@@ -204,7 +205,7 @@ int spreadcheck(BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M, FLT *kx, FLT *ky,
   // BOUNDS CHECKING .... check NU pts are valid (+-3pi if pirange, or [-N,2N])
   // exit gracefully as soon as invalid is found.
   // Note: isfinite() breaks with -Ofast
-  if (opts.chkbnds) {
+  if (opts.check_bounds) {
     timer.start();
     for (BIGINT i=0; i<M; ++i) {
       if ((opts.pirange ? (abs(kx[i])>3.0*PI) : (kx[i]<-N1 || kx[i]>2*N1)) || !isfinite(kx[i])) {
@@ -226,14 +227,14 @@ int spreadcheck(BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M, FLT *kx, FLT *ky,
           return ERR_SPREAD_PTS_OUT_RANGE;
         }
       }
-    if (opts.debug) printf("\tNU bnds check:\t\t%.3g s\n",timer.elapsedsec());
+    if (opts.verbosity) printf("\tNU bnds check:\t\t%.3g s\n",timer.elapsedsec());
   }
   return 0; 
 }
 
 
 int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M, 
-               FLT *kx, FLT *ky, FLT *kz, spread_opts opts)
+              FLT *kx, FLT *ky, FLT *kz, spread_opts opts)
 /* This makes a decision whether or not to sort the NU pts (influenced by
    opts.sort), and if yes, calls either single- or multi-threaded bin sort,
    writing reordered index list to sort_indices. If decided not to sort, the
@@ -278,7 +279,7 @@ int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M,
   
   if (opts.sort==1 || (opts.sort==2 && better_to_sort)) {
     // store a good permutation ordering of all NU pts (dim=1,2 or 3)
-    int sort_debug = (opts.debug>=2);    // show timing output?
+    int sort_debug = (opts.verbosity>=2);    // show timing output?
     int sort_nthr = opts.sort_threads;   // choose # threads for sorting
     if (sort_nthr==0)   // use auto choice: when N>>M, one thread is better!
       sort_nthr = (10*M>N) ? maxnthr : 1;      // heuristic
@@ -286,14 +287,14 @@ int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M,
       bin_sort_singlethread(sort_indices,M,kx,ky,kz,N1,N2,N3,opts.pirange,bin_size_x,bin_size_y,bin_size_z,sort_debug);
     else                                      // sort_nthr>1, sets # threads
       bin_sort_multithread(sort_indices,M,kx,ky,kz,N1,N2,N3,opts.pirange,bin_size_x,bin_size_y,bin_size_z,sort_debug,sort_nthr);
-    if (opts.debug) 
+    if (opts.verbosity) 
       printf("\tsorted (%d threads):\t%.3g s\n",sort_nthr,timer.elapsedsec());
     did_sort=1;
   } else {
 #pragma omp parallel for num_threads(maxnthr) schedule(static,1000000)
     for (BIGINT i=0; i<M; i++)                // here omp helps xeon, hinders i7
       sort_indices[i]=i;                      // the identity permutation
-    if (opts.debug)
+    if (opts.verbosity)
       printf("\tnot sorted (sort=%d): \t%.3g s\n",(int)opts.sort,timer.elapsedsec());
   }
   return did_sort;
@@ -332,13 +333,13 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
   int nthr = FINUFFT_GET_MAX_THREADS();  // # threads to use to spread
   if (opts.num_threads>0)
     nthr = min(nthr,opts.num_threads);     // user override up to max avail
-  if (opts.debug)
+  if (opts.verbosity)
     printf("\tspread %dD (M=%lld; N1=%lld,N2=%lld,N3=%lld; pir=%d), nthr=%d\n",ndims,(long long)M,(long long)N1,(long long)N2,(long long)N3,opts.pirange,nthr);
   
   timer.start();
   for (BIGINT i=0; i<2*N; i++) // zero the output array. std::fill is no faster
     data_uniform[i]=0.0;
-  if (opts.debug) printf("\tzero output array\t%.3g s\n",timer.elapsedsec());
+  if (opts.verbosity) printf("\tzero output array\t%.3g s\n",timer.elapsedsec());
   if (M==0)                     // no NU pts, we're done
     return 0;
   
@@ -350,7 +351,7 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
       // *** todo, not urgent
       // ... (question is: will the index wrapping per NU pt slow it down?)
     }
-    if (opts.debug) printf("\tt1 simple spreading:\t%.3g s\n",timer.elapsedsec());
+    if (opts.verbosity) printf("\tt1 simple spreading:\t%.3g s\n",timer.elapsedsec());
     
   } else {           // ------- Fancy multi-core blocked t1 spreading ----
                      // Splits sorted inds (jfm's advanced2), could double RAM.
@@ -358,17 +359,17 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
     int nb = min((BIGINT)nthr,M);         // simply split one subprob per thr...
     if (nb*(BIGINT)opts.max_subproblem_size<M) {  // ...or more subprobs to cap size
       nb = 1 + (M-1)/opts.max_subproblem_size;  // int div does ceil(M/opts.max_subproblem_size)
-      if (opts.debug) printf("\tcapping subproblem sizes to max of %d\n",opts.max_subproblem_size);
+      if (opts.verbosity) printf("\tcapping subproblem sizes to max of %d\n",opts.max_subproblem_size);
     }
     if (M*1000<N) {         // low-density heuristic: one thread per NU pt!
       nb = M;
-      if (opts.debug) printf("\tusing low-density speed rescue nb=M...\n");
+      if (opts.verbosity) printf("\tusing low-density speed rescue nb=M...\n");
     }
     if (!did_sort && nthr==1) {
       nb = 1;
-      if (opts.debug) printf("\tunsorted nthr=1: forcing single subproblem...\n");
+      if (opts.verbosity) printf("\tunsorted nthr=1: forcing single subproblem...\n");
     }
-    if (opts.debug && nthr>opts.atomic_threshold)
+    if (opts.verbosity && nthr>opts.atomic_threshold)
       printf("\tnthr big: switching add_wrapped OMP from critical to atomic (!)\n");
       
     std::vector<BIGINT> brk(nb+1); // NU index breakpoints defining nb subproblems
@@ -396,7 +397,7 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
         // get the subgrid which will include padding by roughly nspread/2
         BIGINT offset1,offset2,offset3,size1,size2,size3; // get_subgrid sets
         get_subgrid(offset1,offset2,offset3,size1,size2,size3,M0,kx0,ky0,kz0,ns,ndims);  // sets offsets and sizes
-        if (opts.debug>1) { // verbose
+        if (opts.verbosity>1) { // verbose
           if (ndims==1)
             printf("\tsubgrid: off %lld\t siz %lld\t #NU %lld\n",(long long)offset1,(long long)size1,(long long)M0);
           else if (ndims==2)
@@ -434,11 +435,11 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
         if (N2>1) free(ky0);
         if (N3>1) free(kz0); 
       }     // end main loop over subprobs
-      if (opts.debug) printf("\tt1 fancy spread: \t%.3g s (%d subprobs)\n",timer.elapsedsec(), nb);
+      if (opts.verbosity) printf("\tt1 fancy spread: \t%.3g s (%d subprobs)\n",timer.elapsedsec(), nb);
     }   // end of choice of which t1 spread type to use
 
     // in spread/interp only mode, apply scaling factor (Montalt 6/8/2021).
-    if (opts.spreadinterponly) {
+    if (opts.spread_interp_only) {
       for (BIGINT i=0; i<2*N; i++)
         data_uniform[i] *= opts.ES_scale;
     }
@@ -461,7 +462,7 @@ int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
   int nthr = FINUFFT_GET_MAX_THREADS();   // # threads to use to interp
   if (opts.num_threads>0)
     nthr = min(nthr,opts.num_threads);      // user override up to max avail
-  if (opts.debug)
+  if (opts.verbosity)
     printf("\tinterp %dD (M=%lld; N1=%lld,N2=%lld,N3=%lld; pir=%d), nthr=%d\n",ndims,(long long)M,(long long)N1,(long long)N2,(long long)N3,opts.pirange,nthr);
 
   timer.start();  
@@ -544,7 +545,7 @@ int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
 	  }
 
     // in spread/interp only mode, apply scaling factor (Montalt 6/8/2021).
-    if (opts.spreadinterponly) {
+    if (opts.spread_interp_only) {
       target[0] *= opts.ES_scale;
       target[1] *= opts.ES_scale;
     }
@@ -560,7 +561,7 @@ int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
         
       } // end NU targ loop
   } // end parallel section
-  if (opts.debug) printf("\tt2 spreading loop: \t%.3g s\n",timer.elapsedsec());
+  if (opts.verbosity) printf("\tt2 spreading loop: \t%.3g s\n",timer.elapsedsec());
   return 0;
 };
 
@@ -587,14 +588,14 @@ FLT calculate_scale_factor(const spread_opts &opts, int dim, FLT dummy = 0.0) {
 
 ///////////////////////////////////////////////////////////////////////////
 
-int setup_spreader(spread_opts &opts, FLT eps, double upsampfac,
-                   int kerevalmeth, int debug, int showwarn, int dim)
+int setup_spreader(spread_opts &opts, FLT eps, double upsampling_factor,
+                   int kerevalmeth, int debug, bool show_warnings, int dim)
 /* Initializes spreader kernel parameters given desired NUFFT tolerance eps,
    upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), ker eval meth
    (either 0:exp(sqrt()), 1: Horner ppval), and some debug-level flags.
    Also sets all default options in spread_opts. See spread_opts.h for opts.
    dim is spatial dimension (1,2, or 3).
-   See finufft.cpp:finufft_plan() for where upsampfac is set.
+   See finufft.cpp:finufft_plan() for where upsampling_factor is set.
    Must call this before any kernel evals done, otherwise segfault likely.
    Returns:
      0  : success
@@ -604,53 +605,53 @@ int setup_spreader(spread_opts &opts, FLT eps, double upsampfac,
    Barnett 2017. debug, loosened eps logic 6/14/20.
 */
 {
-  if (upsampfac!=2.0 && upsampfac!=1.25) {   // nonstandard sigma
+  if (upsampling_factor!=2.0 && upsampling_factor!=1.25) {   // nonstandard sigma
     if (kerevalmeth==1) {
-      fprintf(stderr,"FINUFFT setup_spreader: nonstandard upsampfac=%.3g cannot be handled by kerevalmeth=1\n",upsampfac);
+      fprintf(stderr,"FINUFFT setup_spreader: nonstandard upsampling_factor=%.3g cannot be handled by kerevalmeth=1\n",upsampling_factor);
       return ERR_HORNER_WRONG_BETA;
     }
-    if (upsampfac<=1.0) {       // no digits would result
-      fprintf(stderr,"FINUFFT setup_spreader: error, upsampfac=%.3g is <=1.0\n",upsampfac);
+    if (upsampling_factor<=1.0) {       // no digits would result
+      fprintf(stderr,"FINUFFT setup_spreader: error, upsampling_factor=%.3g is <=1.0\n",upsampling_factor);
       return ERR_UPSAMPFAC_TOO_SMALL;
     }
     // calling routine must abort on above errors, since opts is garbage!
-    if (showwarn && upsampfac>4.0)
-      fprintf(stderr,"FINUFFT setup_spreader warning: upsampfac=%.3g way too large to be beneficial.\n",upsampfac);
+    if (show_warnings && upsampling_factor>4.0)
+      fprintf(stderr,"FINUFFT setup_spreader warning: upsampling_factor=%.3g way too large to be beneficial.\n",upsampling_factor);
   }
     
   // write out default spread_opts (some overridden in setup_spreader_for_nufft)
   opts.spread_direction = 0;    // user should always set to 1 or 2 as desired
   opts.pirange = 1;             // user also should always set this
-  opts.chkbnds = 0;
+  opts.check_bounds = false;
   opts.sort = 2;                // 2:auto-choice
-  opts.kerpad = 0;              // affects only evaluate_kernel_vector
+  opts.pad_kernel = 0;              // affects only evaluate_kernel_vector
   opts.kerevalmeth = kerevalmeth;
-  opts.upsampfac = upsampfac;
+  opts.upsampling_factor = upsampling_factor;
   opts.num_threads = 0;            // all avail
   opts.sort_threads = 0;        // 0:auto-choice
   // heuristic dir=1 chunking for nthr>>1, typical for intel i7 and skylake...
   opts.max_subproblem_size = (dim==1) ? 10000 : 100000;
   opts.flags = 0;               // 0:no timing flags (>0 for experts only)
-  opts.debug = 0;               // 0:no debug output
+  opts.verbosity = 0;               // 0:no debug output
   // heuristic nthr above which switch OMP critical to atomic (add_wrapped...):
   opts.atomic_threshold = 10;   // R Blackwell's value
 
   int ns, ier = 0;  // Set kernel width w (aka ns, nspread) then copy to opts...
   if (eps<EPSILON) {            // safety; there's no hope of beating e_mach
-    if (showwarn)
+    if (show_warnings)
       fprintf(stderr,"%s warning: increasing tol=%.3g to eps_mach=%.3g.\n",__func__,(double)eps,(double)EPSILON);
     eps = EPSILON;              // only changes local copy (not any opts)
     ier = WARN_EPS_TOO_SMALL;
   }
-  if (upsampfac==2.0)           // standard sigma (see SISC paper)
+  if (upsampling_factor==2.0)           // standard sigma (see SISC paper)
     ns = std::ceil(-log10(eps/(FLT)10.0));          // 1 digit per power of 10
   else                          // custom sigma
-    ns = std::ceil(-log(eps) / (PI*sqrt(1.0-1.0/upsampfac)));  // formula, gam=1
+    ns = std::ceil(-log(eps) / (PI*sqrt(1.0-1.0/upsampling_factor)));  // formula, gam=1
   ns = max(2,ns);               // (we don't have ns=1 version yet)
   if (ns>MAX_NSPREAD) {         // clip to fit allocated arrays, Horner rules
-    if (showwarn)
-      fprintf(stderr,"%s warning: at upsampfac=%.3g, tol=%.3g would need kernel width ns=%d; clipping to max %d.\n",__func__,
-              upsampfac,(double)eps,ns,MAX_NSPREAD);
+    if (show_warnings)
+      fprintf(stderr,"%s warning: at upsampling_factor=%.3g, tol=%.3g would need kernel width ns=%d; clipping to max %d.\n",__func__,
+              upsampling_factor,(double)eps,ns,MAX_NSPREAD);
     ns = MAX_NSPREAD;
     ier = WARN_EPS_TOO_SMALL;
   }
@@ -664,15 +665,15 @@ int setup_spreader(spread_opts &opts, FLT eps, double upsampfac,
   if (ns==2) betaoverns = 2.20;  // some small-width tweaks...
   if (ns==3) betaoverns = 2.26;
   if (ns==4) betaoverns = 2.38;
-  if (upsampfac!=2.0) {          // again, override beta for custom sigma
+  if (upsampling_factor!=2.0) {          // again, override beta for custom sigma
     FLT gamma=0.97;              // must match devel/gen_all_horner_C_code.m !
-    betaoverns = gamma*PI*(1.0-1.0/(2*upsampfac));  // formula based on cutoff
+    betaoverns = gamma*PI*(1.0-1.0/(2*upsampling_factor));  // formula based on cutoff
   }
   opts.ES_beta = betaoverns * (FLT)ns;    // set the kernel beta parameter
   if (debug)
-    printf("%s (kerevalmeth=%d) eps=%.3g sigma=%.3g: chose ns=%d beta=%.3g\n",__func__,kerevalmeth,(double)eps,upsampfac,ns,(double)opts.ES_beta);
+    printf("%s (kerevalmeth=%d) eps=%.3g sigma=%.3g: chose ns=%d beta=%.3g\n",__func__,kerevalmeth,(double)eps,upsampling_factor,ns,(double)opts.ES_beta);
   // calculate scaling factor for spread/interp only mode (Montalt 6/8/2021).
-  if (opts.spreadinterponly)
+  if (opts.spread_interp_only)
     opts.ES_scale = calculate_scale_factor(opts, dim);
   return ier;
 }
@@ -703,7 +704,7 @@ static inline void set_kernel_args(FLT *args, FLT x, const spread_opts& opts)
 
 static inline void evaluate_kernel_vector(FLT *ker, FLT *args, const spread_opts& opts, const int N)
 /* Evaluate ES kernel for a vector of N arguments; by Ludvig af K.
-   If opts.kerpad true, args and ker must be allocated for Npad, and args is
+   If opts.pad_kernel true, args and ker must be allocated for Npad, and args is
    written to (to pad to length Npad), only first N outputs are correct.
    Barnett 4/24/18 option to pad to mult of 4 for better SIMD vectorization.
 
@@ -717,7 +718,7 @@ static inline void evaluate_kernel_vector(FLT *ker, FLT *args, const spread_opts
     // seems to benefit auto-vectorization.
     // gcc 5.4 vectorizes first loop; gcc 7.2 vectorizes both loops
     int Npad = N;
-    if (opts.kerpad) {        // since always same branch, no speed hit
+    if (opts.pad_kernel) {        // since always same branch, no speed hit
       Npad = 4*(1+(N-1)/4);   // pad N to mult of 4; help i7 GCC, not xeon
       for (int i=N;i<Npad;++i)    // pad with 1-3 zeros for safe eval
 	args[i] = 0.0;
@@ -747,12 +748,12 @@ static inline void eval_kernel_vec_Horner(FLT *ker, const FLT x, const int w,
   if (!(opts.flags & TF_OMIT_EVALUATE_KERNEL)) {
     FLT z = 2*x + w - 1.0;         // scale so local grid offset z in [-1,1]
     // insert the auto-generated code which expects z, w args, writes to ker...
-    if (opts.upsampfac==2.0) {     // floating point equality is fine here
+    if (opts.upsampling_factor==2.0) {     // floating point equality is fine here
 #include "ker_horner_allw_loop.c"
-    } else if (opts.upsampfac==1.25) {
+    } else if (opts.upsampling_factor==1.25) {
 #include "ker_lowupsampfac_horner_allw_loop.c"
     } else
-      fprintf(stderr,"%s: unknown upsampfac, failed!\n",__func__);
+      fprintf(stderr,"%s: unknown upsampling_factor, failed!\n",__func__);
   }
 }
 

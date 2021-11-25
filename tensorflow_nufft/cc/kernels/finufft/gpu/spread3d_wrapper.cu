@@ -368,7 +368,7 @@ int CUSPREAD3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M,
 	dim3 blocks;
 
 	int ns=d_plan->spopts.nspread;   // psi's support in terms of number of cells
-	FLT sigma=d_plan->spopts.upsampfac;
+	FLT sigma=d_plan->spopts.upsampling_factor;
 	FLT es_c=d_plan->spopts.ES_c;
 	FLT es_beta=d_plan->spopts.ES_beta;
 	int pirange=d_plan->spopts.pirange;
@@ -828,7 +828,7 @@ int CUSPREAD3D_BLOCKGATHER(int nf1, int nf2, int nf3, int M,
 	int ns=d_plan->spopts.nspread; 
 	FLT es_c=d_plan->spopts.ES_c;
 	FLT es_beta=d_plan->spopts.ES_beta;
-	FLT sigma=d_plan->spopts.upsampfac;
+	FLT sigma=d_plan->spopts.upsampling_factor;
 	int pirange=d_plan->spopts.pirange;
 	int maxsubprobsize=d_plan->opts.gpu_maxsubprobsize;
 
@@ -1200,7 +1200,7 @@ int CUSPREAD3D_SUBPROB(int nf1, int nf2, int nf3, int M, CUFINUFFT_PLAN d_plan,
 	int totalnumsubprob=d_plan->totalnumsubprob;
 	int *d_subprob_to_bin = d_plan->subprob_to_bin;
 
-	FLT sigma=d_plan->spopts.upsampfac;
+	FLT sigma=d_plan->spopts.upsampling_factor;
 	FLT es_c=d_plan->spopts.ES_c;
 	FLT es_beta=d_plan->spopts.ES_beta;
 	int pirange=d_plan->spopts.pirange;

@@ -177,7 +177,7 @@ int CUINTERP3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M, CUFINUFFT_PLAN d_pl
 	int ns=d_plan->spopts.nspread;   // psi's support in terms of number of cells
 	FLT es_c=d_plan->spopts.ES_c;
 	FLT es_beta=d_plan->spopts.ES_beta;
-	FLT sigma=d_plan->spopts.upsampfac;
+	FLT sigma=d_plan->spopts.upsampling_factor;
 	int pirange=d_plan->spopts.pirange;
 
 	int *d_idxnupts = d_plan->idxnupts;
@@ -258,7 +258,7 @@ int CUINTERP3D_SUBPROB(int nf1, int nf2, int nf3, int M, CUFINUFFT_PLAN d_plan,
 	int *d_subprob_to_bin = d_plan->subprob_to_bin;
 	int totalnumsubprob=d_plan->totalnumsubprob;
 
-	FLT sigma=d_plan->spopts.upsampfac;
+	FLT sigma=d_plan->spopts.upsampling_factor;
 	FLT es_c=d_plan->spopts.ES_c;
 	FLT es_beta=d_plan->spopts.ES_beta;
 	int pirange=d_plan->spopts.pirange;

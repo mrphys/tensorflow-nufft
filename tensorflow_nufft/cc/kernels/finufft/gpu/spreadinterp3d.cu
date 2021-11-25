@@ -43,7 +43,7 @@ FLT evaluate_kernel(FLT x, FLT es_c, FLT es_beta, int ns)
 
 static __inline__ __device__
 void eval_kernel_vec_Horner(FLT *ker, const FLT x, const int w,
-	const double upsampfac)
+	const double upsampling_factor)
 	/* Fill ker[] with Horner piecewise poly approx to [-w/2,w/2] ES kernel eval at
 	   x_j = x + j,  for j=0,..,w-1.  Thus x in [-w/2,-w/2+1].   w is aka ns.
 	   This is the current evaluation method, since it's faster (except i7 w=16).
@@ -51,7 +51,7 @@ void eval_kernel_vec_Horner(FLT *ker, const FLT x, const int w,
 {
 	FLT z = 2*x + w - 1.0;         // scale so local grid offset z in [-1,1]
 	// insert the auto-generated code which expects z, w args, writes to ker...
-	if (upsampfac==2.0) {     // floating point equality is fine here
+	if (upsampling_factor == 2.0) {     // floating point equality is fine here
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/ker_horner_allw_loop.c"
 	}
 }

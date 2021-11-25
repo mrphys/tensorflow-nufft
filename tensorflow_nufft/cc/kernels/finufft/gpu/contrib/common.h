@@ -1,6 +1,8 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
+
 #include "dataTypes.h"
 #include "utils.h"
 #include "utils_fp.h"
@@ -15,8 +17,10 @@ struct cufinufft_opts;
 
 // common.cpp provides...
 int setup_spreader_for_nufft(SPREAD_OPTS &spopts, FLT eps, cufinufft_opts opts,
+                             const tensorflow::nufft::Options& options,
                              int dim);
-int SET_NF_TYPE12(BIGINT ms, cufinufft_opts opts, SPREAD_OPTS spopts,BIGINT *nf,
+int SET_NF_TYPE12(BIGINT ms, cufinufft_opts opts, SPREAD_OPTS spopts,
+                  const tensorflow::nufft::Options& options, BIGINT *nf,
                   BIGINT b);
 void onedim_fseries_kernel(BIGINT nf, FLT *fwkerhalf, SPREAD_OPTS opts);
 #endif  // COMMON_H

@@ -366,7 +366,7 @@ int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan,
 	int *d_idxnupts=d_plan->idxnupts;
 	FLT es_c=d_plan->spopts.ES_c;
 	FLT es_beta=d_plan->spopts.ES_beta;
-	FLT sigma=d_plan->spopts.upsampfac;
+	FLT sigma=d_plan->spopts.upsampling_factor;
 
 	FLT* d_kx = d_plan->kx;
 	FLT* d_ky = d_plan->ky;
@@ -675,7 +675,7 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan,
 
 	int pirange=d_plan->spopts.pirange;
 
-	FLT sigma=d_plan->opts.upsampfac;
+	FLT sigma=d_plan->options.upsampling_factor;
 	cudaEventRecord(start);
 
 	size_t sharedplanorysize = (bin_size_x+2*(int)ceil(ns/2.0))*

@@ -16,59 +16,64 @@ limitations under the License.
 #include <iostream>
 #include <iomanip>
 #include <math.h>
-#include <tensorflow_nufft/cc/kernels/finufft/gpu/contrib/cuda_samples/helper_cuda.h>
 #include <complex>
 #include <cufft.h>
 
-#include <tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft_eitherprec.h>
+#include "tensorflow/core/lib/core/errors.h"
+#include "tensorflow/core/lib/core/status.h"
+
+#include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/cuda_samples/helper_cuda.h"
+#include "tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft_eitherprec.h"
 #include "cuspreadinterp.h"
 #include "cudeconvolve.h"
 #include "memtransfer.h"
 
 using namespace std;
+using namespace tensorflow;
+using namespace tensorflow::nufft;
 
-void SETUP_BINSIZE(int type, int dim, cufinufft_opts *opts)
+void SETUP_BINSIZE(int type, int dim, cufinufft_opts *opts, Options& options)
 {
 	switch(dim)
 	{
 		case 2:
 		{
-			opts->gpu_binsizex = (opts->gpu_binsizex < 0) ? 32:
-				opts->gpu_binsizex;
-			opts->gpu_binsizey = (opts->gpu_binsizey < 0) ? 32:
-				opts->gpu_binsizey;
-			opts->gpu_binsizez = 1;
+			options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 32:
+				options.gpu_bin_size.x;
+      options.gpu_bin_size.y = (options.gpu_bin_size.y == 0) ? 32:
+				options.gpu_bin_size.y;
+			options.gpu_bin_size.z = 1;
 		}
 		break;
 		case 3:
 		{
-			switch(opts->gpu_method)
+			switch(options.gpu_spread_method)
 			{
-				case 1:
-				case 2:
+				case GpuSpreadMethod::NUPTS_DRIVEN:
+				case GpuSpreadMethod::SUBPROBLEM:
 				{
-					opts->gpu_binsizex = (opts->gpu_binsizex < 0) ? 16:
-						opts->gpu_binsizex;
-					opts->gpu_binsizey = (opts->gpu_binsizey < 0) ? 16:
-						opts->gpu_binsizey;
-					opts->gpu_binsizez = (opts->gpu_binsizez < 0) ? 2:
-						opts->gpu_binsizez;
+					options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 16:
+						options.gpu_bin_size.x;
+					options.gpu_bin_size.y = (options.gpu_bin_size.y == 0) ? 16:
+						options.gpu_bin_size.y;
+					options.gpu_bin_size.z = (options.gpu_bin_size.z == 0) ? 2:
+						options.gpu_bin_size.z;
 				}
 				break;
-				case 4:
+				case GpuSpreadMethod::BLOCK_GATHER:
 				{
-					opts->gpu_obinsizex = (opts->gpu_obinsizex < 0) ? 8:
-						opts->gpu_obinsizex;
-					opts->gpu_obinsizey = (opts->gpu_obinsizey < 0) ? 8:
-						opts->gpu_obinsizey;
-					opts->gpu_obinsizez = (opts->gpu_obinsizez < 0) ? 8:
-						opts->gpu_obinsizez;
-					opts->gpu_binsizex = (opts->gpu_binsizex < 0) ? 4:
-						opts->gpu_binsizex;
-					opts->gpu_binsizey = (opts->gpu_binsizey < 0) ? 4:
-						opts->gpu_binsizey;
-					opts->gpu_binsizez = (opts->gpu_binsizez < 0) ? 4:
-						opts->gpu_binsizez;
+					options.gpu_obin_size.x = (options.gpu_obin_size.x == 0) ? 8:
+						options.gpu_obin_size.x;
+					options.gpu_obin_size.y = (options.gpu_obin_size.y == 0) ? 8:
+						options.gpu_obin_size.y;
+					options.gpu_obin_size.z = (options.gpu_obin_size.z == 0) ? 8:
+            options.gpu_obin_size.z;
+          options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 4:
+            options.gpu_bin_size.x;
+          options.gpu_bin_size.y = (options.gpu_bin_size.y == 0) ? 4:
+            options.gpu_bin_size.y;
+          options.gpu_bin_size.z = (options.gpu_bin_size.z == 0) ? 4:
+            options.gpu_bin_size.z;
 				}
 				break;
 			}
@@ -77,13 +82,14 @@ void SETUP_BINSIZE(int type, int dim, cufinufft_opts *opts)
 	}
 }
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 int CUFINUFFT_MAKEPLAN(int type, int dim, int *nmodes, int iflag,
 		       int ntransf, FLT tol, int maxbatchsize,
 		       CUFINUFFT_PLAN *d_plan_ptr, cufinufft_opts *opts,
-			   const tensorflow::nufft::Options& options)
+			   const Options& options)
 /*
 	"plan" stage (in single or double precision).
         See ../docs/cppdoc.md for main user-facing documentation.
@@ -111,13 +117,13 @@ This performs:
         // Mult-GPU support: set the CUDA Device ID:
         int orig_gpu_device_id;
         cudaGetDevice(& orig_gpu_device_id);
-        if (opts == NULL) {
-            // options might not be supplied to this function => assume device
-            // 0 by default
-            cudaSetDevice(0);
-        } else {
-            cudaSetDevice(opts->gpu_device_id);
-        }
+        // if (opts == NULL) {
+        //     // options might not be supplied to this function => assume device
+        //     // 0 by default
+        //     cudaSetDevice(0);
+        // } else {
+        cudaSetDevice(options.gpu_device_id);
+        // }
 
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
@@ -130,25 +136,30 @@ This performs:
         // Zero out your struct, (sets all pointers to NULL)
 	memset(d_plan, 0, sizeof(*d_plan));
 
-
-	/* If a user has not supplied their own options, assign defaults for them. */
-	if (opts==NULL){    // use default opts
-	  ier = CUFINUFFT_DEFAULT_OPTS(type, dim, &(d_plan->opts));
-	  if (ier != 0){
-	    printf("error: CUFINUFFT_DEFAULT_OPTS returned error %d.\n", ier);
-	    return ier;
-	  }
-	} else {    // or read from what's passed in
-	  d_plan->opts = *opts;    // keep a deep copy; changing *opts now has no effect
-	}
-
 	// Copy options.
 	d_plan->options = options;
+
+  // Select kernel evaluation method.
+  if (d_plan->options.kernel_evaluation_method == KernelEvaluationMethod::AUTO) {
+	  d_plan->options.kernel_evaluation_method = KernelEvaluationMethod::DIRECT;
+	}
 
 	// Select upsampling factor. Currently always defaults to 2.
 	if (d_plan->options.upsampling_factor == 0.0) {
 	  d_plan->options.upsampling_factor = 2.0;
 	}
+
+  // Select spreading method.
+  if (d_plan->options.gpu_spread_method == GpuSpreadMethod::AUTO) {
+    if (dim == 2 && type == 1)
+      d_plan->options.gpu_spread_method = GpuSpreadMethod::SUBPROBLEM;
+    else if (dim == 2 && type == 2)
+      d_plan->options.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
+    else if (dim == 3 && type == 1)
+      d_plan->options.gpu_spread_method = GpuSpreadMethod::SUBPROBLEM;
+    else if (dim == 3 && type == 2)
+      d_plan->options.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
+  }
 
 	// this must be set before calling "setup_spreader_for_nufft"
 	d_plan->spopts.spread_interp_only = d_plan->options.spread_interp_only;
@@ -164,19 +175,19 @@ This performs:
 	d_plan->mt = nmodes[1];
 	d_plan->mu = nmodes[2];
 
-	SETUP_BINSIZE(type, dim, &d_plan->opts);
+	SETUP_BINSIZE(type, dim, &d_plan->opts, d_plan->options);
 	BIGINT nf1=1, nf2=1, nf3=1;
 	ier = SET_NF_TYPE12(d_plan->ms, d_plan->opts, d_plan->spopts, d_plan->options, &nf1,
-				  		d_plan->opts.gpu_obinsizex);
+				  		d_plan->options.gpu_obin_size.x);
 	if (ier > 0) return ier;
-	if(dim > 1) {
+	if (dim > 1) {
 		ier = SET_NF_TYPE12(d_plan->mt, d_plan->opts, d_plan->spopts, d_plan->options, &nf2,
-                      d_plan->opts.gpu_obinsizey);
+                      d_plan->options.gpu_obin_size.y);
 		if (ier > 0) return ier;
 	}
-	if(dim > 2) {
+	if (dim > 2) {
 		ier = SET_NF_TYPE12(d_plan->mu, d_plan->opts, d_plan->spopts, d_plan->options, &nf3,
-                      d_plan->opts.gpu_obinsizez);
+                      d_plan->options.gpu_obin_size.z);
 		if (ier > 0) return ier;
 	}
 	int fftsign = (iflag>=0) ? 1 : -1;
@@ -191,9 +202,9 @@ This performs:
 	d_plan->maxbatchsize = maxbatchsize;
 	d_plan->type = type;
 
-	if(d_plan->type == 1)
+	if (d_plan->type == 1)
 		d_plan->spopts.spread_direction = 1;
-	if(d_plan->type == 2)
+	if (d_plan->type == 2)
 		d_plan->spopts.spread_direction = 2;
 	// this may move to gpu
 	cufinufft::CNTime timer; timer.start();
@@ -202,11 +213,11 @@ This performs:
 		
 		fwkerhalf1 = (FLT*)malloc(sizeof(FLT)*(nf1/2+1));
 		onedim_fseries_kernel(nf1, fwkerhalf1, d_plan->spopts);
-		if(dim > 1){
+		if (dim > 1) {
 			fwkerhalf2 = (FLT*)malloc(sizeof(FLT)*(nf2/2+1));
 			onedim_fseries_kernel(nf2, fwkerhalf2, d_plan->spopts);
 		}
-		if(dim > 2){
+		if (dim > 2) {
 			fwkerhalf3 = (FLT*)malloc(sizeof(FLT)*(nf3/2+1));
 			onedim_fseries_kernel(nf3, fwkerhalf3, d_plan->spopts);
 		}
@@ -247,10 +258,10 @@ This performs:
 	{
 		checkCudaErrors(cudaMemcpy(d_plan->fwkerhalf1,fwkerhalf1,(nf1/2+1)*
 			sizeof(FLT),cudaMemcpyHostToDevice));
-		if(dim > 1)
+		if (dim > 1)
 			checkCudaErrors(cudaMemcpy(d_plan->fwkerhalf2,fwkerhalf2,(nf2/2+1)*
 				sizeof(FLT),cudaMemcpyHostToDevice));
-		if(dim > 2)
+		if (dim > 2)
 			checkCudaErrors(cudaMemcpy(d_plan->fwkerhalf3,fwkerhalf3,(nf3/2+1)*
 				sizeof(FLT),cudaMemcpyHostToDevice));
 	}
@@ -314,9 +325,9 @@ This performs:
 #endif
 	if (!d_plan->options.spread_interp_only) {
 		free(fwkerhalf1);
-		if(dim > 1)
+		if (dim > 1)
 			free(fwkerhalf2);
-		if(dim > 2)
+		if (dim > 2)
 			free(fwkerhalf3);
 	}
 
@@ -368,7 +379,7 @@ Notes: the type FLT means either single or double, matching the
         // Mult-GPU support: set the CUDA Device ID:
         int orig_gpu_device_id;
         cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(d_plan->opts.gpu_device_id);
+        cudaSetDevice(d_plan->options.gpu_device_id);
 
 
 	int nf1 = d_plan->nf1;
@@ -415,9 +426,9 @@ Notes: the type FLT means either single or double, matching the
 #endif
 
 	d_plan->kx = d_kx;
-	if(dim > 1)
+	if (dim > 1)
 		d_plan->ky = d_ky;
-	if(dim > 2)
+	if (dim > 2)
 		d_plan->kz = d_kz;
 
 	cudaEventRecord(start);
@@ -430,11 +441,11 @@ Notes: the type FLT means either single or double, matching the
 		break;
 		case 2:
 		{
-			if(d_plan->opts.gpu_method==1){
+			if (d_plan->options.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
 				ier = CUSPREAD2D_NUPTSDRIVEN_PROP(nf1,nf2,M,d_plan);
-				if(ier != 0 ){
+				if (ier != 0 ) {
 					printf("error: cuspread2d_nupts_prop, method(%d)\n",
-						d_plan->opts.gpu_method);
+						  d_plan->options.gpu_spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -442,11 +453,11 @@ Notes: the type FLT means either single or double, matching the
 					return 1;
 				}
 			}
-			if(d_plan->opts.gpu_method==2){
+			if (d_plan->options.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
 				ier = CUSPREAD2D_SUBPROB_PROP(nf1,nf2,M,d_plan);
-				if(ier != 0 ){
+				if (ier != 0 ) {
 					printf("error: cuspread2d_subprob_prop, method(%d)\n",
-						d_plan->opts.gpu_method);
+					       d_plan->options.gpu_spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -454,11 +465,11 @@ Notes: the type FLT means either single or double, matching the
 					return 1;
 				}
 			}
-			if(d_plan->opts.gpu_method==3){
+			if (d_plan->options.gpu_spread_method == GpuSpreadMethod::PAUL) {
 				int ier = CUSPREAD2D_PAUL_PROP(nf1,nf2,M,d_plan);
-				if(ier != 0 ){
+				if (ier != 0 ) {
 					printf("error: cuspread2d_paul_prop, method(%d)\n",
-						d_plan->opts.gpu_method);
+						d_plan->options.gpu_spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -470,11 +481,11 @@ Notes: the type FLT means either single or double, matching the
 		break;
 		case 3:
 		{
-			if(d_plan->opts.gpu_method==4){
+			if (d_plan->options.gpu_spread_method == GpuSpreadMethod::BLOCK_GATHER) {
 				int ier = CUSPREAD3D_BLOCKGATHER_PROP(nf1,nf2,nf3,M,d_plan);
-				if(ier != 0 ){
+				if (ier != 0 ) {
 					printf("error: cuspread3d_blockgather_prop, method(%d)\n",
-						d_plan->opts.gpu_method);
+						d_plan->options.gpu_spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -482,11 +493,11 @@ Notes: the type FLT means either single or double, matching the
 					return ier;
 				}
 			}
-			if(d_plan->opts.gpu_method==1){
+			if (d_plan->options.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
 				ier = CUSPREAD3D_NUPTSDRIVEN_PROP(nf1,nf2,nf3,M,d_plan);
-				if(ier != 0 ){
+				if (ier != 0 ) {
 					printf("error: cuspread3d_nuptsdriven_prop, method(%d)\n",
-						d_plan->opts.gpu_method);
+						d_plan->options.gpu_spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -494,11 +505,11 @@ Notes: the type FLT means either single or double, matching the
 					return ier;
 				}
 			}
-			if(d_plan->opts.gpu_method==2){
+			if (d_plan->options.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
 				int ier = CUSPREAD3D_SUBPROB_PROP(nf1,nf2,nf3,M,d_plan);
-				if(ier != 0 ){
+				if (ier != 0 ) {
 					printf("error: cuspread3d_subprob_prop, method(%d)\n",
-						d_plan->opts.gpu_method);
+						d_plan->options.gpu_spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -549,7 +560,7 @@ int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
         // Mult-GPU support: set the CUDA Device ID:
         int orig_gpu_device_id;
         cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(d_plan->opts.gpu_device_id);
+        cudaSetDevice(d_plan->options.gpu_device_id);
 
 	int ier;
 	int type=d_plan->type;
@@ -563,11 +574,11 @@ int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
 		break;
 		case 2:
 		{
-			if(type == 1)
+			if (type == 1)
 				ier = CUFINUFFT2D1_EXEC(d_c,  d_fk, d_plan);
-			if(type == 2)
+			if (type == 2)
 				ier = CUFINUFFT2D2_EXEC(d_c,  d_fk, d_plan);
-			if(type == 3){
+			if (type == 3) {
 				cerr<<"Not Implemented yet"<<endl;
 				ier = ERR_NOTIMPLEMENTED;
 			}
@@ -575,11 +586,11 @@ int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
 		break;
 		case 3:
 		{
-			if(type == 1)
+			if (type == 1)
 				ier = CUFINUFFT3D1_EXEC(d_c,  d_fk, d_plan);
-			if(type == 2)
+			if (type == 2)
 				ier = CUFINUFFT3D2_EXEC(d_c,  d_fk, d_plan);
-			if(type == 3){
+			if (type == 3) {
 				cerr<<"Not Implemented yet"<<endl;
 				ier = ERR_NOTIMPLEMENTED;
 			}
@@ -598,7 +609,7 @@ int CUFINUFFT_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
 	// Mult-GPU support: set the CUDA Device ID:
 	int orig_gpu_device_id;
 	cudaGetDevice(& orig_gpu_device_id);
-	cudaSetDevice(d_plan->opts.gpu_device_id);
+	cudaSetDevice(d_plan->options.gpu_device_id);
 
 	int ier;
 
@@ -627,7 +638,7 @@ int CUFINUFFT_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
 	// Mult-GPU support: set the CUDA Device ID:
 	int orig_gpu_device_id;
 	cudaGetDevice(& orig_gpu_device_id);
-	cudaSetDevice(d_plan->opts.gpu_device_id);
+	cudaSetDevice(d_plan->options.gpu_device_id);
 
 	int ier;
 
@@ -665,7 +676,7 @@ int CUFINUFFT_DESTROY(CUFINUFFT_PLAN d_plan)
         // Mult-GPU support: set the CUDA Device ID:
         int orig_gpu_device_id;
         cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(d_plan->opts.gpu_device_id);
+        cudaSetDevice(d_plan->options.gpu_device_id);
 
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
@@ -674,13 +685,13 @@ int CUFINUFFT_DESTROY(CUFINUFFT_PLAN d_plan)
 	cudaEventRecord(start);
 
 	// Can't destroy a Null pointer.
-	if(!d_plan) {
+	if (!d_plan) {
                 // Multi-GPU support: reset the device ID
                 cudaSetDevice(orig_gpu_device_id);
 		return 1;
         }
 
-	if(d_plan->fftplan)
+	if (d_plan->fftplan)
 		cufftDestroy(d_plan->fftplan);
 
 	switch(d_plan->dim)
@@ -736,64 +747,10 @@ int CUFINUFFT_DEFAULT_OPTS(int type, int dim, cufinufft_opts *opts)
 	Melody Shih 07/25/19; Barnett 2/5/21.
 */
 {
-	int ier;
 
 	/* following options are for gpu */
-	opts->gpu_nstreams = 0;
-	opts->spread_kerevalmeth = 0; // using exp(sqrt())
-	opts->gpu_sort = 1; // access nupts in an ordered way for nupts driven method
 
-	opts->gpu_maxsubprobsize = 1024;
-	opts->gpu_obinsizex = -1;
-	opts->gpu_obinsizey = -1;
-	opts->gpu_obinsizez = -1;
-
-	opts->gpu_binsizex = -1;
-	opts->gpu_binsizey = -1;
-	opts->gpu_binsizez = -1;
-
-	switch(dim)
-	{
-		case 1:
-		{
-			cerr<<"Not Implemented yet"<<endl;
-			ier = ERR_NOTIMPLEMENTED;
-			return ier;
-		}
-		case 2:
-		{
-			if(type == 1){
-				opts->gpu_method = 2;
-			}
-			if(type == 2){
-				opts->gpu_method = 1;
-			}
-			if(type == 3){
-				cerr<<"Not Implemented yet"<<endl;
-				ier = ERR_NOTIMPLEMENTED;
-				return ier;
-			}
-		}
-		break;
-		case 3:
-		{
-			if(type == 1){
-				opts->gpu_method = 2;
-			}
-			if(type == 2){
-				opts->gpu_method = 1;
-			}
-			if(type == 3){
-				cerr<<"Not Implemented yet"<<endl;
-				ier = ERR_NOTIMPLEMENTED;
-				return ier;
-			}
-		}
-		break;
-	}
-
-        // By default, only use device 0
-        opts->gpu_device_id = 0;
+  // By default, only use device 0
 
 	return 0;
 }

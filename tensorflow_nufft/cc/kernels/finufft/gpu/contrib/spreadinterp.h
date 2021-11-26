@@ -7,6 +7,9 @@
 #include "utils.h"
 #include "utils_fp.h"
 
+#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
+
+
 #define MAX_NSPREAD 16     // upper bound on w, ie nspread, even when padded
                            // (see evaluate_kernel_vector); also for common
 
@@ -44,6 +47,7 @@ FLT evaluate_kernel(FLT x, const SPREAD_OPTS &opts);
 } // namespace cufinufft
 
 int setup_spreader(SPREAD_OPTS &opts, FLT eps, FLT upsampling_factor,
-                   int spread_kerevalmeth, int dim);
+                   tensorflow::nufft::KernelEvaluationMethod kernel_evaluation_method,
+                   int dim);
 
 #endif  // SPREADINTERP_H

@@ -14,6 +14,7 @@ extern "C" {
   #include "legendre_rule_fast.h"
 #endif
 
+using namespace tensorflow;
 using namespace tensorflow::nufft;
 
 
@@ -23,7 +24,9 @@ int setup_spreader_for_nufft(SPREAD_OPTS &spopts, FLT eps, cufinufft_opts opts,
 // Set up the spreader parameters given eps, and pass across various nufft
 // options. Report status of setup_spreader.  Barnett 10/30/17
 {
-  int ier = setup_spreader(spopts, eps, options.upsampling_factor, opts.spread_kerevalmeth, dim);
+  int ier = setup_spreader(spopts, eps,
+                           options.upsampling_factor,
+                           options.kernel_evaluation_method, dim);
   spopts.pirange = 1;                 // could allow user control?
   return ier;
 }
@@ -42,8 +45,8 @@ int SET_NF_TYPE12(BIGINT ms, cufinufft_opts opts, SPREAD_OPTS spopts,
     *nf = (BIGINT)(options.upsampling_factor * ms);
   }
   if (*nf<2*spopts.nspread) *nf=2*spopts.nspread; // otherwise spread fails
-  if (*nf<MAX_NF){                                // otherwise will fail anyway
-    if (opts.gpu_method == 4)                     // expensive at huge nf
+  if (*nf<MAX_NF) {                                // otherwise will fail anyway
+    if (options.gpu_spread_method == GpuSpreadMethod::BLOCK_GATHER) // expensive at huge nf
       *nf = next_smooth_int(*nf, bs);
     else
       *nf = next_smooth_int(*nf, 1);

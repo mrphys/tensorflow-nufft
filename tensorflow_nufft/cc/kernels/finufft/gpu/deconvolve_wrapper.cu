@@ -30,7 +30,7 @@ __global__
 void Deconvolve_2d(int ms, int mt, int nf1, int nf2, CUCPX* fw, CUCPX *fk, 
 	FLT *fwkerhalf1, FLT *fwkerhalf2)
 {
-	for(int i=blockDim.x*blockIdx.x+threadIdx.x; i<ms*mt; i+=blockDim.x*gridDim.x){
+	for (int i=blockDim.x*blockIdx.x+threadIdx.x; i<ms*mt; i+=blockDim.x*gridDim.x) {
 		int k1 = i % ms;
 		int k2 = i / ms;
 		int outidx = k1 + k2*ms;
@@ -48,8 +48,8 @@ __global__
 void Deconvolve_3d(int ms, int mt, int mu, int nf1, int nf2, int nf3, CUCPX* fw, 
 	CUCPX *fk, FLT *fwkerhalf1, FLT *fwkerhalf2, FLT *fwkerhalf3)
 {
-	for(int i=blockDim.x*blockIdx.x+threadIdx.x; i<ms*mt*mu; i+=blockDim.x*
-		gridDim.x){
+	for (int i=blockDim.x*blockIdx.x+threadIdx.x; i<ms*mt*mu; i+=blockDim.x*
+		gridDim.x) {
 		int k1 = i % ms;
 		int k2 = (i / ms) % mt;
 		int k3 = (i / ms / mt);
@@ -73,7 +73,7 @@ __global__
 void Amplify_2d(int ms, int mt, int nf1, int nf2, CUCPX* fw, CUCPX *fk, 
 	FLT *fwkerhalf1, FLT *fwkerhalf2)
 {
-	for(int i=blockDim.x*blockIdx.x+threadIdx.x; i<ms*mt; i+=blockDim.x*gridDim.x){
+	for (int i=blockDim.x*blockIdx.x+threadIdx.x; i<ms*mt; i+=blockDim.x*gridDim.x) {
 		int k1 = i % ms;
 		int k2 = i / ms;
 		int inidx = k1 + k2*ms;
@@ -91,8 +91,8 @@ __global__
 void Amplify_3d(int ms, int mt, int mu, int nf1, int nf2, int nf3, CUCPX* fw, 
 	CUCPX *fk, FLT *fwkerhalf1, FLT *fwkerhalf2, FLT *fwkerhalf3)
 {
-	for(int i=blockDim.x*blockIdx.x+threadIdx.x; i<ms*mt*mu; 
-		i+=blockDim.x*gridDim.x){
+	for (int i=blockDim.x*blockIdx.x+threadIdx.x; i<ms*mt*mu; 
+		i+=blockDim.x*gridDim.x) {
 		int k1 = i % ms;
 		int k2 = (i / ms) % mt;
 		int k3 = (i / ms / mt);
@@ -126,8 +126,8 @@ int CUDECONVOLVE2D(CUFINUFFT_PLAN d_plan, int blksize)
 	int nmodes=ms*mt;
 	int maxbatchsize=d_plan->maxbatchsize;
 
-	if(d_plan->spopts.spread_direction == 1){
-		for(int t=0; t<blksize; t++){
+	if (d_plan->spopts.spread_direction == 1) {
+		for (int t=0; t<blksize; t++) {
 			Deconvolve_2d<<<(nmodes+256-1)/256, 256>>>(ms, mt, nf1, nf2, 
 				d_plan->fw+t*nf1*nf2,d_plan->fk+t*nmodes,d_plan->fwkerhalf1, 
 				d_plan->fwkerhalf2);
@@ -135,7 +135,7 @@ int CUDECONVOLVE2D(CUFINUFFT_PLAN d_plan, int blksize)
 	}else{
 		checkCudaErrors(cudaMemset(d_plan->fw,0,maxbatchsize*nf1*nf2*
 			sizeof(CUCPX)));
-		for(int t=0; t<blksize; t++){
+		for (int t=0; t<blksize; t++) {
 			Amplify_2d<<<(nmodes+256-1)/256, 256>>>(ms, 
 				mt, nf1, nf2, d_plan->fw+t*nf1*nf2, d_plan->fk+t*nmodes,
 				d_plan->fwkerhalf1, d_plan->fwkerhalf2);
@@ -145,8 +145,8 @@ int CUDECONVOLVE2D(CUFINUFFT_PLAN d_plan, int blksize)
 			checkCudaErrors(cudaMemcpy2D(h_fw,nf1*sizeof(CUCPX),d_plan->fw,
 				nf1*sizeof(CUCPX),nf1*sizeof(CUCPX),nf2,
 				cudaMemcpyDeviceToHost));
-			for(int j=0; j<nf2; j++){
-				for(int i=0; i<nf1; i++){
+			for (int j=0; j<nf2; j++) {
+				for (int i=0; i<nf1; i++) {
 					printf("(%g,%g)",h_fw[i+j*nf1].real(),h_fw[i+j*nf1].imag());
 				}
 				printf("\n");
@@ -173,8 +173,8 @@ int CUDECONVOLVE3D(CUFINUFFT_PLAN d_plan, int blksize)
 	int nf3=d_plan->nf3;
 	int nmodes=ms*mt*mu;
 	int maxbatchsize=d_plan->maxbatchsize;
-	if(d_plan->spopts.spread_direction == 1){
-		for(int t=0; t<blksize; t++){
+	if (d_plan->spopts.spread_direction == 1) {
+		for (int t=0; t<blksize; t++) {
 			Deconvolve_3d<<<(nmodes+256-1)/256, 256>>>(ms, mt, mu, nf1, nf2, 
 				nf3, d_plan->fw+t*nf1*nf2*nf3, d_plan->fk+t*nmodes, 
 				d_plan->fwkerhalf1, d_plan->fwkerhalf2, d_plan->fwkerhalf3);
@@ -182,7 +182,7 @@ int CUDECONVOLVE3D(CUFINUFFT_PLAN d_plan, int blksize)
 	}else{
 		checkCudaErrors(cudaMemset(d_plan->fw,0,maxbatchsize*nf1*nf2*nf3*
 			sizeof(CUCPX)));
-		for(int t=0; t<blksize; t++){
+		for (int t=0; t<blksize; t++) {
 			Amplify_3d<<<(nmodes+256-1)/256, 256>>>(ms, mt, mu, nf1, nf2, nf3,
 				d_plan->fw+t*nf1*nf2*nf3, d_plan->fk+t*nmodes, 
 				d_plan->fwkerhalf1, d_plan->fwkerhalf2, d_plan->fwkerhalf3);
@@ -191,9 +191,9 @@ int CUDECONVOLVE3D(CUFINUFFT_PLAN d_plan, int blksize)
 			h_fw = (CPX*) malloc(nf1*nf2*nf3*sizeof(CPX));
 			checkCudaErrors(cudaMemcpy(h_fw,d_plan->fw,nf1*nf2*nf3*sizeof(CUCPX),
 				cudaMemcpyDeviceToHost));
-			for(int k=0; k<nf3; k++){
-				for(int j=0; j<nf2; j++){
-					for(int i=0; i<nf1; i++){
+			for (int k=0; k<nf3; k++) {
+				for (int j=0; j<nf2; j++) {
+					for (int i=0; i<nf1; i++) {
 						printf("(%g,%g,%g)",h_fw[i+j*nf1+k*nf1*nf2].real(),
 							h_fw[i+j*nf1+k*nf1*nf2].imag());
 					}

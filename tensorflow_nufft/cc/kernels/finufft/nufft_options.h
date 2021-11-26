@@ -52,8 +52,9 @@ enum class SortPoints {
 };
 
 enum class KernelEvaluationMethod {
-  DIRECT = 0, // Direct evaluation of kernel.
-  HORNER = 1  // Evaluate using Horner piecewise polynomial. Faster.
+  AUTO = 0,   // Select automatically.
+  DIRECT = 1, // Direct evaluation of kernel.
+  HORNER = 2  // Evaluate using Horner piecewise polynomial. Faster.
 };
 
 enum class SpreaderThreading {
@@ -61,6 +62,17 @@ enum class SpreaderThreading {
   SEQUENTIAL_MULTI_THREADED = 1,  // Use sequential multi-threaded spreading.
   PARALLEL_SINGLE_THREADED = 2    // Use parallel single-threaded spreading.
 };
+
+#if GOOGLE_CUDA
+enum class GpuSpreadMethod {
+  AUTO = 0,
+  NUPTS_DRIVEN = 1,
+  SUBPROBLEM = 2,
+  PAUL = 3,
+  BLOCK_GATHER = 4
+};
+
+#endif // GOOGLE_CUDA
 
 // Options for the NUFFT operations. This class is used for both the CPU and the
 // GPU implementation, although some options are only used by one or the other.
@@ -88,14 +100,14 @@ struct Options {
   // FFTW flags. Applies only to the CPU kernel.
   int fftw_flags = FFTW_ESTIMATE;
 
-  // Whether to sort the non-uniform points. See enum above. Applies to the CPU
-  // and the GPU kernels.
+  // Whether to sort the non-uniform points. See enum above. Applies only to the
+  // CPU kernel.
   SortPoints sort_points = SortPoints::AUTO;
 
   // The kernel evaluation method. See enum above. Applies to the CPU and the
   // GPU kernels.
   KernelEvaluationMethod kernel_evaluation_method = \
-      KernelEvaluationMethod::HORNER;
+      KernelEvaluationMethod::AUTO;
 
   // Whether to pad the interpolation kernel to a multiple of 4. This helps SIMD
   // when using direct kernel evaluation. Applies only to the CPU kernel.
@@ -125,11 +137,28 @@ struct Options {
   bool spread_interp_only = false;
 
   #if GOOGLE_CUDA
-  // Used for 3D subproblem method. Applies only to the GPU kernel.
-  dim3 gpu_binsize;
 
-  // Used for 3D spread-block-gather method. Applies only to the GPU kernel.
-  dim3 gpu_obinsize;
+  // The CUDA interpolation/spreading method.
+  GpuSpreadMethod gpu_spread_method = GpuSpreadMethod::AUTO;
+
+  // Whether to sort non-uniform points. Only relevant if spread method is
+  // NUPTS_DRIVEN.
+  bool gpu_sort_points = true;
+
+  // Maximum subproblem size.
+  int gpu_max_subproblem_size = 1024;
+
+  // Number of CUDA streams.
+  int gpu_num_streams = 0;
+
+  // Used for 3D subproblem method. 0 means automatic selection.
+  dim3 gpu_bin_size = {0, 0, 0};
+
+  // Used for 3D spread-block-gather method. 0 means automatic selection.
+  dim3 gpu_obin_size = {0, 0, 0};
+
+  // TODO: remove
+  int gpu_device_id = 0;
 
   #endif // GOOGLE_CUDA
 };

@@ -3,6 +3,9 @@
 #include <vector>
 #include <math.h>
 
+using namespace tensorflow::nufft;
+
+
 FLT calculate_scale_factor(SPREAD_OPTS &opts, int dim, FLT dummy = 0.0) {
   // Calculates the scaling factor for spread/interp only.
   // Dummy param is used to trigger float/double overloading and avoid
@@ -13,7 +16,7 @@ FLT calculate_scale_factor(SPREAD_OPTS &opts, int dim, FLT dummy = 0.0) {
   FLT h = 2.0 / n;
   FLT x = -1.0;
   FLT sum = 0.0;
-  for(BIGINT i = 1; i < n; i++) {
+  for (BIGINT i = 1; i < n; i++) {
     x += h;
     sum += exp(opts.ES_beta * sqrt(1.0 - x * x));
   }
@@ -29,7 +32,7 @@ FLT calculate_scale_factor(SPREAD_OPTS &opts, int dim, FLT dummy = 0.0) {
 }
 
 int setup_spreader(SPREAD_OPTS &opts,FLT eps, FLT upsampling_factor,
-                   int spread_kerevalmeth, int dim)
+                   KernelEvaluationMethod kernel_evaluation_method, int dim)
 // Initializes spreader kernel parameters given desired NUFFT tolerance eps,
 // upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), and ker eval meth
 // (etiher 0:exp(sqrt()), 1: Horner ppval).
@@ -38,16 +41,16 @@ int setup_spreader(SPREAD_OPTS &opts,FLT eps, FLT upsampling_factor,
 // Returns: 0 success, 1, warning, >1 failure (see error codes in utils.h)
 {
   if (upsampling_factor != 2.0) {   // nonstandard sigma
-    if (spread_kerevalmeth==1) {
-      fprintf(stderr,"setup_spreader: nonstandard upsampling_factor=%.3g cannot be handled by spread_kerevalmeth=1\n",(double)upsampling_factor);
+    if (kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+      fprintf(stderr,"setup_spreader: nonstandard upsampling_factor=%.3g cannot be handled by Horner evaluation\n",(double)upsampling_factor);
       return HORNER_WRONG_BETA;
     }
-    if (upsampling_factor<=1.0) {
+    if (upsampling_factor <= 1.0) {
       fprintf(stderr,"setup_spreader: error, upsampling_factor=%.3g is <=1.0\n",(double)upsampling_factor);
       return ERR_UPSAMPFAC_TOO_SMALL;
     }
     // calling routine must abort on above errors, since opts is garbage!
-    if (upsampling_factor>4.0)
+    if (upsampling_factor > 4.0)
       fprintf(stderr,"setup_spreader: warning, upsampling_factor=%.3g is too large to be beneficial!\n",(double)upsampling_factor);
   }
     

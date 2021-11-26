@@ -147,7 +147,7 @@ int setup_spreader_for_nufft(const Options& options,
   spopts.spread_interp_only = options.spread_interp_only;
   // this calls spreadinterp.cpp...
   int ier = setup_spreader(spopts, eps, options.upsampling_factor,
-                           static_cast<int>(options.kernel_evaluation_method),
+                           static_cast<int>(options.kernel_evaluation_method) - 1, // We subtract 1 temporarily, as spreader expects values of 0 or 1 instead of 1 and 2.
                            options.verbosity, options.show_warnings, dim);
   // override various spread opts from their defaults...
   spopts.verbosity = options.verbosity;
@@ -583,6 +583,11 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
   p->ntrans = ntrans;
   p->tol = tol;
   p->fftSign = (iflag>=0) ? 1 : -1;         // clean up flag input
+
+  // Choose kernel evaluation method.
+  if (p->options.kernel_evaluation_method == KernelEvaluationMethod::AUTO) {
+    p->options.kernel_evaluation_method = KernelEvaluationMethod::HORNER;
+  }
 
   // Choose overall number of threads.
   int num_threads = FINUFFT_GET_MAX_THREADS(); // default value

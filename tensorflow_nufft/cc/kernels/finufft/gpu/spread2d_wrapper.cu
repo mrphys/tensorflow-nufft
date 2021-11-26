@@ -26,6 +26,9 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/memtransfer.h"
 
 using namespace std;
+using namespace tensorflow;
+using namespace tensorflow::nufft;
+
 
 int CUFINUFFT_SPREAD2D(int nf1, int nf2, CUCPX* d_fw, int M,
 	FLT *d_kx, FLT *d_ky, CUCPX *d_c, CUFINUFFT_PLAN d_plan)
@@ -56,29 +59,29 @@ int CUFINUFFT_SPREAD2D(int nf1, int nf2, CUCPX* d_fw, int M,
 	ier = ALLOCGPUMEM2D_PLAN(d_plan);
 	ier = ALLOCGPUMEM2D_NUPTS(d_plan);
 
-	if(d_plan->opts.gpu_method == 1){
+	if (d_plan->options.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
 		ier = CUSPREAD2D_NUPTSDRIVEN_PROP(nf1,nf2,M,d_plan);
-		if(ier != 0 ){
+		if (ier != 0 ) {
 			printf("error: cuspread2d_nuptsdriven_prop, method(%d)\n",
-				d_plan->opts.gpu_method);
+				d_plan->options.gpu_spread_method);
 			return ier;
 		}
 	}
 
-	if(d_plan->opts.gpu_method == 2){
+	if (d_plan->options.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
 		ier = CUSPREAD2D_SUBPROB_PROP(nf1,nf2,M,d_plan);
-		if(ier != 0 ){
+		if (ier != 0 ) {
 			printf("error: cuspread2d_subprob_prop, method(%d)\n",
-				d_plan->opts.gpu_method);
+				d_plan->options.gpu_spread_method);
 			return ier;
 		}
 	}
 
-	if(d_plan->opts.gpu_method == 3){
+	if (d_plan->options.gpu_spread_method == GpuSpreadMethod::PAUL) {
 		ier = CUSPREAD2D_PAUL_PROP(nf1,nf2,M,d_plan);
-		if(ier != 0 ){
+		if (ier != 0 ) {
 			printf("error: cuspread2d_subprob_prop, method(%d)\n",
-				d_plan->opts.gpu_method);
+				d_plan->options.gpu_spread_method);
 			return ier;
 		}
 	}
@@ -96,7 +99,7 @@ int CUFINUFFT_SPREAD2D(int nf1, int nf2, CUCPX* d_fw, int M,
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("[time  ] Spread (%d)\t\t %5.3f ms\n", d_plan->opts.gpu_method,
+	printf("[time  ] Spread (%d)\t\t %5.3f ms\n", d_plan->options.gpu_spread_method,
 		milliseconds);
 #endif
 
@@ -132,33 +135,33 @@ int CUSPREAD2D(CUFINUFFT_PLAN d_plan, int blksize)
 	cudaEventCreate(&stop);
 
 	int ier;
-	switch(d_plan->opts.gpu_method)
+	switch(d_plan->options.gpu_spread_method)
 	{
-		case 1:
+		case GpuSpreadMethod::NUPTS_DRIVEN:
 			{
 				cudaEventRecord(start);
 				ier = CUSPREAD2D_NUPTSDRIVEN(nf1, nf2, M, d_plan, blksize);
-				if(ier != 0 ){
+				if (ier != 0 ) {
 					cout<<"error: cnufftspread2d_gpu_nuptsdriven"<<endl;
 					return 1;
 				}
 			}
 			break;
-		case 2:
+		case GpuSpreadMethod::SUBPROBLEM:
 			{
 				cudaEventRecord(start);
 				ier = CUSPREAD2D_SUBPROB(nf1, nf2, M, d_plan, blksize);
-				if(ier != 0 ){
+				if (ier != 0 ) {
 					cout<<"error: cnufftspread2d_gpu_subprob"<<endl;
 					return 1;
 				}
 			}
 			break;
-		case 3:
+		case GpuSpreadMethod::PAUL:
 			{
 				cudaEventRecord(start);
 				ier = CUSPREAD2D_PAUL(nf1, nf2, M, d_plan, blksize);
-				if(ier != 0 ){
+				if (ier != 0 ) {
 					cout<<"error: cnufftspread2d_gpu_paul"<<endl;
 					return 1;
 				}
@@ -184,11 +187,11 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 
-	if(d_plan->opts.gpu_sort){
+	if (d_plan->options.gpu_sort_points) {
 
-		int bin_size_x=d_plan->opts.gpu_binsizex;
-		int bin_size_y=d_plan->opts.gpu_binsizey;
-		if(bin_size_x < 0 || bin_size_y < 0){
+		int bin_size_x=d_plan->options.gpu_bin_size.x;
+		int bin_size_y=d_plan->options.gpu_bin_size.y;
+		if (bin_size_x < 0 || bin_size_y < 0) {
 			cout<<"error: invalid binsize (binsizex, binsizey) = (";
 			cout<<bin_size_x<<","<<bin_size_y<<")"<<endl;
 			return 1; 
@@ -200,7 +203,7 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 
 #ifdef DEBUG
 		cout<<"[debug ] Dividing the uniform grids to bin size["
-			<<d_plan->opts.gpu_binsizex<<"x"<<d_plan->opts.gpu_binsizey<<"]"<<endl;
+			<<d_plan->options.gpu_bin_size.x<<"x"<<d_plan->options.gpu_bin_size.y<<"]"<<endl;
 		cout<<"[debug ] numbins = ["<<numbins[0]<<"x"<<numbins[1]<<"]"<<endl;
 #endif
 
@@ -216,7 +219,7 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 			cudaMemcpyDeviceToHost));
 		checkCudaErrors(cudaMemcpy(h_ky,d_ky,M*sizeof(FLT),
 			cudaMemcpyDeviceToHost));
-		for(int i=M-10; i<M; i++){
+		for (int i=M-10; i<M; i++) {
 			cout<<"[debug ] ";
 			cout <<"("<<setw(3)<<h_kx[i]<<","<<setw(3)<<h_ky[i]<<")"<<endl;
 		}
@@ -252,10 +255,10 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 		checkCudaErrors(cudaMemcpy(h_binsize,d_binsize,numbins[0]*numbins[1]*
 			sizeof(int),cudaMemcpyDeviceToHost));
 		cout<<"[debug ] bin size:"<<endl;
-		for(int j=0; j<numbins[1]; j++){
+		for (int j=0; j<numbins[1]; j++) {
 			cout<<"[debug ] ";
-			for(int i=0; i<numbins[0]; i++){
-				if(i!=0) cout<<" ";
+			for (int i=0; i<numbins[0]; i++) {
+				if (i!=0) cout<<" ";
 				cout <<" bin["<<setw(1)<<i<<","<<setw(1)<<j<<"]="<<
 					h_binsize[i+j*numbins[0]];
 			}
@@ -270,8 +273,8 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 		checkCudaErrors(cudaMemcpy(h_sortidx,d_sortidx,M*sizeof(int),
 			cudaMemcpyDeviceToHost));
 
-		for(int i=0; i<M; i++){
-			if(h_sortidx[i] < 0){
+		for (int i=0; i<M; i++) {
+			if (h_sortidx[i] < 0) {
 				cout<<"[debug ] ";
 				cout <<"point["<<setw(3)<<i<<"]="<<setw(3)<<h_sortidx[i]<<endl;
 				cout<<"[debug ] ";
@@ -301,10 +304,10 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 		checkCudaErrors(cudaMemcpy(h_binstartpts,d_binstartpts,(numbins[0]*
 			numbins[1])*sizeof(int),cudaMemcpyDeviceToHost));
 		cout<<"[debug ] Result of scan bin_size array:"<<endl;
-		for(int j=0; j<numbins[1]; j++){
+		for (int j=0; j<numbins[1]; j++) {
 			cout<<"[debug ] ";
-			for(int i=0; i<numbins[0]; i++){
-				if(i!=0) cout<<" ";
+			for (int i=0; i<numbins[0]; i++) {
+				if (i!=0) cout<<" ";
 				cout <<" bin["<<setw(1)<<i<<","<<setw(1)<<j<<"]="<<
 					h_binstartpts[i+j*numbins[0]];
 			}
@@ -329,7 +332,7 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 		h_idxnupts = (int*)malloc(M*sizeof(int));
 		checkCudaErrors(cudaMemcpy(h_idxnupts,d_idxnupts,M*sizeof(int),
 					cudaMemcpyDeviceToHost));
-		for (int i=0; i<10; i++){
+		for (int i=0; i<10; i++) {
 			cout <<"[debug ] idx="<< h_idxnupts[i]<<endl;
 		}
 		free(h_idxnupts);
@@ -378,14 +381,14 @@ int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan,
 	blocks.x = (M + threadsPerBlock.x - 1)/threadsPerBlock.x;
 	blocks.y = 1;
 	cudaEventRecord(start);
-	if(d_plan->opts.spread_kerevalmeth){
-		for(int t=0; t<blksize; t++){
+	if (d_plan->options.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+		for (int t=0; t<blksize; t++) {
 			Spread_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_kx,
 				d_ky, d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2, sigma,
 				d_idxnupts, pirange);
 		}
-	}else{
-		for(int t=0; t<blksize; t++){
+	} else {
+		for (int t=0; t<blksize; t++) {
 			Spread_2d_NUptsdriven<<<blocks, threadsPerBlock>>>(d_kx, d_ky,
 				d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2, es_c, es_beta,
 				d_idxnupts, pirange);
@@ -398,7 +401,7 @@ int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan,
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&milliseconds, start, stop);
 	printf("[time  ] \tKernel Spread_2d_NUptsdriven (%d)\t%.3g ms\n",
-		milliseconds, d_plan->opts.spread_kerevalmeth);
+		milliseconds, d_plan->options.kernel_evaluation_method);
 #endif
 	return 0;
 }
@@ -413,10 +416,10 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 
-	int maxsubprobsize=d_plan->opts.gpu_maxsubprobsize;
-	int bin_size_x=d_plan->opts.gpu_binsizex;
-	int bin_size_y=d_plan->opts.gpu_binsizey;
-	if(bin_size_x < 0 || bin_size_y < 0){
+	int maxsubprobsize=d_plan->options.gpu_max_subproblem_size;
+	int bin_size_x=d_plan->options.gpu_bin_size.x;
+	int bin_size_y=d_plan->options.gpu_bin_size.y;
+	if (bin_size_x < 0 || bin_size_y < 0) {
 		cout<<"error: invalid binsize (binsizex, binsizey) = (";
 		cout<<bin_size_x<<","<<bin_size_y<<")"<<endl;
 		return 1; 
@@ -426,7 +429,7 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 	numbins[1] = ceil((FLT) nf2/bin_size_y);
 #ifdef DEBUG
 	cout<<"[debug  ] Dividing the uniform grids to bin size["
-		<<d_plan->opts.gpu_binsizex<<"x"<<d_plan->opts.gpu_binsizey<<"]"<<endl;
+		<<d_plan->options.gpu_bin_size.x<<"x"<<d_plan->options.gpu_bin_size.y<<"]"<<endl;
 	cout<<"[debug  ] numbins = ["<<numbins[0]<<"x"<<numbins[1]<<"]"<<endl;
 #endif
 
@@ -441,7 +444,7 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 
 	checkCudaErrors(cudaMemcpy(h_kx,d_kx,M*sizeof(FLT),cudaMemcpyDeviceToHost));
 	checkCudaErrors(cudaMemcpy(h_ky,d_ky,M*sizeof(FLT),cudaMemcpyDeviceToHost));
-	for(int i=0; i<M; i++){
+	for (int i=0; i<M; i++) {
 		cout<<"[debug ]";
 		cout <<"("<<setw(3)<<h_kx[i]<<","<<setw(3)<<h_ky[i]<<")"<<endl;
 	}
@@ -479,10 +482,10 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 	checkCudaErrors(cudaMemcpy(h_binsize,d_binsize,numbins[0]*numbins[1]*
 		sizeof(int),cudaMemcpyDeviceToHost));
 	cout<<"[debug ] bin size:"<<endl;
-	for(int j=0; j<numbins[1]; j++){
+	for (int j=0; j<numbins[1]; j++) {
 		cout<<"[debug ] ";
-		for(int i=0; i<numbins[0]; i++){
-			if(i!=0) cout<<" ";
+		for (int i=0; i<numbins[0]; i++) {
+			if (i!=0) cout<<" ";
 			cout <<" bin["<<setw(3)<<i<<","<<setw(3)<<j<<"]="<<
 				h_binsize[i+j*numbins[0]];
 		}
@@ -497,7 +500,7 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 	checkCudaErrors(cudaMemcpy(h_sortidx,d_sortidx,M*sizeof(int),
 		cudaMemcpyDeviceToHost));
 	cout<<"[debug ]";
-	for(int i=0; i<M; i++){
+	for (int i=0; i<M; i++) {
 		cout <<"[debug] point["<<setw(3)<<i<<"]="<<setw(3)<<h_sortidx[i]<<endl;
 	}
 
@@ -521,10 +524,10 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 				(numbins[0]*numbins[1])*sizeof(int),
 				cudaMemcpyDeviceToHost));
 	cout<<"[debug ] Result of scan bin_size array:"<<endl;
-	for(int j=0; j<numbins[1]; j++){
+	for (int j=0; j<numbins[1]; j++) {
 		cout<<"[debug ] ";
-		for(int i=0; i<numbins[0]; i++){
-			if(i!=0) cout<<" ";
+		for (int i=0; i<numbins[0]; i++) {
+			if (i!=0) cout<<" ";
 			cout <<"bin["<<setw(3)<<i<<","<<setw(3)<<j<<"] = "<<setw(2)
 				<<h_binstartpts[i+j*numbins[0]];
 		}
@@ -542,7 +545,7 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 	h_idxnupts = (int*)malloc(M*sizeof(int));
 	checkCudaErrors(cudaMemcpy(h_idxnupts,d_idxnupts,M*sizeof(int),
 				cudaMemcpyDeviceToHost));
-	for (int i=0; i<M; i++){
+	for (int i=0; i<M; i++) {
 		cout <<"[debug ] idx="<< h_idxnupts[i]<<endl;
 	}
 	free(h_idxnupts);
@@ -561,10 +564,10 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 	h_numsubprob = (int*) malloc(n*sizeof(int));
 	checkCudaErrors(cudaMemcpy(h_numsubprob,d_numsubprob,numbins[0]*numbins[1]*
 				sizeof(int),cudaMemcpyDeviceToHost));
-	for(int j=0; j<numbins[1]; j++){
+	for (int j=0; j<numbins[1]; j++) {
 		cout<<"[debug ] ";
-		for(int i=0; i<numbins[0]; i++){
-			if(i!=0) cout<<" ";
+		for (int i=0; i<numbins[0]; i++) {
+			if (i!=0) cout<<" ";
 			cout <<"nsub["<<setw(3)<<i<<","<<setw(3)<<j<<"] = "<<setw(2)<<
 				h_numsubprob[i+j*numbins[0]];
 		}
@@ -589,10 +592,10 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 	h_subprobstartpts = (int*) malloc((n+1)*sizeof(int));
 	checkCudaErrors(cudaMemcpy(h_subprobstartpts,d_subprobstartpts,
 				(n+1)*sizeof(int),cudaMemcpyDeviceToHost));
-	for(int j=0; j<numbins[1]; j++){
+	for (int j=0; j<numbins[1]; j++) {
 		cout<<"[debug ] ";
-		for(int i=0; i<numbins[0]; i++){
-			if(i!=0) cout<<" ";
+		for (int i=0; i<numbins[0]; i++) {
+			if (i!=0) cout<<" ";
 			cout <<"nsub["<<setw(3)<<i<<","<<setw(3)<<j<<"] = "<<setw(2)<<
 				h_subprobstartpts[i+j*numbins[0]];
 		}
@@ -619,7 +622,7 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan)
 	h_subprob_to_bin = (int*) malloc((totalnumsubprob)*sizeof(int));
 	checkCudaErrors(cudaMemcpy(h_subprob_to_bin,d_subprob_to_bin,
 				(totalnumsubprob)*sizeof(int),cudaMemcpyDeviceToHost));
-	for(int j=0; j<totalnumsubprob; j++){
+	for (int j=0; j<totalnumsubprob; j++) {
 		cout<<"[debug ] ";
 		cout <<"nsub["<<j<<"] = "<<setw(2)<<h_subprob_to_bin[j];
 		cout<<endl;
@@ -645,17 +648,17 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan,
 	int ns=d_plan->spopts.nspread;// psi's support in terms of number of cells
 	FLT es_c=d_plan->spopts.ES_c;
 	FLT es_beta=d_plan->spopts.ES_beta;
-	int maxsubprobsize=d_plan->opts.gpu_maxsubprobsize;
+	int maxsubprobsize=d_plan->options.gpu_max_subproblem_size;
 
 	// assume that bin_size_x > ns/2;
-	int bin_size_x=d_plan->opts.gpu_binsizex;
-	int bin_size_y=d_plan->opts.gpu_binsizey;
+	int bin_size_x=d_plan->options.gpu_bin_size.x;
+	int bin_size_y=d_plan->options.gpu_bin_size.y;
 	int numbins[2];
 	numbins[0] = ceil((FLT) nf1/bin_size_x);
 	numbins[1] = ceil((FLT) nf2/bin_size_y);
 #ifdef INFO
 	cout<<"[info  ] Dividing the uniform grids to bin size["
-		<<d_plan->opts.gpu_binsizex<<"x"<<d_plan->opts.gpu_binsizey<<"]"<<endl;
+		<<d_plan->options.gpu_bin_size.x<<"x"<<d_plan->options.gpu_bin_size.y<<"]"<<endl;
 	cout<<"[info  ] numbins = ["<<numbins[0]<<"x"<<numbins[1]<<"]"<<endl;
 #endif
 
@@ -681,13 +684,13 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan,
 	size_t sharedplanorysize = (bin_size_x+2*(int)ceil(ns/2.0))*
 							   (bin_size_y+2*(int)ceil(ns/2.0))*
 							   sizeof(CUCPX);
-	if(sharedplanorysize > 49152){
+	if (sharedplanorysize > 49152) {
 		cout<<"error: not enough shared memory"<<endl;
 		return 1;
 	}
 
-	if(d_plan->opts.spread_kerevalmeth){
-		for(int t=0; t<blksize; t++){
+	if (d_plan->options.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+		for (int t=0; t<blksize; t++) {
 			Spread_2d_Subprob_Horner<<<totalnumsubprob, 256,
 				sharedplanorysize>>>(d_kx, d_ky, d_c+t*M, d_fw+t*nf1*nf2, M,
 				ns, nf1, nf2, sigma, d_binstartpts, d_binsize, bin_size_x,
@@ -696,7 +699,7 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan,
 				d_idxnupts, pirange);
 		}
 	}else{
-		for(int t=0; t<blksize; t++){
+		for (int t=0; t<blksize; t++) {
 			Spread_2d_Subprob<<<totalnumsubprob, 256, sharedplanorysize>>>(
 				d_kx, d_ky, d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2,
 				es_c, es_beta, sigma,d_binstartpts, d_binsize, bin_size_x,
@@ -711,7 +714,7 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, CUFINUFFT_PLAN d_plan,
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&milliseconds, start, stop);
 	printf("[time  ] \tKernel Spread_2d_Subprob (%d)\t\t%.3g ms\n",
-		milliseconds, d_plan->opts.spread_kerevalmeth);
+		milliseconds, d_plan->options.kernel_evaluation_method);
 #endif
 	return 0;
 }

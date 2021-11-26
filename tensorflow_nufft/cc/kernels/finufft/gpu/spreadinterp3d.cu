@@ -60,7 +60,7 @@ static __inline__ __device__
 void eval_kernel_vec(FLT *ker, const FLT x, const double w, const double es_c,
                      const double es_beta)
 {
-    for(int i=0; i<w; i++){
+    for (int i=0; i<w; i++) {
         ker[i] = evaluate_kernel(abs(x+i), es_c, es_beta, w);
     }
 }
@@ -76,7 +76,7 @@ void CalcBinSize_noghost_3d(int M, int nf1, int nf2, int nf3, int  bin_size_x,
 	int binidx, binx, biny, binz;
 	int oldidx;
 	FLT x_rescaled,y_rescaled,z_rescaled;
-	for(int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x){
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
 		x_rescaled=RESCALE(x[i], nf1, pirange);
 		y_rescaled=RESCALE(y[i], nf2, pirange);
 		z_rescaled=RESCALE(z[i], nf3, pirange);
@@ -106,7 +106,7 @@ void CalcInvertofGlobalSortIdx_3d(int M, int bin_size_x, int bin_size_y,
 	int binx,biny,binz;
 	int binidx;
 	FLT x_rescaled,y_rescaled,z_rescaled;
-	for(int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x){
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
 		x_rescaled=RESCALE(x[i], nf1, pirange);
 		y_rescaled=RESCALE(y[i], nf2, pirange);
 		z_rescaled=RESCALE(z[i], nf3, pirange);
@@ -140,7 +140,7 @@ void Spread_3d_NUptsdriven_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 	FLT ker1val, ker2val, ker3val;
 
 	FLT x_rescaled, y_rescaled, z_rescaled;
-	for(int i=blockDim.x*blockIdx.x+threadIdx.x; i<M; i+=blockDim.x*gridDim.x){
+	for (int i=blockDim.x*blockIdx.x+threadIdx.x; i<M; i+=blockDim.x*gridDim.x) {
 		x_rescaled=RESCALE(x[idxnupts[i]], nf1, pirange);
 		y_rescaled=RESCALE(y[idxnupts[i]], nf2, pirange);
 		z_rescaled=RESCALE(z[idxnupts[i]], nf3, pirange);
@@ -159,11 +159,11 @@ void Spread_3d_NUptsdriven_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 		eval_kernel_vec_Horner(ker1,x1,ns,sigma);
 		eval_kernel_vec_Horner(ker2,y1,ns,sigma);
 		eval_kernel_vec_Horner(ker3,z1,ns,sigma);
-		for(zz=zstart; zz<=zend; zz++){
+		for (zz=zstart; zz<=zend; zz++) {
 			ker3val=ker3[zz-zstart];
-			for(yy=ystart; yy<=yend; yy++){
+			for (yy=ystart; yy<=yend; yy++) {
 				ker2val=ker2[yy-ystart];
-				for(xx=xstart; xx<=xend; xx++){
+				for (xx=xstart; xx<=xend; xx++) {
 					ix = xx < 0 ? xx+nf1 : (xx>nf1-1 ? xx-nf1 : xx);
 					iy = yy < 0 ? yy+nf2 : (yy>nf2-1 ? yy-nf2 : yy);
 					iz = zz < 0 ? zz+nf3 : (zz>nf3-1 ? zz-nf3 : zz);
@@ -190,7 +190,7 @@ void Spread_3d_NUptsdriven(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
 
 	FLT x_rescaled, y_rescaled, z_rescaled;
 	FLT ker1val, ker2val, ker3val;
-	for(int i=blockDim.x*blockIdx.x+threadIdx.x; i<M; i+=blockDim.x*gridDim.x){
+	for (int i=blockDim.x*blockIdx.x+threadIdx.x; i<M; i+=blockDim.x*gridDim.x) {
 		x_rescaled=RESCALE(x[idxnupts[i]], nf1, pirange);
 		y_rescaled=RESCALE(y[idxnupts[i]], nf2, pirange);
 		z_rescaled=RESCALE(z[idxnupts[i]], nf3, pirange);
@@ -209,11 +209,11 @@ void Spread_3d_NUptsdriven(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
 		eval_kernel_vec(ker1,x1,ns,es_c,es_beta);
 		eval_kernel_vec(ker2,y1,ns,es_c,es_beta);
 		eval_kernel_vec(ker3,z1,ns,es_c,es_beta);
-		for(zz=zstart; zz<=zend; zz++){
+		for (zz=zstart; zz<=zend; zz++) {
 			ker3val=ker3[zz-zstart];
-			for(yy=ystart; yy<=yend; yy++){
+			for (yy=ystart; yy<=yend; yy++) {
 				ker2val=ker2[yy-ystart];
-				for(xx=xstart; xx<=xend; xx++){
+				for (xx=xstart; xx<=xend; xx++) {
 					ix = xx < 0 ? xx+nf1 : (xx>nf1-1 ? xx-nf1 : xx);
 					iy = yy < 0 ? yy+nf2 : (yy>nf2-1 ? yy-nf2 : yy);
 					iz = zz < 0 ? zz+nf3 : (zz>nf3-1 ? zz-nf3 : zz);
@@ -257,7 +257,7 @@ void Spread_3d_Subprob_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M
 		(bin_size_z+2*ceil(ns/2.0));
 
 
-	for(int i=threadIdx.x; i<N; i+=blockDim.x){
+	for (int i=threadIdx.x; i<N; i+=blockDim.x) {
 		fwshared[i].x = 0.0;
 		fwshared[i].y = 0.0;
 	}
@@ -265,7 +265,7 @@ void Spread_3d_Subprob_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M
 	FLT x_rescaled, y_rescaled, z_rescaled;
 	CUCPX cnow;
 
-	for(int i=threadIdx.x; i<nupts; i+=blockDim.x){
+	for (int i=threadIdx.x; i<nupts; i+=blockDim.x) {
 		FLT ker1[MAX_NSPREAD];
 		FLT ker2[MAX_NSPREAD];
 		FLT ker3[MAX_NSPREAD];
@@ -288,17 +288,17 @@ void Spread_3d_Subprob_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M
 		eval_kernel_vec_Horner(ker2,ystart+yoffset-y_rescaled,ns,sigma);
 		eval_kernel_vec_Horner(ker3,zstart+zoffset-z_rescaled,ns,sigma);
 
-    	for (int zz=zstart; zz<=zend; zz++){
+    	for (int zz=zstart; zz<=zend; zz++) {
 			FLT kervalue3 = ker3[zz-zstart];
 			iz = zz+ceil(ns/2.0);
-			if(iz >= (bin_size_z + (int) ceil(ns/2.0)*2) || iz<0) break;
-			for(int yy=ystart; yy<=yend; yy++){
+			if (iz >= (bin_size_z + (int) ceil(ns/2.0)*2) || iz<0) break;
+			for (int yy=ystart; yy<=yend; yy++) {
 				FLT kervalue2 = ker2[yy-ystart];
 				iy = yy+ceil(ns/2.0);
-				if(iy >= (bin_size_y + (int) ceil(ns/2.0)*2) || iy<0) break;
-				for(int xx=xstart; xx<=xend; xx++){
+				if (iy >= (bin_size_y + (int) ceil(ns/2.0)*2) || iy<0) break;
+				for (int xx=xstart; xx<=xend; xx++) {
 					ix = xx+ceil(ns/2.0);
-					if(ix >= (bin_size_x + (int) ceil(ns/2.0)*2) || ix<0) break;
+					if (ix >= (bin_size_x + (int) ceil(ns/2.0)*2) || ix<0) break;
 					outidx = ix+iy*(bin_size_x+ceil(ns/2.0)*2)+
 						iz*(bin_size_x+ceil(ns/2.0)*2)*
 						   (bin_size_y+ceil(ns/2.0)*2);
@@ -313,7 +313,7 @@ void Spread_3d_Subprob_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M
 	}
 	__syncthreads();
 	/* write to global memory */
-	for(int n=threadIdx.x; n<N; n+=blockDim.x){
+	for (int n=threadIdx.x; n<N; n+=blockDim.x) {
 		int i = n % (int) (bin_size_x+2*ceil(ns/2.0) );
 		int j = (int) (n /(bin_size_x+2*ceil(ns/2.0))) %
 				(int) (bin_size_y+2*ceil(ns/2.0));
@@ -323,9 +323,9 @@ void Spread_3d_Subprob_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M
 		iy = yoffset-ceil(ns/2.0)+j;
 		iz = zoffset-ceil(ns/2.0)+k;
 
-		if(ix<(nf1+ceil(ns/2.0)) &&
+		if (ix<(nf1+ceil(ns/2.0)) &&
 		   iy<(nf2+ceil(ns/2.0)) &&
-		   iz<(nf3+ceil(ns/2.0))){
+		   iz<(nf3+ceil(ns/2.0))) {
 			ix = ix < 0 ? ix+nf1 : (ix>nf1-1 ? ix-nf1 : ix);
 			iy = iy < 0 ? iy+nf2 : (iy>nf2-1 ? iy-nf2 : iy);
 			iz = iz < 0 ? iz+nf3 : (iz>nf3-1 ? iz-nf3 : iz);
@@ -362,14 +362,14 @@ void Spread_3d_Subprob(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
 	int N = (bin_size_x+2*ceil(ns/2.0))*(bin_size_y+2*ceil(ns/2.0))*
 		(bin_size_z+2*ceil(ns/2.0));
 
-	for(int i=threadIdx.x; i<N; i+=blockDim.x){
+	for (int i=threadIdx.x; i<N; i+=blockDim.x) {
 		fwshared[i].x = 0.0;
 		fwshared[i].y = 0.0;
 	}
 	__syncthreads();
 	FLT x_rescaled, y_rescaled, z_rescaled;
 	CUCPX cnow;
-	for(int i=threadIdx.x; i<nupts; i+=blockDim.x){
+	for (int i=threadIdx.x; i<nupts; i+=blockDim.x) {
 		FLT ker1[MAX_NSPREAD];
 		FLT ker2[MAX_NSPREAD];
 		FLT ker3[MAX_NSPREAD];
@@ -395,18 +395,18 @@ void Spread_3d_Subprob(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
 		eval_kernel_vec(ker2,y1,ns,es_c,es_beta);
 		eval_kernel_vec(ker3,z1,ns,es_c,es_beta);
 #if 1
-		for(int zz=zstart; zz<=zend; zz++){
+		for (int zz=zstart; zz<=zend; zz++) {
 			FLT kervalue3 = ker3[zz-zstart];
 			iz = zz+ceil(ns/2.0);
-			if(iz >= (bin_size_z + (int) ceil(ns/2.0)*2) || iz<0) break;
-			for(int yy=ystart; yy<=yend; yy++){
+			if (iz >= (bin_size_z + (int) ceil(ns/2.0)*2) || iz<0) break;
+			for (int yy=ystart; yy<=yend; yy++) {
 				FLT kervalue2 = ker2[yy-ystart];
 				iy = yy+ceil(ns/2.0);
-				if(iy >= (bin_size_y + (int) ceil(ns/2.0)*2) || iy<0) break;
-				for(int xx=xstart; xx<=xend; xx++){
+				if (iy >= (bin_size_y + (int) ceil(ns/2.0)*2) || iy<0) break;
+				for (int xx=xstart; xx<=xend; xx++) {
 					FLT kervalue1 = ker1[xx-xstart];
 					ix = xx+ceil(ns/2.0);
-					if(ix >= (bin_size_x + (int) ceil(ns/2.0)*2) || ix<0) break;
+					if (ix >= (bin_size_x + (int) ceil(ns/2.0)*2) || ix<0) break;
 					outidx = ix+iy*(bin_size_x+ceil(ns/2.0)*2)+
 							 iz*(bin_size_x+ceil(ns/2.0)*2)*
 						        (bin_size_y+ceil(ns/2.0)*2);
@@ -423,7 +423,7 @@ void Spread_3d_Subprob(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
 	}
 	__syncthreads();
 	/* write to global memory */
-	for(int n=threadIdx.x; n<N; n+=blockDim.x){
+	for (int n=threadIdx.x; n<N; n+=blockDim.x) {
 		int i = n % (int) (bin_size_x+2*ceil(ns/2.0) );
 		int j = (int) (n /(bin_size_x+2*ceil(ns/2.0))) % (int) (bin_size_y+2*ceil(ns/2.0));
 		int k = n / ((bin_size_x+2*ceil(ns/2.0))*(bin_size_y+2*ceil(ns/2.0)));
@@ -431,7 +431,7 @@ void Spread_3d_Subprob(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
 		ix = xoffset-ceil(ns/2.0)+i;
 		iy = yoffset-ceil(ns/2.0)+j;
 		iz = zoffset-ceil(ns/2.0)+k;
-		if(ix<(nf1+ceil(ns/2.0)) && iy<(nf2+ceil(ns/2.0)) && iz<(nf3+ceil(ns/2.0))){
+		if (ix<(nf1+ceil(ns/2.0)) && iy<(nf2+ceil(ns/2.0)) && iz<(nf3+ceil(ns/2.0))) {
 			ix = ix < 0 ? ix+nf1 : (ix>nf1-1 ? ix-nf1 : ix);
 			iy = iy < 0 ? iy+nf2 : (iy>nf2-1 ? iy-nf2 : iy);
 			iz = iz < 0 ? iz+nf3 : (iz>nf3-1 ? iz-nf3 : iz);
@@ -453,7 +453,7 @@ void LocateNUptstoBins_ghost(int M, int  bin_size_x, int bin_size_y,
 	int binidx,binx,biny,binz;
 	int oldidx;
 	FLT x_rescaled,y_rescaled,z_rescaled;
-	for(int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x){
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
 		x_rescaled=RESCALE(x[i], nf1, pirange);
 		y_rescaled=RESCALE(y[i], nf2, pirange);
 		z_rescaled=RESCALE(z[i], nf3, pirange);
@@ -481,7 +481,7 @@ void CalcInvertofGlobalSortIdx_ghost(int M, int  bin_size_x,
 	int binx,biny,binz;
 	int binidx;
 	FLT x_rescaled,y_rescaled,z_rescaled;
-	for(int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x){
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
 		x_rescaled=RESCALE(x[i], nf1, pirange);
 		y_rescaled=RESCALE(y[i], nf2, pirange);
 		z_rescaled=RESCALE(z[i], nf3, pirange);
@@ -527,22 +527,22 @@ void Spread_3d_BlockGather(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
 
 	int N = obin_size_x*obin_size_y*obin_size_z;
 
-	for(int i=threadIdx.x; i<N; i+=blockDim.x){
+	for (int i=threadIdx.x; i<N; i+=blockDim.x) {
 		fwshared[i].x = 0.0;
 		fwshared[i].y = 0.0;
 	}
 	__syncthreads();
 	FLT x_rescaled, y_rescaled, z_rescaled;
 	CUCPX cnow;
-	for(int i=threadIdx.x; i<nupts; i+=blockDim.x){
+	for (int i=threadIdx.x; i<nupts; i+=blockDim.x) {
 		int idx = ptstart+i;
 		int b = idxnupts[idx]/M;
 		int box[3];
-		for(int d=0;d<3;d++){
+		for (int d=0;d<3;d++) {
 			box[d] = b%3;
-			if(box[d] == 1)
+			if (box[d] == 1)
 				box[d] = -1;
-			if(box[d] == 2)
+			if (box[d] == 2)
 				box[d] = 1;
 			b=b/3;
 		}
@@ -565,13 +565,13 @@ void Spread_3d_BlockGather(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
 		zend   = floor(z_rescaled + ns/2.0)-zoffset;
 		zend   = zend >= obin_size_z ? obin_size_z-1 : zend;
 
-		for(int zz=zstart; zz<=zend; zz++){
+		for (int zz=zstart; zz<=zend; zz++) {
 			FLT disz=abs(z_rescaled-(zz+zoffset));
 			FLT kervalue3 = evaluate_kernel(disz, es_c, es_beta, ns);
-			for(int yy=ystart; yy<=yend; yy++){
+			for (int yy=ystart; yy<=yend; yy++) {
 				FLT disy=abs(y_rescaled-(yy+yoffset));
 				FLT kervalue2 = evaluate_kernel(disy, es_c, es_beta, ns);
-				for(int xx=xstart; xx<=xend; xx++){
+				for (int xx=xstart; xx<=xend; xx++) {
 					outidx = xx+yy*obin_size_x+zz*obin_size_y*obin_size_x;
 					FLT disx=abs(x_rescaled-(xx+xoffset));
 					FLT kervalue1 = evaluate_kernel(disx, es_c, es_beta, ns);
@@ -585,7 +585,7 @@ void Spread_3d_BlockGather(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
 	}
 	__syncthreads();
 	/* write to global memory */
-	for(int n=threadIdx.x; n<N; n+=blockDim.x){
+	for (int n=threadIdx.x; n<N; n+=blockDim.x) {
 		int i = n%obin_size_x;
 		int j = (n/obin_size_x)%obin_size_y;
 		int k = n/(obin_size_x*obin_size_y);
@@ -632,7 +632,7 @@ void Spread_3d_BlockGather_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, i
 	FLT ker2[MAX_NSPREAD];
 	FLT ker3[MAX_NSPREAD];
 
-	for(int i=threadIdx.x; i<N; i+=blockDim.x){
+	for (int i=threadIdx.x; i<N; i+=blockDim.x) {
 		fwshared[i].x = 0.0;
 		fwshared[i].y = 0.0;
 	}
@@ -640,15 +640,15 @@ void Spread_3d_BlockGather_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, i
 
 	FLT x_rescaled, y_rescaled, z_rescaled;
 	CUCPX cnow;
-	for(int i=threadIdx.x; i<nupts; i+=blockDim.x){
+	for (int i=threadIdx.x; i<nupts; i+=blockDim.x) {
 		int nidx = idxnupts[ptstart+i];
 		int b = nidx/M;
 		int box[3];
-		for(int d=0;d<3;d++){
+		for (int d=0;d<3;d++) {
 			box[d] = b%3;
-			if(box[d] == 1)
+			if (box[d] == 1)
 				box[d] = -1;
-			if(box[d] == 2)
+			if (box[d] == 2)
 				box[d] = 1;
 			b=b/3;
 		}
@@ -676,11 +676,11 @@ void Spread_3d_BlockGather_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, i
 		yendnew   = yend >= obin_size_y ? obin_size_y-1 : yend;
 		zendnew   = zend >= obin_size_z ? obin_size_z-1 : zend;
 
-		for(int zz=zstartnew; zz<=zendnew; zz++){
+		for (int zz=zstartnew; zz<=zendnew; zz++) {
 			FLT kervalue3 = ker3[zz-zstart];
-			for(int yy=ystartnew; yy<=yendnew; yy++){
+			for (int yy=ystartnew; yy<=yendnew; yy++) {
 				FLT kervalue2 = ker2[yy-ystart];
-				for(int xx=xstartnew; xx<=xendnew; xx++){
+				for (int xx=xstartnew; xx<=xendnew; xx++) {
 					outidx = xx+yy*obin_size_x+zz*obin_size_y*obin_size_x;
 					FLT kervalue1 = ker1[xx-xstart];
 					atomicAdd(&fwshared[outidx].x, cnow.x*kervalue1*kervalue2*kervalue3);
@@ -691,7 +691,7 @@ void Spread_3d_BlockGather_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, i
 	}
 	__syncthreads();
 	/* write to global memory */
-	for(int n=threadIdx.x; n<N; n+=blockDim.x){
+	for (int n=threadIdx.x; n<N; n+=blockDim.x) {
 		int i = n%obin_size_x;
 		int j = (n/obin_size_x)%obin_size_y;
 		int k = n/(obin_size_x*obin_size_y);
@@ -712,7 +712,7 @@ void Interp_3d_NUptsdriven(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
 	const int ns, int nf1, int nf2, int nf3, FLT es_c, FLT es_beta,
 	int *idxnupts, int pirange)
 {
-	for(int i=blockDim.x*blockIdx.x+threadIdx.x; i<M; i+=blockDim.x*gridDim.x){
+	for (int i=blockDim.x*blockIdx.x+threadIdx.x; i<M; i+=blockDim.x*gridDim.x) {
 		FLT x_rescaled=RESCALE(x[idxnupts[i]], nf1, pirange);
 		FLT y_rescaled=RESCALE(y[idxnupts[i]], nf2, pirange);
 		FLT z_rescaled=RESCALE(z[idxnupts[i]], nf3, pirange);
@@ -725,13 +725,13 @@ void Interp_3d_NUptsdriven(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
 		CUCPX cnow;
 		cnow.x = 0.0;
 		cnow.y = 0.0;
-		for(int zz=zstart; zz<=zend; zz++){
+		for (int zz=zstart; zz<=zend; zz++) {
 			FLT disz=abs(z_rescaled-zz);
 			FLT kervalue3 = evaluate_kernel(disz, es_c, es_beta, ns);
-			for(int yy=ystart; yy<=yend; yy++){
+			for (int yy=ystart; yy<=yend; yy++) {
 				FLT disy=abs(y_rescaled-yy);
 				FLT kervalue2 = evaluate_kernel(disy, es_c, es_beta, ns);
-				for(int xx=xstart; xx<=xend; xx++){
+				for (int xx=xstart; xx<=xend; xx++) {
 					int ix = xx < 0 ? xx+nf1 : (xx>nf1-1 ? xx-nf1 : xx);
 					int iy = yy < 0 ? yy+nf2 : (yy>nf2-1 ? yy-nf2 : yy);
 					int iz = zz < 0 ? zz+nf3 : (zz>nf3-1 ? zz-nf3 : zz);
@@ -756,7 +756,7 @@ void Interp_3d_NUptsdriven_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 	int M, const int ns, int nf1, int nf2, int nf3, FLT sigma, int *idxnupts,
 	int pirange)
 {
-	for(int i=blockDim.x*blockIdx.x+threadIdx.x; i<M; i+=blockDim.x*gridDim.x){
+	for (int i=blockDim.x*blockIdx.x+threadIdx.x; i<M; i+=blockDim.x*gridDim.x) {
 		FLT x_rescaled=RESCALE(x[idxnupts[i]], nf1, pirange);
 		FLT y_rescaled=RESCALE(y[idxnupts[i]], nf2, pirange);
 		FLT z_rescaled=RESCALE(z[idxnupts[i]], nf3, pirange);
@@ -781,13 +781,13 @@ void Interp_3d_NUptsdriven_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 		eval_kernel_vec_Horner(ker2,ystart-y_rescaled,ns,sigma);
 		eval_kernel_vec_Horner(ker3,zstart-z_rescaled,ns,sigma);
 
-		for(int zz=zstart; zz<=zend; zz++){
+		for (int zz=zstart; zz<=zend; zz++) {
 			FLT kervalue3 = ker3[zz-zstart];
 			int iz = zz < 0 ? zz+nf3 : (zz>nf3-1 ? zz-nf3 : zz);
-			for(int yy=ystart; yy<=yend; yy++){
+			for (int yy=ystart; yy<=yend; yy++) {
 				FLT kervalue2 = ker2[yy-ystart];
 				int iy = yy < 0 ? yy+nf2 : (yy>nf2-1 ? yy-nf2 : yy);
-				for(int xx=xstart; xx<=xend; xx++){
+				for (int xx=xstart; xx<=xend; xx++) {
 					int ix = xx < 0 ? xx+nf1 : (xx>nf1-1 ? xx-nf1 : xx);
 					int inidx = ix+iy*nf1+iz*nf2*nf1;
 					FLT kervalue1 = ker1[xx-xstart];
@@ -830,7 +830,7 @@ void Interp_3d_Subprob(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 			(bin_size_z+2*ceil(ns/2.0));
 
 #if 1
-	for(int n=threadIdx.x;n<N; n+=blockDim.x){
+	for (int n=threadIdx.x;n<N; n+=blockDim.x) {
 		int i = n % (int) (bin_size_x+2*ceil(ns/2.0) );
 		int j = (int) (n /(bin_size_x+2*ceil(ns/2.0))) % (int) (bin_size_y+2*ceil(ns/2.0));
 		int k = n / ((bin_size_x+2*ceil(ns/2.0))*(bin_size_y+2*ceil(ns/2.0)));
@@ -838,7 +838,7 @@ void Interp_3d_Subprob(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 		ix = xoffset-ceil(ns/2.0)+i;
 		iy = yoffset-ceil(ns/2.0)+j;
 		iz = zoffset-ceil(ns/2.0)+k;
-		if(ix<(nf1+ceil(ns/2.0)) && iy<(nf2+ceil(ns/2.0)) && iz<(nf3+ceil(ns/2.0))){
+		if (ix<(nf1+ceil(ns/2.0)) && iy<(nf2+ceil(ns/2.0)) && iz<(nf3+ceil(ns/2.0))) {
 			ix = ix < 0 ? ix+nf1 : (ix>nf1-1 ? ix-nf1 : ix);
 			iy = iy < 0 ? iy+nf2 : (iy>nf2-1 ? iy-nf2 : iy);
 			iz = iz < 0 ? iz+nf3 : (iz>nf3-1 ? iz-nf3 : iz);
@@ -854,7 +854,7 @@ void Interp_3d_Subprob(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 
 	FLT x_rescaled, y_rescaled, z_rescaled;
 	CUCPX cnow;
-	for(int i=threadIdx.x; i<nupts; i+=blockDim.x){
+	for (int i=threadIdx.x; i<nupts; i+=blockDim.x) {
 		int idx = ptstart+i;
 		x_rescaled=RESCALE(x[idxnupts[idx]], nf1, pirange);
 		y_rescaled=RESCALE(y[idxnupts[idx]], nf2, pirange);
@@ -870,15 +870,15 @@ void Interp_3d_Subprob(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 		zend   = floor(z_rescaled + ns/2.0)-zoffset;
 
 
-    	for (int zz=zstart; zz<=zend; zz++){
+    	for (int zz=zstart; zz<=zend; zz++) {
 			FLT disz=abs(z_rescaled-zz);
 			FLT kervalue3 = evaluate_kernel(disz, es_c, es_beta, ns);
 			iz = zz+ceil(ns/2.0);
-			for(int yy=ystart; yy<=yend; yy++){
+			for (int yy=ystart; yy<=yend; yy++) {
 				FLT disy=abs(y_rescaled-yy);
 				FLT kervalue2 = evaluate_kernel(disy, es_c, es_beta, ns);
 				iy = yy+ceil(ns/2.0);
-				for(int xx=xstart; xx<=xend; xx++){
+				for (int xx=xstart; xx<=xend; xx++) {
 					ix = xx+ceil(ns/2.0);
 					outidx = ix+iy*(bin_size_x+ceil(ns/2.0)*2)+
 						iz*(bin_size_x+ceil(ns/2.0)*2)*
@@ -921,7 +921,7 @@ void Interp_3d_Subprob_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 	int N = (bin_size_x+2*ceil(ns/2.0))*(bin_size_y+2*ceil(ns/2.0))*
 			(bin_size_z+2*ceil(ns/2.0));
 
-	for(int n=threadIdx.x;n<N; n+=blockDim.x){
+	for (int n=threadIdx.x;n<N; n+=blockDim.x) {
 		int i = n % (int) (bin_size_x+2*ceil(ns/2.0) );
 		int j = (int) (n /(bin_size_x+2*ceil(ns/2.0))) % (int) (bin_size_y+2*ceil(ns/2.0));
 		int k = n / ((bin_size_x+2*ceil(ns/2.0))*(bin_size_y+2*ceil(ns/2.0)));
@@ -929,7 +929,7 @@ void Interp_3d_Subprob_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 		ix = xoffset-ceil(ns/2.0)+i;
 		iy = yoffset-ceil(ns/2.0)+j;
 		iz = zoffset-ceil(ns/2.0)+k;
-		if(ix<(nf1+ceil(ns/2.0)) && iy<(nf2+ceil(ns/2.0)) && iz<(nf3+ceil(ns/2.0))){
+		if (ix<(nf1+ceil(ns/2.0)) && iy<(nf2+ceil(ns/2.0)) && iz<(nf3+ceil(ns/2.0))) {
 			ix = ix < 0 ? ix+nf1 : (ix>nf1-1 ? ix-nf1 : ix);
 			iy = iy < 0 ? iy+nf2 : (iy>nf2-1 ? iy-nf2 : iy);
 			iz = iz < 0 ? iz+nf3 : (iz>nf3-1 ? iz-nf3 : iz);
@@ -946,7 +946,7 @@ void Interp_3d_Subprob_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 	FLT ker3[MAX_NSPREAD];
 	FLT x_rescaled, y_rescaled, z_rescaled;
 	CUCPX cnow;
-	for(int i=threadIdx.x; i<nupts; i+=blockDim.x){
+	for (int i=threadIdx.x; i<nupts; i+=blockDim.x) {
 		int idx = ptstart+i;
 		x_rescaled=RESCALE(x[idxnupts[idx]], nf1, pirange);
 		y_rescaled=RESCALE(y[idxnupts[idx]], nf2, pirange);
@@ -965,13 +965,13 @@ void Interp_3d_Subprob_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 		eval_kernel_vec_Horner(ker1,xstart+xoffset-x_rescaled,ns,sigma);
 		eval_kernel_vec_Horner(ker2,ystart+yoffset-y_rescaled,ns,sigma);
 		eval_kernel_vec_Horner(ker3,zstart+zoffset-z_rescaled,ns,sigma);
-    	for (int zz=zstart; zz<=zend; zz++){
+    	for (int zz=zstart; zz<=zend; zz++) {
 			FLT kervalue3 = ker3[zz-zstart];
 			iz = zz+ceil(ns/2.0);
-			for(int yy=ystart; yy<=yend; yy++){
+			for (int yy=ystart; yy<=yend; yy++) {
 				FLT kervalue2 = ker2[yy-ystart];
 				iy = yy+ceil(ns/2.0);
-				for(int xx=xstart; xx<=xend; xx++){
+				for (int xx=xstart; xx<=xend; xx++) {
 					ix = xx+ceil(ns/2.0);
 					outidx = ix+iy*(bin_size_x+ceil(ns/2.0)*2)+
 							 iz*(bin_size_x+ceil(ns/2.0)*2)*

@@ -18,7 +18,7 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft_definitions.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/utils.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/utils_precindep.h"
-#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 #include <stdlib.h>
 #include <vector>

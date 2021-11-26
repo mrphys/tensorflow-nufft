@@ -22,7 +22,7 @@ limitations under the License.
 
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/dataTypes.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/spread_opts.h"
-#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 /* Bitwise debugging timing flag (TF) definitions; see spread_opts.flags.
     This is an unobtrusive way to determine the time contributions of the

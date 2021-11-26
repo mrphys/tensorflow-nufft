@@ -32,7 +32,7 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/dataTypes.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/spreadinterp.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/utils_fp.h"
-#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 
 #ifndef SINGLE

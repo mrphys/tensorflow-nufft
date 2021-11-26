@@ -1,7 +1,7 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 #include "dataTypes.h"
 #include "utils.h"

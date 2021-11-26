@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft_eitherprec.h"
-#include "tensorflow_nufft/cc/kernels/finufft/nufft_util.h"
+#include "tensorflow_nufft/cc/kernels/nufft_util.h"
 
 #ifdef __cplusplus
 extern "C" {

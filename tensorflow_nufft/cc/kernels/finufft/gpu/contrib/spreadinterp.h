@@ -7,7 +7,7 @@
 #include "utils.h"
 #include "utils_fp.h"
 
-#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 
 #define MAX_NSPREAD 16     // upper bound on w, ie nspread, even when padded

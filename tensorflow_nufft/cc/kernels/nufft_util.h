@@ -28,32 +28,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include "tensorflow_nufft/cc/kernels/finufft/nufft_util.h"
+#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H
+#define TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H
 
-#include <cstdint>
-
+#include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 namespace tensorflow {
 namespace nufft {
 
+// Finds even integer not less than n, with prime factors no larger than 5
+// (ie, "smooth"). If b is specified, the returned number must also be a
+// multiple of b (b must be a number whose prime factors are no larger than 5).
 template<typename IntType>
-IntType next_smooth_int(IntType n, IntType b) {
-  if (n <= 2) return 2;
-  if (n % 2 == 1) n += 1;   // even
-  IntType nplus = n - 2;    // to cancel out the +=2 at start of loop
-  IntType numdiv = 2;       // a dummy that is >1
-  while ((numdiv > 1) || (nplus % b != 0)) {
-    nplus += 2;         // stays even
-    numdiv = nplus;
-    while (numdiv % 2 == 0) numdiv /= 2;  // remove all factors of 2,3,5...
-    while (numdiv % 3 == 0) numdiv /= 3;
-    while (numdiv % 5 == 0) numdiv /= 5;
-  }
-  return nplus;
-}
-
-template int next_smooth_int<int>(int, int);
-template int64_t next_smooth_int<int64_t>(int64_t, int64_t);
+IntType next_smooth_int(IntType n, IntType b = 1);
 
 } // namespace nufft
 } // namespace tensorflow
+
+#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H

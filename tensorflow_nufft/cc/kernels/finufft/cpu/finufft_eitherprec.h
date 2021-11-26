@@ -29,7 +29,7 @@ limitations under the License.
 // Here just what's needed to describe the headers for what finufft provides
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/dataTypes.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft_plan_eitherprec.h"
-#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 // clear the macros so we can define w/o warnings...
 #undef FINUFFT_DEFAULT_OPTS

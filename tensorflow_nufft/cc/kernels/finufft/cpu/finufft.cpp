@@ -29,7 +29,7 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/utils_precindep.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/spreadinterp.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/fftw_definitions.h"
-#include "tensorflow_nufft/cc/kernels/finufft/nufft_util.h"
+#include "tensorflow_nufft/cc/kernels/nufft_util.h"
 
 extern "C" {
   #include "tensorflow_nufft/cc/kernels/finufft/cpu/contrib/legendre_rule_fast.h"

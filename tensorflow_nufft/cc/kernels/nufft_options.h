@@ -28,8 +28,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_FINUFFT_NUFFT_OPTIONS_H
-#define TENSORFLOW_NUFFT_FINUFFT_NUFFT_OPTIONS_H
+#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_OPTIONS_H
+#define TENSORFLOW_NUFFT_KERNELS_NUFFT_OPTIONS_H
 
 #include <fftw3.h>
 
@@ -64,6 +64,7 @@ enum class SpreaderThreading {
 };
 
 #if GOOGLE_CUDA
+
 enum class GpuSpreadMethod {
   AUTO = 0,
   NUPTS_DRIVEN = 1,
@@ -166,4 +167,4 @@ struct Options {
 } // namespace nufft
 } // namespace tensorflow
 
-#endif // TENSORFLOW_NUFFT_FINUFFT_NUFFT_OPTIONS_H
+#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_OPTIONS_H

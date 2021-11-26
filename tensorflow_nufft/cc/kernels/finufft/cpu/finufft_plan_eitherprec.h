@@ -29,7 +29,7 @@ limitations under the License.
 
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/fftw_definitions.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/spread_opts.h"
-#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 #ifndef __cplusplus
 #include <stdbool.h>     // for bools in C

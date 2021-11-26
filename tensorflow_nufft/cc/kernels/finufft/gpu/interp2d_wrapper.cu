@@ -20,7 +20,7 @@ limitations under the License.
 #include <cuComplex.h>
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cuspreadinterp.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/memtransfer.h"
-#include "tensorflow_nufft/cc/kernels/finufft/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_options.h"
 #include <profile.h>
 
 using namespace std;

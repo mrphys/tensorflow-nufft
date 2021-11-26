@@ -40,32 +40,9 @@ struct plan_type<GPUDevice, double> {
 };
 
 template<>
-struct opts_type<GPUDevice, float> {
-  typedef cufinufft_opts type;
-};
-
-template<>
-struct opts_type<GPUDevice, double> {
-  typedef cufinufft_opts type;
-};
-
-template<>
-void default_opts<GPUDevice, float>(
-    int type, int dim, typename opts_type<GPUDevice, float>::type* opts) {
-  cufinufftf_default_opts(type, dim, opts);
-};
-
-template<>
-void default_opts<GPUDevice, double>(
-    int type, int dim, typename opts_type<GPUDevice, double>::type* opts) {
-  cufinufft_default_opts(type, dim, opts);
-};
-
-template<>
 int makeplan<GPUDevice, float>(
     int type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
     typename plan_type<GPUDevice, float>::type* plan,
-    typename opts_type<GPUDevice, float>::type* opts,
     const Options& options) {
 
   int* nmodes_int = new int[dim];
@@ -73,7 +50,7 @@ int makeplan<GPUDevice, float>(
     nmodes_int[d] = static_cast<int>(nmodes[d]);
 
   int err = cufinufftf_makeplan(
-    type, dim, nmodes_int, iflag, ntr, eps, 0, plan, opts, options);
+    type, dim, nmodes_int, iflag, ntr, eps, 0, plan, options);
   
   delete[] nmodes_int;
   return err;
@@ -83,7 +60,6 @@ template<>
 int makeplan<GPUDevice, double>(
     int type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
     typename plan_type<GPUDevice, double>::type* plan,
-    typename opts_type<GPUDevice, double>::type* opts,
     const Options& options) {
 
   int* nmodes_int = new int[dim];
@@ -91,7 +67,7 @@ int makeplan<GPUDevice, double>(
     nmodes_int[d] = static_cast<int>(nmodes[d]);
 
   int err = cufinufft_makeplan(
-    type, dim, nmodes_int, iflag, ntr, eps, 0, plan, opts, options);
+    type, dim, nmodes_int, iflag, ntr, eps, 0, plan, options);
   
   delete[] nmodes_int;
   return err;

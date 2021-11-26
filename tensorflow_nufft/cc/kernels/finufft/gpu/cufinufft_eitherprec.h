@@ -25,7 +25,6 @@ limitations under the License.
 #include <cufft.h>
 #include <assert.h>
 #include <cuda_runtime.h>
-#include "cufinufft_opts.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/precision_independent.h"
 #include "cufinufft_errors.h"
 
@@ -232,7 +231,7 @@ limitations under the License.
 #endif
 
 typedef struct CUFINUFFT_PLAN_S {
-	cufinufft_opts  opts;
+
 	SPREAD_OPTS     spopts;
 	tensorflow::nufft::Options options;
 
@@ -299,10 +298,9 @@ typedef struct CUFINUFFT_PLAN_S * CUFINUFFT_PLAN;
 #ifdef __cplusplus
 extern "C" {
 #endif
-int CUFINUFFT_DEFAULT_OPTS(int type, int dim, cufinufft_opts *opts);
 int CUFINUFFT_MAKEPLAN(int type, int dim, int *n_modes, int iflag,
 		       int ntransf, FLT tol, int maxbatchsize,
-		       CUFINUFFT_PLAN *d_plan_ptr, cufinufft_opts *opts,
+		       CUFINUFFT_PLAN *d_plan_ptr,
 			   const tensorflow::nufft::Options& options);
 int CUFINUFFT_SETPTS(int M, FLT* h_kx, FLT* h_ky, FLT* h_kz, int N, FLT *h_s,
 	FLT *h_t, FLT *h_u, CUFINUFFT_PLAN d_plan);

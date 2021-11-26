@@ -32,7 +32,7 @@ using namespace std;
 using namespace tensorflow;
 using namespace tensorflow::nufft;
 
-void SETUP_BINSIZE(int type, int dim, cufinufft_opts *opts, Options& options)
+void SETUP_BINSIZE(int type, int dim, Options& options)
 {
 	switch(dim)
 	{
@@ -88,7 +88,7 @@ extern "C" {
 #endif
 int CUFINUFFT_MAKEPLAN(int type, int dim, int *nmodes, int iflag,
 		       int ntransf, FLT tol, int maxbatchsize,
-		       CUFINUFFT_PLAN *d_plan_ptr, cufinufft_opts *opts,
+		       CUFINUFFT_PLAN *d_plan_ptr,
 			   const Options& options)
 /*
 	"plan" stage (in single or double precision).
@@ -165,7 +165,7 @@ This performs:
 	d_plan->spopts.spread_interp_only = d_plan->options.spread_interp_only;
 
 	/* Setup Spreader */
-	ier = setup_spreader_for_nufft(d_plan->spopts, tol, d_plan->opts,
+	ier = setup_spreader_for_nufft(d_plan->spopts, tol,
 								   d_plan->options, dim);
 	if (ier>1)                           // proceed if success or warning
 	  return ier;
@@ -175,18 +175,18 @@ This performs:
 	d_plan->mt = nmodes[1];
 	d_plan->mu = nmodes[2];
 
-	SETUP_BINSIZE(type, dim, &d_plan->opts, d_plan->options);
+	SETUP_BINSIZE(type, dim, d_plan->options);
 	BIGINT nf1=1, nf2=1, nf3=1;
-	ier = SET_NF_TYPE12(d_plan->ms, d_plan->opts, d_plan->spopts, d_plan->options, &nf1,
+	ier = SET_NF_TYPE12(d_plan->ms, d_plan->spopts, d_plan->options, &nf1,
 				  		d_plan->options.gpu_obin_size.x);
 	if (ier > 0) return ier;
 	if (dim > 1) {
-		ier = SET_NF_TYPE12(d_plan->mt, d_plan->opts, d_plan->spopts, d_plan->options, &nf2,
+		ier = SET_NF_TYPE12(d_plan->mt, d_plan->spopts, d_plan->options, &nf2,
                       d_plan->options.gpu_obin_size.y);
 		if (ier > 0) return ier;
 	}
 	if (dim > 2) {
-		ier = SET_NF_TYPE12(d_plan->mu, d_plan->opts, d_plan->spopts, d_plan->options, &nf3,
+		ier = SET_NF_TYPE12(d_plan->mu, d_plan->spopts, d_plan->options, &nf3,
                       d_plan->options.gpu_obin_size.z);
 		if (ier > 0) return ier;
 	}
@@ -730,30 +730,6 @@ int CUFINUFFT_DESTROY(CUFINUFFT_PLAN d_plan)
 	return 0;
 }
 
-int CUFINUFFT_DEFAULT_OPTS(int type, int dim, cufinufft_opts *opts)
-/*
-	Sets the default options in cufinufft_opts. This must be called
-	before the user changes any options from default values.
-	The resulting struct may then be passed (instead of NULL) to the last
-	argument of cufinufft_plan().
-
-	Options with prefix "gpu_" are used for gpu code.
-
-	Notes:
-	Values set in this function for different type and dimensions are preferable
-	based on experiments. User can experiement with different settings by
-	replacing them after calling this function.
-
-	Melody Shih 07/25/19; Barnett 2/5/21.
-*/
-{
-
-	/* following options are for gpu */
-
-  // By default, only use device 0
-
-	return 0;
-}
 #ifdef __cplusplus
 }
 #endif

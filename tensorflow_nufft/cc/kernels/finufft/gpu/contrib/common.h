@@ -13,13 +13,12 @@
 // increase this if you need >1TB RAM...
 #define MAX_NF    (BIGINT)1e11     // too big to ever succeed (next235 takes 1s)
 
-struct cufinufft_opts;
 
 // common.cpp provides...
-int setup_spreader_for_nufft(SPREAD_OPTS &spopts, FLT eps, cufinufft_opts opts,
+int setup_spreader_for_nufft(SPREAD_OPTS &spopts, FLT eps,
                              const tensorflow::nufft::Options& options,
                              int dim);
-int SET_NF_TYPE12(BIGINT ms, cufinufft_opts opts, SPREAD_OPTS spopts,
+int SET_NF_TYPE12(BIGINT ms, SPREAD_OPTS spopts,
                   const tensorflow::nufft::Options& options, BIGINT *nf,
                   BIGINT b);
 void onedim_fseries_kernel(BIGINT nf, FLT *fwkerhalf, SPREAD_OPTS opts);

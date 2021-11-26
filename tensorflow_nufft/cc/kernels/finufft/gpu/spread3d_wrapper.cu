@@ -52,7 +52,7 @@ int CUFINUFFT_SPREAD3D(int nf1, int nf2, int nf3,
 	d_plan->kz = d_kz;
 	d_plan->c  = d_c;
 	d_plan->fw = d_fw;
-	//ier = setup_spreader_for_nufft(d_plan->spopts, eps, d_plan->opts, dim);
+
 	d_plan->nf1 = nf1;
 	d_plan->nf2 = nf2;
 	d_plan->nf3 = nf3;

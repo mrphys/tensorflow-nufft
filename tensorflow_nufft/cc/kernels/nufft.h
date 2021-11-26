@@ -32,16 +32,9 @@ template<typename Device, typename T>
 struct plan_type;
 
 template<typename Device, typename T>
-struct opts_type;
-
-template<typename Device, typename T>
-void default_opts(int type, int dim, typename opts_type<Device, T>::type* opts);
-
-template<typename Device, typename T>
 int makeplan(
     int type, int dim, int64_t* nmodes, int iflag, int ntr, T eps,
     typename plan_type<Device, T>::type* plan,
-    typename opts_type<Device, T>::type* opts,
     const Options& options);
 
 template<typename Device, typename T>
@@ -145,9 +138,6 @@ struct DoNUFFTBase {
 
     // NUFFT options.
     nufft::Options options;
-    
-    typename nufft::opts_type<Device, T>::type opts;
-    nufft::default_opts<Device, T>(type, rank, &opts);
 
     if (optype != OpType::NUFFT) {
       options.spread_interp_only = true;
@@ -163,7 +153,7 @@ struct DoNUFFTBase {
     typename nufft::plan_type<Device, T>::type plan;
     int err;
     err = nufft::makeplan<Device, T>(type, rank, nmodes, iflag,
-                                     ntrans, tol, &plan, &opts, options);
+                                     ntrans, tol, &plan, options);
 
     if (err > 0) {
       return errors::Internal("Failed during `nufft::makeplan`: ", err);

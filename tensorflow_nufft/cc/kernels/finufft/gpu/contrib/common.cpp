@@ -18,7 +18,7 @@ using namespace tensorflow;
 using namespace tensorflow::nufft;
 
 
-int setup_spreader_for_nufft(SPREAD_OPTS &spopts, FLT eps, cufinufft_opts opts,
+int setup_spreader_for_nufft(SPREAD_OPTS &spopts, FLT eps,
                              const Options& options,
                              int dim)
 // Set up the spreader parameters given eps, and pass across various nufft
@@ -32,7 +32,7 @@ int setup_spreader_for_nufft(SPREAD_OPTS &spopts, FLT eps, cufinufft_opts opts,
 }
 
 
-int SET_NF_TYPE12(BIGINT ms, cufinufft_opts opts, SPREAD_OPTS spopts,
+int SET_NF_TYPE12(BIGINT ms, SPREAD_OPTS spopts,
                   const Options& options,
 				          BIGINT *nf, BIGINT bs)
 // type 1 & 2 recipe for how to set 1d size of upsampled array, nf, given opts

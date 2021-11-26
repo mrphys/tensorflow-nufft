@@ -29,8 +29,6 @@ limitations under the License.
 #include "transpose_functor.h"
 #include "reverse_functor.h"
 
-struct nufft_opts { };
-
 
 namespace tensorflow {
 
@@ -50,32 +48,9 @@ struct plan_type<CPUDevice, double> {
 };
 
 template<>
-struct opts_type<CPUDevice, float> {
-  typedef nufft_opts type;
-};
-
-template<>
-struct opts_type<CPUDevice, double> {
-  typedef nufft_opts type;
-};
-
-template<>
-void default_opts<CPUDevice, float>(
-    int type, int dim, typename opts_type<CPUDevice, float>::type* opts) {
-  // finufftf_default_opts(opts);
-};
-
-template<>
-void default_opts<CPUDevice, double>(
-    int type, int dim, typename opts_type<CPUDevice, double>::type* opts) {
-  // finufft_default_opts(opts);
-};
-
-template<>
 int makeplan<CPUDevice, float>(
     int type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
     typename plan_type<CPUDevice, float>::type* plan,
-    typename opts_type<CPUDevice, float>::type* opts,
     const Options& options) {
   return finufftf_makeplan(
     type, dim, nmodes, iflag, ntr, eps, plan, options);
@@ -85,7 +60,6 @@ template<>
 int makeplan<CPUDevice, double>(
     int type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
     typename plan_type<CPUDevice, double>::type* plan,
-    typename opts_type<CPUDevice, double>::type* opts,
     const Options& options) {
   return finufft_makeplan(
     type, dim, nmodes, iflag, ntr, eps, plan, options);

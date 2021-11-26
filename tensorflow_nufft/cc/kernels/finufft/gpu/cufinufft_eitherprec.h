@@ -43,7 +43,6 @@ limitations under the License.
 
 
 /* Undefine things so we don't get warnings/errors later */
-#undef CUFINUFFT_DEFAULT_OPTS
 #undef CUFINUFFT_MAKEPLAN
 #undef CUFINUFFT_SETPTS
 #undef CUFINUFFT_EXECUTE
@@ -107,7 +106,6 @@ limitations under the License.
 
 #ifdef SINGLE
 
-#define CUFINUFFT_DEFAULT_OPTS cufinufftf_default_opts
 #define CUFINUFFT_MAKEPLAN cufinufftf_makeplan
 #define CUFINUFFT_SETPTS cufinufftf_setpts
 #define CUFINUFFT_EXECUTE cufinufftf_execute
@@ -167,7 +165,6 @@ limitations under the License.
 
 #else
 
-#define CUFINUFFT_DEFAULT_OPTS cufinufft_default_opts
 #define CUFINUFFT_MAKEPLAN cufinufft_makeplan
 #define CUFINUFFT_SETPTS cufinufft_setpts
 #define CUFINUFFT_EXECUTE cufinufft_execute

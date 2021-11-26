@@ -32,7 +32,6 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 // clear the macros so we can define w/o warnings...
-#undef FINUFFT_DEFAULT_OPTS
 #undef FINUFFT_MAKEPLAN
 #undef FINUFFT_SETPTS
 #undef FINUFFT_EXECUTE
@@ -41,7 +40,6 @@ limitations under the License.
 #undef FINUFFT_DESTROY
 // precision-switching macros for interfaces FINUFFT provides to outside world
 #ifdef SINGLE
-#define FINUFFT_DEFAULT_OPTS finufftf_default_opts
 #define FINUFFT_MAKEPLAN finufftf_makeplan
 #define FINUFFT_SETPTS finufftf_setpts
 #define FINUFFT_EXECUTE finufftf_execute
@@ -49,7 +47,6 @@ limitations under the License.
 #define FINUFFT_SPREAD finufftf_spread
 #define FINUFFT_DESTROY finufftf_destroy
 #else
-#define FINUFFT_DEFAULT_OPTS finufft_default_opts
 #define FINUFFT_MAKEPLAN finufft_makeplan
 #define FINUFFT_SETPTS finufft_setpts
 #define FINUFFT_EXECUTE finufft_execute

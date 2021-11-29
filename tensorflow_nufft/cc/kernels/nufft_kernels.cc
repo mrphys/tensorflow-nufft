@@ -24,6 +24,7 @@ limitations under the License.
 #include "tensorflow/core/framework/tensor_util.h"
 #include "tensorflow/core/util/bcast.h"
 
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft.h"
 
 #include "transpose_functor.h"
@@ -39,12 +40,12 @@ namespace nufft {
 
 template<>
 struct plan_type<CPUDevice, float> {
-  typedef finufftf_plan_s* type;
+  typedef Plan<CPUDevice, float>* type;
 };
 
 template<>
 struct plan_type<CPUDevice, double> {
-  typedef finufft_plan_s* type;
+  typedef Plan<CPUDevice, double>* type;
 };
 
 template<>

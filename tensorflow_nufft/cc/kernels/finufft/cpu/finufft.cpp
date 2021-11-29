@@ -13,6 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#define EIGEN_USE_THREADS
+
 #include <iomanip>
 #include <iostream>
 #include <math.h>
@@ -21,21 +23,28 @@ limitations under the License.
 #include <vector>
 #include <unistd.h>
 
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft_eitherprec.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft_definitions.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/dataTypes.h"
-#include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft_plan_eitherprec.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/utils.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/utils_precindep.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/spreadinterp.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/fftw_definitions.h"
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
 
 extern "C" {
   #include "tensorflow_nufft/cc/kernels/finufft/cpu/contrib/legendre_rule_fast.h"
 }
 
+
+namespace tensorflow {
+  typedef Eigen::ThreadPoolDevice CPUDevice;
+}
+
 using namespace std;
+using namespace tensorflow;
 using namespace tensorflow::nufft;
 
 
@@ -111,7 +120,7 @@ Design notes for guru interface implementation:
 #define SET_NF_TYPE12 set_nf_type12
 #endif
 int SET_NF_TYPE12(BIGINT ms, const Options& options,
-                  spread_opts spopts, BIGINT *nf)
+                  SpreadOptions<FLT> spopts, BIGINT *nf)
 // Type 1 & 2 recipe for how to set 1d size of upsampled array, nf, given opts
 // and requested number of Fourier modes ms. Returns 0 if success, else an
 // error code if nf was unreasonably big (& tell the world).
@@ -139,7 +148,7 @@ int SET_NF_TYPE12(BIGINT ms, const Options& options,
 }
 
 int setup_spreader_for_nufft(const Options& options,
-                             spread_opts &spopts, FLT eps, int dim)
+                             SpreadOptions<FLT> &spopts, FLT eps, int dim)
 // Set up the spreader parameters given eps, and pass across various nufft
 // options. Return status of setup_spreader. Uses pass-by-ref. Barnett 10/30/17
 {
@@ -163,7 +172,7 @@ int setup_spreader_for_nufft(const Options& options,
 } 
 
 void set_nhg_type3(FLT S, FLT X,
-                   const Options& options, spread_opts spopts,
+                   const Options& options, SpreadOptions<FLT> spopts,
 		               BIGINT *nf, FLT *h, FLT *gam)
 /* sets nf, h (upsampled grid spacing), and gamma (x_j rescaling factor),
    for type 3 only.
@@ -200,7 +209,7 @@ void set_nhg_type3(FLT S, FLT X,
   *gam = (FLT)*nf / (2.0*options.upsampling_factor*Ssafe);  // x scale fac to x'
 }
 
-void onedim_fseries_kernel(BIGINT nf, FLT *fwkerhalf, spread_opts opts)
+void onedim_fseries_kernel(BIGINT nf, FLT *fwkerhalf, SpreadOptions<FLT> opts)
 /*
   Approximates exact Fourier series coeffs of cnufftspread's real symmetric
   kernel, directly via q-node quadrature on Euler-Fourier formula, exploiting
@@ -260,7 +269,7 @@ void onedim_fseries_kernel(BIGINT nf, FLT *fwkerhalf, spread_opts opts)
   }
 }
 
-void onedim_nuft_kernel(BIGINT nk, FLT *k, FLT *phihat, spread_opts opts)
+void onedim_nuft_kernel(BIGINT nk, FLT *k, FLT *phihat, SpreadOptions<FLT> opts)
 /*
   Approximates exact 1D Fourier transform of cnufftspread's real symmetric
   kernel, directly via q-node quadrature on Euler-Fourier formula, exploiting
@@ -436,7 +445,7 @@ void deconvolveshuffle3d(int dir,FLT prefac,FLT *ker1, FLT *ker2,
 
 // --------- batch helper functions for t1,2 exec: ---------------------------
 
-int spreadinterpSortedBatch(int batchSize, FINUFFT_PLAN_S* p, CPX* cBatch, CPX* fBatch=NULL)
+int spreadinterpSortedBatch(int batchSize, Plan<CPUDevice, FLT>* p, CPX* cBatch, CPX* fBatch=NULL)
 /*
   Spreads (or interpolates) a batch of batchSize strength vectors in cBatch
   to (or from) the batch of fine working grids p->fwBatch, using the same set of
@@ -472,7 +481,7 @@ int spreadinterpSortedBatch(int batchSize, FINUFFT_PLAN_S* p, CPX* cBatch, CPX* 
   return 0;
 }
 
-int deconvolveBatch(int batchSize, FINUFFT_PLAN_S* p, CPX* fkBatch)
+int deconvolveBatch(int batchSize, Plan<CPUDevice, FLT>* p, CPX* fkBatch)
 /*
   Type 1: deconvolves (amplifies) from each interior fw array in p->fwBatch
   into each output array fk in fkBatch.
@@ -516,7 +525,7 @@ int deconvolveBatch(int batchSize, FINUFFT_PLAN_S* p, CPX* fkBatch)
 #define GRIDSIZE_FOR_FFTW gridsize_for_fftw
 #endif
 
-int* GRIDSIZE_FOR_FFTW(FINUFFT_PLAN_S* p){
+int* GRIDSIZE_FOR_FFTW(Plan<CPUDevice, FLT>* p){
 // local helper func returns a new int array of length dim, extracted from
 // the finufft plan, that fftw_plan_many_dft needs as its 2nd argument.
   int* nf;
@@ -551,13 +560,13 @@ int* GRIDSIZE_FOR_FFTW(FINUFFT_PLAN_S* p){
 // For types 1,2 allocates memory for internal working arrays,
 // evaluates spreading kernel coefficients, and instantiates the fft_plan
 int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
-                     int ntrans, FLT tol, FINUFFT_PLAN_S **plan,
+                     int ntrans, FLT tol, Plan<CPUDevice, FLT> **plan,
                      const Options& options)
 {
   cout << scientific << setprecision(15);  // for commented-out low-lev debug
 
   // Allocate fresh plan struct.
-  FINUFFT_PLAN_S* p = new FINUFFT_PLAN_S;
+  Plan<CPUDevice, FLT>* p = new Plan<CPUDevice, FLT>;
   *plan = p;
 
   // Keep a deep copy of the options. Changing the input structure after this
@@ -752,7 +761,7 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
 
 
 // SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
-int FINUFFT_SETPTS(FINUFFT_PLAN_S* p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj,
+int FINUFFT_SETPTS(Plan<CPUDevice, FLT>* p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj,
                    BIGINT nk, FLT* s, FLT* t, FLT* u)
 /* For type 1,2: just checks and (possibly) sorts the NU xyz points, in prep for
    spreading. (The last 4 arguments are ignored.)
@@ -792,7 +801,7 @@ int FINUFFT_SETPTS(FINUFFT_PLAN_S* p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj,
 // ............ end setpts ..................................................
 
 
-int FINUFFT_SPREADINTERP(FINUFFT_PLAN_S* p, CPX* cj, CPX* fk) {
+int FINUFFT_SPREADINTERP(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk) {
 
   double t_sprint = 0.0, t_fft = 0.0, t_deconv = 0.0;  // accumulated timing
 
@@ -812,20 +821,20 @@ int FINUFFT_SPREADINTERP(FINUFFT_PLAN_S* p, CPX* cj, CPX* fk) {
 }
 
 
-int FINUFFT_INTERP(FINUFFT_PLAN_S* p, CPX* cj, CPX* fk) {
+int FINUFFT_INTERP(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk) {
     
   return FINUFFT_SPREADINTERP(p, cj, fk);
 }
 
 
-int FINUFFT_SPREAD(FINUFFT_PLAN_S* p, CPX* cj, CPX* fk) {
+int FINUFFT_SPREAD(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk) {
 
   return FINUFFT_SPREADINTERP(p, cj, fk);
 }
 
 
 // EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
-int FINUFFT_EXECUTE(FINUFFT_PLAN_S* p, CPX* cj, CPX* fk){
+int FINUFFT_EXECUTE(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk){
 /* See ../docs/cguru.doc for current documentation.
 
    For given (stack of) weights cj or coefficients fk, performs NUFFTs with
@@ -898,67 +907,69 @@ int FINUFFT_EXECUTE(FINUFFT_PLAN_S* p, CPX* cj, CPX* fk){
 
   else {  // ----------------------------- TYPE 3 EXEC ---------------------
 
-    //for (BIGINT j=0;j<10;++j) printf("\tcj[%ld]=%.15g+%.15gi\n",(long int)j,(double)real(cj[j]),(double)imag(cj[j]));  // debug
+    // TODO: raise error
+
+    // //for (BIGINT j=0;j<10;++j) printf("\tcj[%ld]=%.15g+%.15gi\n",(long int)j,(double)real(cj[j]),(double)imag(cj[j]));  // debug
     
-    double t_pre=0.0, t_spr=0.0, t_t2=0.0, t_deconv=0.0;  // accumulated timings
-    if (p->options.verbosity)
-      printf("[%s t3] start ntrans=%d (%d batches, bsize=%d)...\n",__func__,p->ntrans, p->nbatch, p->batchSize);
+    // double t_pre=0.0, t_spr=0.0, t_t2=0.0, t_deconv=0.0;  // accumulated timings
+    // if (p->options.verbosity)
+    //   printf("[%s t3] start ntrans=%d (%d batches, bsize=%d)...\n",__func__,p->ntrans, p->nbatch, p->batchSize);
 
-    for (int b=0; b*p->batchSize < p->ntrans; b++) { // .....loop b over batches
+    // for (int b=0; b*p->batchSize < p->ntrans; b++) { // .....loop b over batches
 
-      // batching and pointers to this batch, identical to t1,2 above...
-      int thisBatchSize = min(p->ntrans - b*p->batchSize, p->batchSize);
-      int bB = b*p->batchSize;
-      CPX* cjb = cj + bB*p->nj;           // batch of input strengths
-      CPX* fkb = fk + bB*p->nk;           // batch of output strengths
-      if (p->options.verbosity>1) printf("[%s t3] start batch %d (size %d):\n",__func__,b,thisBatchSize);
+    //   // batching and pointers to this batch, identical to t1,2 above...
+    //   int thisBatchSize = min(p->ntrans - b*p->batchSize, p->batchSize);
+    //   int bB = b*p->batchSize;
+    //   CPX* cjb = cj + bB*p->nj;           // batch of input strengths
+    //   CPX* fkb = fk + bB*p->nk;           // batch of output strengths
+    //   if (p->options.verbosity>1) printf("[%s t3] start batch %d (size %d):\n",__func__,b,thisBatchSize);
       
-      // STEP 0: pre-phase (possibly) the c_j input strengths into c'_j batch...
-      timer.restart();
+    //   // STEP 0: pre-phase (possibly) the c_j input strengths into c'_j batch...
+    //   timer.restart();
       
-      #pragma omp parallel for num_threads(p->options.num_threads)   // or p->batchSize?
-      for (int i=0; i<thisBatchSize; i++) {
-        BIGINT ioff = i*p->nj;
-        for (BIGINT j=0;j<p->nj;++j)
-          p->CpBatch[ioff+j] = p->prephase[j] * cjb[ioff+j];
-      }
-      t_pre += timer.elapsedsec(); 
+    //   #pragma omp parallel for num_threads(p->options.num_threads)   // or p->batchSize?
+    //   for (int i=0; i<thisBatchSize; i++) {
+    //     BIGINT ioff = i*p->nj;
+    //     for (BIGINT j=0;j<p->nj;++j)
+    //       p->CpBatch[ioff+j] = p->prephase[j] * cjb[ioff+j];
+    //   }
+    //   t_pre += timer.elapsedsec(); 
       
-      // STEP 1: spread c'_j batch (x'_j NU pts) into fw batch grid...
-      timer.restart();
-      p->spopts.spread_direction = 1;                         // spread
-      spreadinterpSortedBatch(thisBatchSize, p, p->CpBatch);  // p->X are primed
-      t_spr += timer.elapsedsec();
+    //   // STEP 1: spread c'_j batch (x'_j NU pts) into fw batch grid...
+    //   timer.restart();
+    //   p->spopts.spread_direction = 1;                         // spread
+    //   spreadinterpSortedBatch(thisBatchSize, p, p->CpBatch);  // p->X are primed
+    //   t_spr += timer.elapsedsec();
 
-      //for (int j=0;j<p->nf1;++j) printf("fw[%d]=%.3g+%.3gi\n",j,p->fwBatch[j][0],p->fwBatch[j][1]);  // debug
+    //   //for (int j=0;j<p->nf1;++j) printf("fw[%d]=%.3g+%.3gi\n",j,p->fwBatch[j][0],p->fwBatch[j][1]);  // debug
    
-      // STEP 2: type 2 NUFFT from fw batch to user output fk array batch...
-      timer.restart();
-      // illegal possible shrink of ntrans *after* plan for smaller last batch:
-      p->innerT2plan->ntrans = thisBatchSize;      // do not try this at home!
-      /* (alarming that FFTW not shrunk, but safe, because t2's fwBatch array
-         still the same size, as Andrea explained; just wastes a few flops) */
-      FINUFFT_EXECUTE(p->innerT2plan, fkb, (CPX*)(p->fwBatch));
-      t_t2 += timer.elapsedsec();
+    //   // STEP 2: type 2 NUFFT from fw batch to user output fk array batch...
+    //   timer.restart();
+    //   // illegal possible shrink of ntrans *after* plan for smaller last batch:
+    //   p->innerT2plan->ntrans = thisBatchSize;      // do not try this at home!
+    //   /* (alarming that FFTW not shrunk, but safe, because t2's fwBatch array
+    //      still the same size, as Andrea explained; just wastes a few flops) */
+    //   FINUFFT_EXECUTE(p->innerT2plan, fkb, (CPX*)(p->fwBatch));
+    //   t_t2 += timer.elapsedsec();
 
-      // STEP 3: apply deconvolve (precomputed 1/phiHat(targ_k), phasing too)...
-      timer.restart();
+    //   // STEP 3: apply deconvolve (precomputed 1/phiHat(targ_k), phasing too)...
+    //   timer.restart();
       
-      #pragma omp parallel for num_threads(p->options.num_threads)
-      for (int i=0; i<thisBatchSize; i++) {
-        BIGINT ioff = i*p->nk;
-        for (BIGINT k=0;k<p->nk;++k)
-          fkb[ioff+k] *= p->deconv[k];
-      }
-      t_deconv += timer.elapsedsec();
-    }                                                   // ........end b loop
+    //   #pragma omp parallel for num_threads(p->options.num_threads)
+    //   for (int i=0; i<thisBatchSize; i++) {
+    //     BIGINT ioff = i*p->nk;
+    //     for (BIGINT k=0;k<p->nk;++k)
+    //       fkb[ioff+k] *= p->deconv[k];
+    //   }
+    //   t_deconv += timer.elapsedsec();
+    // }                                                   // ........end b loop
 
-    if (p->options.verbosity) {  // report total times in their natural order...
-      printf("[%s t3] done. tot prephase:\t\t%.3g s\n",__func__,t_pre);
-      printf("                  tot spread:\t\t\t%.3g s\n",t_spr);
-      printf("                  tot type 2:\t\t\t%.3g s\n", t_t2);
-      printf("                  tot deconvolve:\t\t%.3g s\n", t_deconv);
-    }    
+    // if (p->options.verbosity) {  // report total times in their natural order...
+    //   printf("[%s t3] done. tot prephase:\t\t%.3g s\n",__func__,t_pre);
+    //   printf("                  tot spread:\t\t\t%.3g s\n",t_spr);
+    //   printf("                  tot type 2:\t\t\t%.3g s\n", t_t2);
+    //   printf("                  tot deconvolve:\t\t%.3g s\n", t_deconv);
+    // }    
   }
   //for (BIGINT k=0;k<10;++k) printf("\tfk[%ld]=%.15g+%.15gi\n",(long int)k,(double)real(fk[k]),(double)imag(fk[k]));  // debug
   
@@ -967,7 +978,7 @@ int FINUFFT_EXECUTE(FINUFFT_PLAN_S* p, CPX* cj, CPX* fk){
 
 
 // DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
-int FINUFFT_DESTROY(FINUFFT_PLAN_S* p)
+int FINUFFT_DESTROY(Plan<CPUDevice, FLT>* p)
 // Free everything we allocated inside of finufft_plan pointed to by p.
 // Also must not crash if called immediately after finufft_makeplan.
 // Thus either each thing free'd here is guaranteed to be NULL or correctly
@@ -983,12 +994,12 @@ int FINUFFT_DESTROY(FINUFFT_PLAN_S* p)
     free(p->phiHat2);
     free(p->phiHat3);
   } else {               // free the stuff alloc for type 3 only
-    FINUFFT_DESTROY(p->innerT2plan);   // if NULL, ignore its error code
-    free(p->CpBatch);
-    free(p->Sp); free(p->Tp); free(p->Up);
-    free(p->X); free(p->Y); free(p->Z);
-    free(p->prephase);
-    free(p->deconv);
+    // FINUFFT_DESTROY(p->innerT2plan);   // if NULL, ignore its error code
+    // free(p->CpBatch);
+    // free(p->Sp); free(p->Tp); free(p->Up);
+    // free(p->X); free(p->Y); free(p->Z);
+    // free(p->prephase);
+    // free(p->deconv);
   }
   free(p);
   return 0;              // success

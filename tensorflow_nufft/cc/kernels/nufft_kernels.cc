@@ -40,12 +40,12 @@ namespace nufft {
 
 template<>
 struct plan_type<CPUDevice, float> {
-  typedef Plan<CPUDevice, float>* type;
+  typedef Plan<tensorflow::CPUDevice, float>* type;
 };
 
 template<>
 struct plan_type<CPUDevice, double> {
-  typedef Plan<CPUDevice, double>* type;
+  typedef Plan<tensorflow::CPUDevice, double>* type;
 };
 
 template<>

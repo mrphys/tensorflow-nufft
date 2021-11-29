@@ -31,7 +31,7 @@ using namespace tensorflow::nufft;
 
 
 int CUFINUFFT_SPREAD2D(int nf1, int nf2, CUCPX* d_fw, int M,
-	FLT *d_kx, FLT *d_ky, CUCPX *d_c, CUFINUFFT_PLAN_S* d_plan)
+	FLT *d_kx, FLT *d_ky, CUCPX *d_c, Plan<GPUDevice, FLT>* d_plan)
 /*
 	This c function is written for only doing 2D spreading. See
 	test/spread2d_test.cu for usage.
@@ -114,7 +114,7 @@ int CUFINUFFT_SPREAD2D(int nf1, int nf2, CUCPX* d_fw, int M,
 	return ier;
 }
 
-int CUSPREAD2D(CUFINUFFT_PLAN_S* d_plan, int blksize)
+int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 /*
 	A wrapper for different spreading methods.
 
@@ -181,7 +181,7 @@ int CUSPREAD2D(CUFINUFFT_PLAN_S* d_plan, int blksize)
 	return ier;
 }
 
-int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN_S* d_plan)
+int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan)
 {
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
@@ -354,7 +354,7 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN_S* d_pla
 	return 0;
 }
 
-int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, CUFINUFFT_PLAN_S* d_plan,
+int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 	int blksize)
 {
 	cudaEvent_t start, stop;
@@ -405,7 +405,7 @@ int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, CUFINUFFT_PLAN_S* d_plan,
 #endif
 	return 0;
 }
-int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN_S* d_plan)
+int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan)
 /*
 	This function determines the properties for spreading that are independent
 	of the strength of the nodes,  only relates to the locations of the nodes,
@@ -638,7 +638,7 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, CUFINUFFT_PLAN_S* d_plan)
 	return 0;
 }
 
-int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, CUFINUFFT_PLAN_S* d_plan,
+int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 	int blksize)
 {
 	cudaEvent_t start, stop;

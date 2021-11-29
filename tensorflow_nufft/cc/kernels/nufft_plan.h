@@ -31,40 +31,78 @@ limitations under the License.
 #ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H
 #define TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H
 
+#define EIGEN_USE_THREADS
+#if GOOGLE_CUDA
+#define EIGEN_USE_GPU
+#endif // GOOGLE_CUDA
+
 #include <cstdint>
 #include <fftw3.h>
 
+#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
+#if GOOGLE_CUDA
+#include "third_party/gpus/cuda/include/cuComplex.h"
+#include "third_party/gpus/cuda/include/cufft.h"
+#endif
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 
 namespace tensorflow {
+
+typedef Eigen::ThreadPoolDevice CPUDevice;
+typedef Eigen::GpuDevice GPUDevice;
+
 namespace nufft {
 
-template<typename FloatType>
-struct FftwPlanType;
+template<typename Device, typename FloatType>
+struct FftPlanType;
 
 template<>
-struct FftwPlanType<float> {
+struct FftPlanType<CPUDevice, float> {
   typedef fftwf_plan Type;
 };
 
 template<>
-struct FftwPlanType<double> {
+struct FftPlanType<CPUDevice, double> {
   typedef fftw_plan Type;
 };
 
-template<typename FloatType>
-struct FftwComplexType;
+#ifdef GOOGLE_CUDA
+template<>
+struct FftPlanType<GPUDevice, float> {
+  typedef cufftHandle Type;
+};
 
 template<>
-struct FftwComplexType<float> {
+struct FftPlanType<GPUDevice, double> {
+  typedef cufftHandle Type;
+};
+#endif
+
+template<typename Device, typename FloatType>
+struct ComplexType;
+
+template<>
+struct ComplexType<CPUDevice, float> {
   typedef fftwf_complex Type;
 };
 
 template<>
-struct FftwComplexType<double> {
+struct ComplexType<CPUDevice, double> {
   typedef fftw_complex Type;
 };
+
+#ifdef GOOGLE_CUDA
+template<>
+struct ComplexType<GPUDevice, float> {
+  typedef cuFloatComplex Type;
+};
+
+template<>
+struct ComplexType<GPUDevice, double> {
+  typedef cuDoubleComplex Type;
+};
+#endif
 
 // Transform type naming by:
 // Dutt A, Rokhlin V. Fast Fourier transforms for nonequispaced data. SIAM
@@ -103,7 +141,15 @@ struct SpreadOptions {  // see spreadinterp:setup_spreader for defaults.
 };
 
 template<typename Device, typename FloatType>
-class Plan {
+class PlanBase {
+
+};
+
+template<typename Device, typename FloatType>
+class Plan;
+
+template<typename FloatType>
+class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
  public:
   
@@ -147,7 +193,7 @@ class Plan {
   FloatType* phiHat2;    // " y-axis.
   FloatType* phiHat3;    // " z-axis.
   
-  typename FftwComplexType<FloatType>::Type* fwBatch;    // (batches of) fine grid(s) for FFTW to plan & act on.
+  typename ComplexType<CPUDevice, FloatType>::Type* fwBatch;    // (batches of) fine grid(s) for FFTW to plan & act on.
                         // Usually the largest working array
   
   int64_t *sortIndices;  // precomputed NU pt permutation, speeds spread/interp
@@ -165,10 +211,67 @@ class Plan {
   // TYPE3PARAMS t3P; // groups together type 3 shift, scale, phase, parameters
   
   // The FFTW plan for FFTs.
-  typename FftwPlanType<FloatType>::Type fft_plan;
+  typename FftPlanType<CPUDevice, FloatType>::Type fft_plan;
   SpreadOptions<FloatType> spopts;
   Options options;
 };
+
+#if GOOGLE_CUDA
+template<typename FloatType>
+class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
+
+ public:
+
+	int type;
+	int dim;
+	int M;
+	int nf1;
+	int nf2;
+	int nf3;
+	int ms;
+	int mt;
+	int mu;
+	int ntransf;
+	int maxbatchsize;
+	int iflag;
+
+	int totalnumsubprob;
+	int byte_now;
+	FloatType *fwkerhalf1;
+	FloatType *fwkerhalf2;
+	FloatType *fwkerhalf3;
+
+	FloatType *kx;
+	FloatType *ky;
+	FloatType *kz;
+	typename ComplexType<GPUDevice, FloatType>::Type* c;
+	typename ComplexType<GPUDevice, FloatType>::Type* fw;
+	typename ComplexType<GPUDevice, FloatType>::Type* fk;
+
+	// Arrays that used in subprob method
+	int *idxnupts;//length: #nupts, index of the nupts in the bin-sorted order
+	int *sortidx; //length: #nupts, order inside the bin the nupt belongs to
+	int *numsubprob; //length: #bins,  number of subproblems in each bin
+	int *binsize; //length: #bins, number of nonuniform ponits in each bin
+	int *binstartpts; //length: #bins, exclusive scan of array binsize
+	int *subprob_to_bin;//length: #subproblems, the bin the subproblem works on 
+	int *subprobstartpts;//length: #bins, exclusive scan of array numsubprob
+
+	// Extra arrays for Paul's method
+	int *finegridsize;
+	int *fgstartpts;
+
+	// Arrays for 3d (need to sort out)
+	int *numnupts;
+	int *subprob_to_nupts;
+
+	typename FftPlanType<GPUDevice, FloatType>::Type fftplan;
+	cudaStream_t *streams;
+
+  SpreadOptions<FloatType> spopts;
+  Options options;
+};
+#endif // GOOGLE_CUDA
 
 } // namespace nufft
 } // namespace tensorflow

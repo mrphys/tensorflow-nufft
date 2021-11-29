@@ -28,14 +28,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#if GOOGLE_CUDA
+
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
 
 namespace tensorflow {
 namespace nufft {
 
-template class Plan<CPUDevice, float>;
-template class Plan<CPUDevice, double>;
+template class Plan<GPUDevice, float>;
+template class Plan<GPUDevice, double>;
 
 } // namespace nufft
 } // namespace tensorflow
+
+#endif // GOOGLE_CUDA

@@ -23,7 +23,6 @@ limitations under the License.
 #include <vector>
 #include <unistd.h>
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft_eitherprec.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft_definitions.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/dataTypes.h"
@@ -38,10 +37,6 @@ extern "C" {
   #include "tensorflow_nufft/cc/kernels/finufft/cpu/contrib/legendre_rule_fast.h"
 }
 
-
-namespace tensorflow {
-  typedef Eigen::ThreadPoolDevice CPUDevice;
-}
 
 using namespace std;
 using namespace tensorflow;

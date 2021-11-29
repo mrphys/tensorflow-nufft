@@ -27,7 +27,7 @@ using namespace tensorflow;
 using namespace tensorflow::nufft;
 
 int CUFINUFFT_INTERP3D(int nf1, int nf2, int nf3, CUCPX* d_fw, int M, FLT *d_kx, 
-	FLT *d_ky, FLT *d_kz, CUCPX *d_c, CUFINUFFT_PLAN_S* d_plan)
+	FLT *d_ky, FLT *d_kz, CUCPX *d_c, Plan<GPUDevice, FLT>* d_plan)
 /*
 	This c function is written for only doing 3D interpolation. See 
 	test/interp3d_test.cu for usage.
@@ -102,7 +102,7 @@ int CUFINUFFT_INTERP3D(int nf1, int nf2, int nf3, CUCPX* d_fw, int M, FLT *d_kx,
 	return ier;
 }
 
-int CUINTERP3D(CUFINUFFT_PLAN_S* d_plan, int blksize)
+int CUINTERP3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 /*
 	A wrapper for different interpolation methods. 
 
@@ -166,7 +166,7 @@ int CUINTERP3D(CUFINUFFT_PLAN_S* d_plan, int blksize)
 }
 
 
-int CUINTERP3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M, CUFINUFFT_PLAN_S* d_plan,
+int CUINTERP3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d_plan,
 	int blksize)
 {
 	cudaEvent_t start, stop;
@@ -221,7 +221,7 @@ int CUINTERP3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M, CUFINUFFT_PLAN_S* d
 	return 0;
 }
 
-int CUINTERP3D_SUBPROB(int nf1, int nf2, int nf3, int M, CUFINUFFT_PLAN_S* d_plan,
+int CUINTERP3D_SUBPROB(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d_plan,
 	int blksize)
 {
 	cudaEvent_t start, stop;

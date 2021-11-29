@@ -17,16 +17,17 @@ limitations under the License.
 #define __MEMTRANSFER_H__
 
 #include <tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft_eitherprec.h>
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
-int ALLOCGPUMEM1D_PLAN(CUFINUFFT_PLAN_S* d_plan);
-int ALLOCGPUMEM1D_NUPTS(CUFINUFFT_PLAN_S* d_plan);
-void FREEGPUMEMORY1D(CUFINUFFT_PLAN_S* d_plan);
+int ALLOCGPUMEM1D_PLAN(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+int ALLOCGPUMEM1D_NUPTS(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+void FREEGPUMEMORY1D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 
-int ALLOCGPUMEM2D_PLAN(CUFINUFFT_PLAN_S* d_plan);
-int ALLOCGPUMEM2D_NUPTS(CUFINUFFT_PLAN_S* d_plan);
-void FREEGPUMEMORY2D(CUFINUFFT_PLAN_S* d_plan);
+int ALLOCGPUMEM2D_PLAN(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+int ALLOCGPUMEM2D_NUPTS(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+void FREEGPUMEMORY2D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 
-int ALLOCGPUMEM3D_PLAN(CUFINUFFT_PLAN_S* d_plan);
-int ALLOCGPUMEM3D_NUPTS(CUFINUFFT_PLAN_S* d_plan);
-void FREEGPUMEMORY3D(CUFINUFFT_PLAN_S* d_plan);
+int ALLOCGPUMEM3D_PLAN(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+int ALLOCGPUMEM3D_NUPTS(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+void FREEGPUMEMORY3D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 #endif

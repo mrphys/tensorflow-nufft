@@ -27,10 +27,14 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cuspreadinterp.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cudeconvolve.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/memtransfer.h"
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
 using namespace std;
+using namespace tensorflow;
+using namespace tensorflow::nufft;
 
-int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
+
+int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 /*  
 	3D Type-1 NUFFT
 
@@ -114,7 +118,7 @@ int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 	return ier;
 }
 
-int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
+int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 /*  
 	3D Type-2 NUFFT
 
@@ -191,7 +195,7 @@ int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 	return ier;
 }
 
-int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
+int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 {
 	assert(d_plan->spopts.spread_direction == 2);
 
@@ -231,7 +235,7 @@ int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 	return ier;
 }
 
-int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
+int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 {
 	assert(d_plan->spopts.spread_direction == 1);
 	cudaEvent_t start, stop;

@@ -20,6 +20,7 @@ limitations under the License.
 
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft.h"
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 #include "tensorflow_nufft/cc/kernels/nufft.h"
 
 
@@ -31,12 +32,12 @@ namespace nufft {
 
 template<>
 struct plan_type<GPUDevice, float> {
-  typedef cufinufftf_plan_s* type;
+  typedef Plan<tensorflow::GPUDevice, float>* type;
 };
 
 template<>
 struct plan_type<GPUDevice, double> {
-  typedef cufinufft_plan_s* type;
+  typedef Plan<tensorflow::GPUDevice, double>* type;
 };
 
 template<>

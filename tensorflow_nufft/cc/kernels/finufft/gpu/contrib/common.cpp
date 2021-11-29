@@ -18,7 +18,7 @@ using namespace tensorflow;
 using namespace tensorflow::nufft;
 
 
-int setup_spreader_for_nufft(SPREAD_OPTS &spopts, FLT eps,
+int setup_spreader_for_nufft(SpreadOptions<FLT> &spopts, FLT eps,
                              const Options& options,
                              int dim)
 // Set up the spreader parameters given eps, and pass across various nufft
@@ -32,7 +32,7 @@ int setup_spreader_for_nufft(SPREAD_OPTS &spopts, FLT eps,
 }
 
 
-int SET_NF_TYPE12(BIGINT ms, SPREAD_OPTS spopts,
+int SET_NF_TYPE12(BIGINT ms, SpreadOptions<FLT> spopts,
                   const Options& options,
 				          BIGINT *nf, BIGINT bs)
 // type 1 & 2 recipe for how to set 1d size of upsampled array, nf, given opts
@@ -62,7 +62,9 @@ int SET_NF_TYPE12(BIGINT ms, SPREAD_OPTS spopts,
   return 0;
 }
 
-void onedim_fseries_kernel(BIGINT nf, FLT *fwkerhalf, SPREAD_OPTS opts)
+#define MIN(a,b) (a<b) ? a : b
+
+void onedim_fseries_kernel(BIGINT nf, FLT *fwkerhalf, SpreadOptions<FLT> opts)
 /*
   Approximates exact Fourier series coeffs of cnufftspread's real symmetric
   kernel, directly via q-node quadrature on Euler-Fourier formula, exploiting

@@ -22,6 +22,8 @@ limitations under the License.
 #include "cudeconvolve.h"
 
 using namespace std;
+using namespace tensorflow;
+using namespace tensorflow::nufft;
 
 /* Kernel for copying fw to fk with amplication by prefac/ker */
 // Note: assume modeord=0: CMCL-compatible mode ordering in fk (from -N/2 up 
@@ -112,7 +114,7 @@ void Amplify_3d(int ms, int mt, int mu, int nf1, int nf2, int nf3, CUCPX* fw,
 }
 
 
-int CUDECONVOLVE2D(CUFINUFFT_PLAN_S* d_plan, int blksize)
+int CUDECONVOLVE2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 /* 
 	wrapper for deconvolution & amplication in 2D.
 
@@ -158,7 +160,7 @@ int CUDECONVOLVE2D(CUFINUFFT_PLAN_S* d_plan, int blksize)
 	return 0;
 }
 
-int CUDECONVOLVE3D(CUFINUFFT_PLAN_S* d_plan, int blksize)
+int CUDECONVOLVE3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 /* 
 	wrapper for deconvolution & amplication in 3D.
 

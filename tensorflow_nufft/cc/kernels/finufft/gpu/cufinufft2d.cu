@@ -33,7 +33,7 @@ using namespace tensorflow;
 using namespace tensorflow::nufft;
 
 
-int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
+int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 /*  
 	2D Type-1 NUFFT
 
@@ -116,7 +116,7 @@ int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 	return ier;
 }
 
-int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
+int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 /*  
 	2D Type-2 NUFFT
 
@@ -194,7 +194,7 @@ int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 	return ier;
 }
 
-int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
+int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 {
 	assert(d_plan->spopts.spread_direction == 2);
 
@@ -234,7 +234,7 @@ int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 	return ier;
 }
 
-int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
+int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 {
 	assert(d_plan->spopts.spread_direction == 1);
 	cudaEvent_t start, stop;

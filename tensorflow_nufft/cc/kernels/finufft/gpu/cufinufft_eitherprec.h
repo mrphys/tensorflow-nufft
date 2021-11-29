@@ -33,6 +33,7 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/spreadinterp.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/utils_fp.h"
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
 
 #ifndef SINGLE
@@ -100,7 +101,6 @@ limitations under the License.
 #undef CUDECONVOLVE2D
 #undef CUDECONVOLVE3D
 /* structs */
-#undef CUFINUFFT_PLAN_S
 
 
 #ifdef SINGLE
@@ -159,7 +159,6 @@ limitations under the License.
 #define CUDECONVOLVE2D cudeconvolve2df
 #define CUDECONVOLVE3D cudeconvolve3df
 /* structs */
-#define CUFINUFFT_PLAN_S cufinufftf_plan_s
 
 #else
 
@@ -219,71 +218,12 @@ limitations under the License.
 /* deconvolve */
 #define CUDECONVOLVE2D cudeconvolve2d
 #define CUDECONVOLVE3D cudeconvolve3d
-/* structs */
-#define CUFINUFFT_PLAN_S cufinufft_plan_s
+
 
 #endif
 
-typedef struct CUFINUFFT_PLAN_S {
-
-	SPREAD_OPTS     spopts;
-	tensorflow::nufft::Options options;
-
-	int type;
-	int dim;
-	int M;
-	int nf1;
-	int nf2;
-	int nf3;
-	int ms;
-	int mt;
-	int mu;
-	int ntransf;
-	int maxbatchsize;
-	int iflag;
-
-	int totalnumsubprob;
-	int byte_now;
-	FLT *fwkerhalf1;
-	FLT *fwkerhalf2;
-	FLT *fwkerhalf3;
-
-	FLT *kx;
-	FLT *ky;
-	FLT *kz;
-	CUCPX *c;
-	CUCPX *fw;
-	CUCPX *fk;
-
-	// Arrays that used in subprob method
-	int *idxnupts;//length: #nupts, index of the nupts in the bin-sorted order
-	int *sortidx; //length: #nupts, order inside the bin the nupt belongs to
-	int *numsubprob; //length: #bins,  number of subproblems in each bin
-	int *binsize; //length: #bins, number of nonuniform ponits in each bin
-	int *binstartpts; //length: #bins, exclusive scan of array binsize
-	int *subprob_to_bin;//length: #subproblems, the bin the subproblem works on 
-	int *subprobstartpts;//length: #bins, exclusive scan of array numsubprob
-
-	// Extra arrays for Paul's method
-	int *finegridsize;
-	int *fgstartpts;
-
-	// Arrays for 3d (need to sort out)
-	int *numnupts;
-	int *subprob_to_nupts;
-
-	cufftHandle fftplan;
-	cudaStream_t *streams;
-
-} CUFINUFFT_PLAN_S;
-
-//The plan that is passed around is a pointer to a struct.
-//makeplan will utilize a double pointer.
-//This encourages bindings to treat the struct as opaque.
-
-
-/* We include common.h here because it depends on SPREAD_OPTS and
-   CUFINUFFT_PLAN_S structs being completely defined first. */
+/* We include common.h here because it depends on SpreadOptions<FLT> and
+   tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT> structs being completely defined first. */
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/common.h"
 
 #define checkCufftErrors(call)
@@ -293,33 +233,33 @@ extern "C" {
 #endif
 int CUFINUFFT_MAKEPLAN(int type, int dim, int *n_modes, int iflag,
 		       int ntransf, FLT tol, int maxbatchsize,
-		       CUFINUFFT_PLAN_S* *d_plan_ptr,
+		       tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* *d_plan_ptr,
 			   const tensorflow::nufft::Options& options);
 int CUFINUFFT_SETPTS(int M, FLT* h_kx, FLT* h_ky, FLT* h_kz, int N, FLT *h_s,
-	FLT *h_t, FLT *h_u, CUFINUFFT_PLAN_S* d_plan);
-int CUFINUFFT_EXECUTE(CUCPX* h_c, CUCPX* h_fk, CUFINUFFT_PLAN_S* d_plan);
-int CUFINUFFT_INTERP(CUCPX* h_c, CUCPX* h_fk, CUFINUFFT_PLAN_S* d_plan);
-int CUFINUFFT_SPREAD(CUCPX* h_c, CUCPX* h_fk, CUFINUFFT_PLAN_S* d_plan);
-int CUFINUFFT_DESTROY(CUFINUFFT_PLAN_S* d_plan);
+	FLT *h_t, FLT *h_u, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+int CUFINUFFT_EXECUTE(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+int CUFINUFFT_INTERP(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+int CUFINUFFT_SPREAD(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+int CUFINUFFT_DESTROY(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 #ifdef __cplusplus
 }
 #endif
 
 
 // 2d
-int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
-int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
+int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 
 // 3d
-int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
-int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
+int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 
 // 2d
-int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
-int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
+int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 
 // 3d
-int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
-int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
+int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 
 #endif

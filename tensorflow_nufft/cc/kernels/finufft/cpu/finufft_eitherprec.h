@@ -62,11 +62,6 @@ extern "C"
 {
 #endif
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
-
-namespace tensorflow {
-  typedef Eigen::ThreadPoolDevice CPUDevice;
-}
 
 // ------------------ the guru interface ------------------------------------
 // (sources in finufft.cpp)

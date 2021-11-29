@@ -40,7 +40,7 @@ typedef complex<double> dcomplex;  // slightly sneaky since duplicated by mwrap
 
 
 //#define MAX(a,b) (a>b) ? a : b  // but we use std::max instead
-#define MIN(a,b) (a<b) ? a : b
+// #define MIN(a,b) (a<b) ? a : b
 
 // jfm timer class
 #include <sys/time.h>

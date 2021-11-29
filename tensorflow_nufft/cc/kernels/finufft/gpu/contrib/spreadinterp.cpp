@@ -6,7 +6,7 @@
 using namespace tensorflow::nufft;
 
 
-FLT calculate_scale_factor(SPREAD_OPTS &opts, int dim, FLT dummy = 0.0) {
+FLT calculate_scale_factor(SpreadOptions<FLT> &opts, int dim, FLT dummy = 0.0) {
   // Calculates the scaling factor for spread/interp only.
   // Dummy param is used to trigger float/double overloading and avoid
   // redefinition errors.
@@ -31,12 +31,12 @@ FLT calculate_scale_factor(SPREAD_OPTS &opts, int dim, FLT dummy = 0.0) {
   return 1.0 / scale;
 }
 
-int setup_spreader(SPREAD_OPTS &opts,FLT eps, FLT upsampling_factor,
+int setup_spreader(SpreadOptions<FLT> &opts,FLT eps, FLT upsampling_factor,
                    KernelEvaluationMethod kernel_evaluation_method, int dim)
 // Initializes spreader kernel parameters given desired NUFFT tolerance eps,
 // upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), and ker eval meth
 // (etiher 0:exp(sqrt()), 1: Horner ppval).
-// Also sets all default options in SPREAD_OPTS. See cnufftspread.h for opts.
+// Also sets all default options in SpreadOptions<FLT>. See cnufftspread.h for opts.
 // Must call before any kernel evals done.
 // Returns: 0 success, 1, warning, >1 failure (see error codes in utils.h)
 {
@@ -99,7 +99,7 @@ int setup_spreader(SPREAD_OPTS &opts,FLT eps, FLT upsampling_factor,
 
 namespace cufinufft {
 
-FLT evaluate_kernel(FLT x, const SPREAD_OPTS &opts)
+FLT evaluate_kernel(FLT x, const SpreadOptions<FLT> &opts)
 /* ES ("exp sqrt") kernel evaluation at single real argument:
       phi(x) = exp(beta.sqrt(1 - (2x/n_s)^2)),    for |x| < nspread/2
    related to an asymptotic approximation to the Kaiser--Bessel, itself an

@@ -67,11 +67,13 @@ NVARCH ?= \
 
 CUFLAGS = $(NVARCH) -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-constexpr
 CUFLAGS += -I$(ROOT_DIR)
+CUFLAGS += -Xcudafe --diag_suppress=20012
 
 CUFINUFFT_CUFLAGS ?= -std=c++14 -ccbin=$(CXX) -O3 $(NVARCH) \
 	-Wno-deprecated-gpu-targets --default-stream per-thread \
-	-Xcompiler "$(CXXFLAGS)"
+	-Xcompiler "$(CXXFLAGS)" --expt-relaxed-constexpr
 CUFINUFFT_CUFLAGS += -I$(CUFINUFFT_ROOT)
+CUFINUFFT_CUFLAGS += -Xcudafe --diag_suppress=20012
 
 
 # ==============================================================================

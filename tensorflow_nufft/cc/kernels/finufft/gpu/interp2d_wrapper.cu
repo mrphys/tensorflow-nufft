@@ -20,8 +20,9 @@ limitations under the License.
 #include <cuComplex.h>
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cuspreadinterp.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/memtransfer.h"
-#include "tensorflow_nufft/cc/kernels/nufft_options.h"
 #include <profile.h>
+#include "tensorflow_nufft/cc/kernels/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
 using namespace std;
 using namespace tensorflow;
@@ -29,7 +30,7 @@ using namespace tensorflow::nufft;
 
 
 int CUFINUFFT_INTERP2D(int nf1, int nf2, CUCPX* d_fw, int M, 
-	FLT *d_kx, FLT *d_ky, CUCPX *d_c, CUFINUFFT_PLAN_S* d_plan)
+	FLT *d_kx, FLT *d_ky, CUCPX *d_c, Plan<GPUDevice, FLT>* d_plan)
 /*
 	This c function is written for only doing 2D interpolation. See 
 	test/interp2d_test.cu for usage.
@@ -100,7 +101,7 @@ int CUFINUFFT_INTERP2D(int nf1, int nf2, CUCPX* d_fw, int M,
 	return ier;
 }
 
-int CUINTERP2D(CUFINUFFT_PLAN_S* d_plan, int blksize)
+int CUINTERP2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 /*
 	A wrapper for different interpolation methods. 
 
@@ -159,7 +160,7 @@ int CUINTERP2D(CUFINUFFT_PLAN_S* d_plan, int blksize)
 	return ier;
 }
 
-int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, CUFINUFFT_PLAN_S* d_plan,
+int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 	int blksize)
 {
 	cudaEvent_t start, stop;
@@ -211,7 +212,7 @@ int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, CUFINUFFT_PLAN_S* d_plan,
 	return 0;
 }
 
-int CUINTERP2D_SUBPROB(int nf1, int nf2, int M, CUFINUFFT_PLAN_S* d_plan,
+int CUINTERP2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 	int blksize)
 {
 	cudaEvent_t start, stop;

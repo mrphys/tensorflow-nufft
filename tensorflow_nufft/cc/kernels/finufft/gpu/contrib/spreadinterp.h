@@ -8,33 +8,31 @@
 #include "utils_fp.h"
 
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
 
 #define MAX_NSPREAD 16     // upper bound on w, ie nspread, even when padded
                            // (see evaluate_kernel_vector); also for common
 
-#undef SPREAD_OPTS
 
 #ifdef SINGLE
-#define SPREAD_OPTS spread_optsf
 #define SPREADINTERPF_H
 #else
-#define SPREAD_OPTS spread_opts
 #define SPREADINTERP_H
 #endif
 
-struct SPREAD_OPTS {      // see cnufftspread:setup_spreader for defaults.
-  int nspread;            // w, the kernel width in grid pts
-  int spread_direction;   // 1 means spread NU->U, 2 means interpolate U->NU
-  int pirange;            // 0: coords in [0,N), 1 coords in [-pi,pi)
-  FLT upsampling_factor;          // sigma, upsampling factor, default 2.0
-  bool spread_interp_only; // 0: NUFFT, 1: spread or interpolation only
-  // ES kernel specific...
-  FLT ES_beta;
-  FLT ES_halfwidth;
-  FLT ES_c;
-  FLT ES_scale;           // used for spread/interp only
-};
+// struct tensorflow::nufft::SpreadOptions<FLT> {      // see cnufftspread:setup_spreader for defaults.
+//   int nspread;            // w, the kernel width in grid pts
+//   int spread_direction;   // 1 means spread NU->U, 2 means interpolate U->NU
+//   int pirange;            // 0: coords in [0,N), 1 coords in [-pi,pi)
+//   FLT upsampling_factor;          // sigma, upsampling factor, default 2.0
+//   bool spread_interp_only; // 0: NUFFT, 1: spread or interpolation only
+//   // ES kernel specific...
+//   FLT ES_beta;
+//   FLT ES_halfwidth;
+//   FLT ES_c;
+//   FLT ES_scale;           // used for spread/interp only
+// };
 
 // NU coord handling macro: if p is true, rescales from [-pi,pi] to [0,N], then
 // folds *only* one period below and above, ie [-N,2N], into the domain [0,N]...
@@ -43,10 +41,10 @@ struct SPREAD_OPTS {      // see cnufftspread:setup_spreader for defaults.
 		     (x<0 ? x+N : (x>=N ? x-N : x)))
 // yuk! But this is *so* much faster than slow std::fmod that we stick to it.
 namespace cufinufft {
-FLT evaluate_kernel(FLT x, const SPREAD_OPTS &opts);
+FLT evaluate_kernel(FLT x, const tensorflow::nufft::SpreadOptions<FLT> &opts);
 } // namespace cufinufft
 
-int setup_spreader(SPREAD_OPTS &opts, FLT eps, FLT upsampling_factor,
+int setup_spreader(tensorflow::nufft::SpreadOptions<FLT> &opts, FLT eps, FLT upsampling_factor,
                    tensorflow::nufft::KernelEvaluationMethod kernel_evaluation_method,
                    int dim);
 

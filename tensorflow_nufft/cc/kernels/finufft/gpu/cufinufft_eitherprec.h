@@ -101,7 +101,6 @@ limitations under the License.
 #undef CUDECONVOLVE3D
 /* structs */
 #undef CUFINUFFT_PLAN_S
-#undef CUFINUFFT_PLAN
 
 
 #ifdef SINGLE
@@ -161,7 +160,6 @@ limitations under the License.
 #define CUDECONVOLVE3D cudeconvolve3df
 /* structs */
 #define CUFINUFFT_PLAN_S cufinufftf_plan_s
-#define CUFINUFFT_PLAN cufinufftf_plan
 
 #else
 
@@ -223,7 +221,6 @@ limitations under the License.
 #define CUDECONVOLVE3D cudeconvolve3d
 /* structs */
 #define CUFINUFFT_PLAN_S cufinufft_plan_s
-#define CUFINUFFT_PLAN cufinufft_plan
 
 #endif
 
@@ -283,7 +280,6 @@ typedef struct CUFINUFFT_PLAN_S {
 //The plan that is passed around is a pointer to a struct.
 //makeplan will utilize a double pointer.
 //This encourages bindings to treat the struct as opaque.
-typedef struct CUFINUFFT_PLAN_S * CUFINUFFT_PLAN;
 
 
 /* We include common.h here because it depends on SPREAD_OPTS and

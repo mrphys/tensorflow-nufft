@@ -62,6 +62,12 @@ enum class TransformType {
   TYPE_3  // non-uniform to non-uniform (not implemented)
 };
 
+typedef struct {
+  FLT X1,C1,D1,h1,gam1;  // x dim: X=halfwid C=center D=freqcen h,gam=rescale
+  FLT X2,C2,D2,h2,gam2;  // y
+  FLT X3,C3,D3,h3,gam3;  // z
+} TYPE3PARAMS;
+
 template<typename Device, typename FloatType>
 class Plan {
 

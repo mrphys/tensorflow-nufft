@@ -37,21 +37,14 @@ limitations under the License.
 
 // clear macros so can refine
 #undef TYPE3PARAMS
-#undef FINUFFT_PLAN
 #undef FINUFFT_PLAN_S
 #ifdef SINGLE
 #define FINUFFT_PLAN_S finufftf_plan_s
 #define TYPE3PARAMS type3Paramsf
-#define FINUFFT_PLAN finufftf_plan
 #else
 #define FINUFFT_PLAN_S finufft_plan_s
 #define TYPE3PARAMS type3Params
-#define FINUFFT_PLAN finufft_plan
 #endif
-
-// the plan handle that we pass around is just a pointer to the struct that
-// contains all the info
-typedef struct FINUFFT_PLAN_S* FINUFFT_PLAN;
 
 // group together a bunch of type 3 rescaling/centering/phasing parameters:
 typedef struct {

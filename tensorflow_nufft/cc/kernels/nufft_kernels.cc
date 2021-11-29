@@ -39,12 +39,12 @@ namespace nufft {
 
 template<>
 struct plan_type<CPUDevice, float> {
-  typedef finufftf_plan type;
+  typedef finufftf_plan_s* type;
 };
 
 template<>
 struct plan_type<CPUDevice, double> {
-  typedef finufft_plan type;
+  typedef finufft_plan_s* type;
 };
 
 template<>

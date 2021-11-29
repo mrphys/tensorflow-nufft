@@ -436,7 +436,7 @@ void deconvolveshuffle3d(int dir,FLT prefac,FLT *ker1, FLT *ker2,
 
 // --------- batch helper functions for t1,2 exec: ---------------------------
 
-int spreadinterpSortedBatch(int batchSize, FINUFFT_PLAN p, CPX* cBatch, CPX* fBatch=NULL)
+int spreadinterpSortedBatch(int batchSize, FINUFFT_PLAN_S* p, CPX* cBatch, CPX* fBatch=NULL)
 /*
   Spreads (or interpolates) a batch of batchSize strength vectors in cBatch
   to (or from) the batch of fine working grids p->fwBatch, using the same set of
@@ -472,7 +472,7 @@ int spreadinterpSortedBatch(int batchSize, FINUFFT_PLAN p, CPX* cBatch, CPX* fBa
   return 0;
 }
 
-int deconvolveBatch(int batchSize, FINUFFT_PLAN p, CPX* fkBatch)
+int deconvolveBatch(int batchSize, FINUFFT_PLAN_S* p, CPX* fkBatch)
 /*
   Type 1: deconvolves (amplifies) from each interior fw array in p->fwBatch
   into each output array fk in fkBatch.
@@ -516,7 +516,7 @@ int deconvolveBatch(int batchSize, FINUFFT_PLAN p, CPX* fkBatch)
 #define GRIDSIZE_FOR_FFTW gridsize_for_fftw
 #endif
 
-int* GRIDSIZE_FOR_FFTW(FINUFFT_PLAN p){
+int* GRIDSIZE_FOR_FFTW(FINUFFT_PLAN_S* p){
 // local helper func returns a new int array of length dim, extracted from
 // the finufft plan, that fftw_plan_many_dft needs as its 2nd argument.
   int* nf;
@@ -551,13 +551,13 @@ int* GRIDSIZE_FOR_FFTW(FINUFFT_PLAN p){
 // For types 1,2 allocates memory for internal working arrays,
 // evaluates spreading kernel coefficients, and instantiates the fft_plan
 int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
-                     int ntrans, FLT tol, FINUFFT_PLAN *plan,
+                     int ntrans, FLT tol, FINUFFT_PLAN_S **plan,
                      const Options& options)
 {
   cout << scientific << setprecision(15);  // for commented-out low-lev debug
 
   // Allocate fresh plan struct.
-  FINUFFT_PLAN p = new FINUFFT_PLAN_S;
+  FINUFFT_PLAN_S* p = new FINUFFT_PLAN_S;
   *plan = p;
 
   // Keep a deep copy of the options. Changing the input structure after this
@@ -752,7 +752,7 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
 
 
 // SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS
-int FINUFFT_SETPTS(FINUFFT_PLAN p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj,
+int FINUFFT_SETPTS(FINUFFT_PLAN_S* p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj,
                    BIGINT nk, FLT* s, FLT* t, FLT* u)
 /* For type 1,2: just checks and (possibly) sorts the NU xyz points, in prep for
    spreading. (The last 4 arguments are ignored.)
@@ -792,7 +792,7 @@ int FINUFFT_SETPTS(FINUFFT_PLAN p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj,
 // ............ end setpts ..................................................
 
 
-int FINUFFT_SPREADINTERP(FINUFFT_PLAN p, CPX* cj, CPX* fk) {
+int FINUFFT_SPREADINTERP(FINUFFT_PLAN_S* p, CPX* cj, CPX* fk) {
 
   double t_sprint = 0.0, t_fft = 0.0, t_deconv = 0.0;  // accumulated timing
 
@@ -812,20 +812,20 @@ int FINUFFT_SPREADINTERP(FINUFFT_PLAN p, CPX* cj, CPX* fk) {
 }
 
 
-int FINUFFT_INTERP(FINUFFT_PLAN p, CPX* cj, CPX* fk) {
+int FINUFFT_INTERP(FINUFFT_PLAN_S* p, CPX* cj, CPX* fk) {
     
   return FINUFFT_SPREADINTERP(p, cj, fk);
 }
 
 
-int FINUFFT_SPREAD(FINUFFT_PLAN p, CPX* cj, CPX* fk) {
+int FINUFFT_SPREAD(FINUFFT_PLAN_S* p, CPX* cj, CPX* fk) {
 
   return FINUFFT_SPREADINTERP(p, cj, fk);
 }
 
 
 // EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
-int FINUFFT_EXECUTE(FINUFFT_PLAN p, CPX* cj, CPX* fk){
+int FINUFFT_EXECUTE(FINUFFT_PLAN_S* p, CPX* cj, CPX* fk){
 /* See ../docs/cguru.doc for current documentation.
 
    For given (stack of) weights cj or coefficients fk, performs NUFFTs with
@@ -967,7 +967,7 @@ int FINUFFT_EXECUTE(FINUFFT_PLAN p, CPX* cj, CPX* fk){
 
 
 // DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
-int FINUFFT_DESTROY(FINUFFT_PLAN p)
+int FINUFFT_DESTROY(FINUFFT_PLAN_S* p)
 // Free everything we allocated inside of finufft_plan pointed to by p.
 // Also must not crash if called immediately after finufft_makeplan.
 // Thus either each thing free'd here is guaranteed to be NULL or correctly

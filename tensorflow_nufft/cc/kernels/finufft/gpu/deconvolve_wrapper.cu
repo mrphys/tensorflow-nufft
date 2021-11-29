@@ -112,7 +112,7 @@ void Amplify_3d(int ms, int mt, int mu, int nf1, int nf2, int nf3, CUCPX* fw,
 }
 
 
-int CUDECONVOLVE2D(CUFINUFFT_PLAN d_plan, int blksize)
+int CUDECONVOLVE2D(CUFINUFFT_PLAN_S* d_plan, int blksize)
 /* 
 	wrapper for deconvolution & amplication in 2D.
 
@@ -158,7 +158,7 @@ int CUDECONVOLVE2D(CUFINUFFT_PLAN d_plan, int blksize)
 	return 0;
 }
 
-int CUDECONVOLVE3D(CUFINUFFT_PLAN d_plan, int blksize)
+int CUDECONVOLVE3D(CUFINUFFT_PLAN_S* d_plan, int blksize)
 /* 
 	wrapper for deconvolution & amplication in 3D.
 

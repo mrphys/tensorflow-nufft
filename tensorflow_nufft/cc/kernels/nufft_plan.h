@@ -1,3 +1,18 @@
+/* Copyright 2021 University College London. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================*/
+
 /* Copyright 2017-2021 The Simons Foundation. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,56 +28,60 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H
+#define TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H
 
-// Switchable-precision interface template for FINUFFT PLAN struct, used by
-// finufft_plan.h.
-// Internal use only: users should link to finufft.h
-// Barnett 7/5/20
+#include <fftw3.h>
 
-#if (!defined(FINUFFT_PLAN_H) && !defined(SINGLE)) || (!defined(FINUFFTF_PLAN_H) && defined(SINGLE))
-// Make sure we don't include double and single headers more than once each...
-#ifndef SINGLE
-#define FINUFFT_PLAN_H
-#else
-#define FINUFFTF_PLAN_H
-#endif
-
-#include "tensorflow_nufft/cc/kernels/finufft/cpu/fftw_definitions.h"
-#include "tensorflow_nufft/cc/kernels/finufft/cpu/spread_opts.h"
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
-
-#ifndef __cplusplus
-#include <stdbool.h>     // for bools in C
-#endif
-
-// clear macros so can refine
-#undef TYPE3PARAMS
-#undef FINUFFT_PLAN
-#undef FINUFFT_PLAN_S
-#ifdef SINGLE
-#define FINUFFT_PLAN_S finufftf_plan_s
-#define TYPE3PARAMS type3Paramsf
-#define FINUFFT_PLAN finufftf_plan
-#else
-#define FINUFFT_PLAN_S finufft_plan_s
-#define TYPE3PARAMS type3Params
-#define FINUFFT_PLAN finufft_plan
-#endif
-
-// the plan handle that we pass around is just a pointer to the struct that
-// contains all the info
-typedef struct FINUFFT_PLAN_S* FINUFFT_PLAN;
-
-// group together a bunch of type 3 rescaling/centering/phasing parameters:
-typedef struct {
-  FLT X1,C1,D1,h1,gam1;  // x dim: X=halfwid C=center D=freqcen h,gam=rescale
-  FLT X2,C2,D2,h2,gam2;  // y
-  FLT X3,C3,D3,h3,gam3;  // z
-} TYPE3PARAMS;
+#include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft_plan.h"
 
 
-typedef struct FINUFFT_PLAN_S {  // the main plan struct; note C-compatible struct
+namespace tensorflow {
+namespace nufft {
+
+template<typename FloatType>
+struct FftwPlanType;
+
+template<>
+struct FftwPlanType<float> {
+  typedef fftwf_plan Type;
+};
+
+template<>
+struct FftwPlanType<double> {
+  typedef fftw_plan Type;
+};
+
+// Transform type naming by:
+// Dutt A, Rokhlin V. Fast Fourier transforms for nonequispaced data. SIAM
+// Journal on Scientific computing. 1993 Nov;14(6):1368-93.
+enum class TransformType {
+  TYPE_1, // non-uniform to uniform
+  TYPE_2, // uniform to non-uniform
+  TYPE_3  // non-uniform to non-uniform (not implemented)
+};
+
+template<typename Device, typename FloatType>
+class Plan {
+
+ public:
   
+  // // The type of the transform. See enum above.
+  // TransformType type;
+
+  // // The rank of the transform (number of dimensions). Must be 1, 2 or 3.
+  // unsigned int rank;
+
+  // // How many transforms to compute.
+  // unsigned int num_transforms;
+
+  // // Number of non-uniform points.
+  // unsigned int num_points;
+
+  // // Relative tolerance.
+  // FloatType tolerance;
+
   int type;        // transform type (Rokhlin naming): 1,2 or 3
   int dim;         // overall dimension: 1,2 or 3
   int ntrans;      // how many transforms to do at once (vector or "many" mode)
@@ -104,13 +123,18 @@ typedef struct FINUFFT_PLAN_S {  // the main plan struct; note C-compatible stru
   CPX* CpBatch;    // working array of prephased strengths
   FLT *Sp, *Tp, *Up;  // internal primed targs (s'_k, etc), allocated
   TYPE3PARAMS t3P; // groups together type 3 shift, scale, phase, parameters
-  FINUFFT_PLAN_S* innerT2plan;   // ptr used for type 2 in step 2 of type 3
   
-  // other internal structs; each is C-compatible of course
-  FFTW_PLAN fft_plan;
+  // The FFTW plan for FFTs.
+  typename FftwPlanType<FloatType>::Type fft_plan;
+
   spread_opts spopts;
-  tensorflow::nufft::Options options;
+  Options options;
+};
 
-} FINUFFT_PLAN_S;
+// template<typename Device, typename FloatType>
+// using PlanPtr = Plan<Device, FloatType>*;
 
-#endif  // FINUFFT_PLAN_H or FINUFFTF_PLAN_H
+} // namespace nufft
+} // namespace tensorflow
+
+#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H

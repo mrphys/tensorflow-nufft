@@ -88,7 +88,7 @@ extern "C" {
 #endif
 int CUFINUFFT_MAKEPLAN(int type, int dim, int *nmodes, int iflag,
 		       int ntransf, FLT tol, int maxbatchsize,
-		       CUFINUFFT_PLAN *d_plan_ptr,
+		       CUFINUFFT_PLAN_S* *d_plan_ptr,
 			   const Options& options)
 /*
 	"plan" stage (in single or double precision).
@@ -131,7 +131,7 @@ This performs:
 	int ier;
 
 	/* allocate the plan structure, assign address to user pointer. */
-	CUFINUFFT_PLAN d_plan = new CUFINUFFT_PLAN_S;
+	CUFINUFFT_PLAN_S* d_plan = new CUFINUFFT_PLAN_S;
 	*d_plan_ptr = d_plan;
         // Zero out your struct, (sets all pointers to NULL)
 	memset(d_plan, 0, sizeof(*d_plan));
@@ -338,7 +338,7 @@ This performs:
 }
 
 int CUFINUFFT_SETPTS(int M, FLT* d_kx, FLT* d_ky, FLT* d_kz, int N, FLT *d_s,
-	FLT *d_t, FLT *d_u, CUFINUFFT_PLAN d_plan)
+	FLT *d_t, FLT *d_u, CUFINUFFT_PLAN_S* d_plan)
 /*
 	"setNUpts" stage (in single or double precision).
 
@@ -534,7 +534,7 @@ Notes: the type FLT means either single or double, matching the
 	return 0;
 }
 
-int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
+int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 /*
 	"exec" stage (single and double precision versions).
 
@@ -604,7 +604,7 @@ int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
 	return ier;
 }
 
-int CUFINUFFT_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
+int CUFINUFFT_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 {
 	// Mult-GPU support: set the CUDA Device ID:
 	int orig_gpu_device_id;
@@ -633,7 +633,7 @@ int CUFINUFFT_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
 	return ier;
 }
 
-int CUFINUFFT_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
+int CUFINUFFT_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 {
 	// Mult-GPU support: set the CUDA Device ID:
 	int orig_gpu_device_id;
@@ -662,7 +662,7 @@ int CUFINUFFT_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
 	return ier;
 }
 
-int CUFINUFFT_DESTROY(CUFINUFFT_PLAN d_plan)
+int CUFINUFFT_DESTROY(CUFINUFFT_PLAN_S* d_plan)
 /*
 	"destroy" stage (single and double precision versions).
 

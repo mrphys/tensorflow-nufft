@@ -30,7 +30,7 @@ limitations under the License.
 
 using namespace std;
 
-int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
+int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 /*  
 	3D Type-1 NUFFT
 
@@ -114,7 +114,7 @@ int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
 	return ier;
 }
 
-int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
+int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 /*  
 	3D Type-2 NUFFT
 
@@ -191,7 +191,7 @@ int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
 	return ier;
 }
 
-int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
+int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 {
 	assert(d_plan->spopts.spread_direction == 2);
 
@@ -231,7 +231,7 @@ int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
 	return ier;
 }
 
-int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan)
+int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan)
 {
 	assert(d_plan->spopts.spread_direction == 1);
 	cudaEvent_t start, stop;

@@ -65,12 +65,12 @@ extern "C"
 // ------------------ the guru interface ------------------------------------
 // (sources in finufft.cpp)
   
-int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag, int n_transf, FLT tol, FINUFFT_PLAN* plan, const tensorflow::nufft::Options& options);
-int FINUFFT_SETPTS(FINUFFT_PLAN plan , BIGINT M, FLT *xj, FLT *yj, FLT *zj, BIGINT N, FLT *s, FLT *t, FLT *u); 
-int FINUFFT_EXECUTE(FINUFFT_PLAN plan, CPX* weights, CPX* result);
-int FINUFFT_INTERP(FINUFFT_PLAN plan, CPX* weights, CPX* result);
-int FINUFFT_SPREAD(FINUFFT_PLAN plan, CPX* weights, CPX* result);
-int FINUFFT_DESTROY(FINUFFT_PLAN plan);
+int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag, int n_transf, FLT tol, FINUFFT_PLAN_S** plan, const tensorflow::nufft::Options& options);
+int FINUFFT_SETPTS(FINUFFT_PLAN_S* plan , BIGINT M, FLT *xj, FLT *yj, FLT *zj, BIGINT N, FLT *s, FLT *t, FLT *u); 
+int FINUFFT_EXECUTE(FINUFFT_PLAN_S* plan, CPX* weights, CPX* result);
+int FINUFFT_INTERP(FINUFFT_PLAN_S* plan, CPX* weights, CPX* result);
+int FINUFFT_SPREAD(FINUFFT_PLAN_S* plan, CPX* weights, CPX* result);
+int FINUFFT_DESTROY(FINUFFT_PLAN_S* plan);
 
   
 #ifdef __cplusplus

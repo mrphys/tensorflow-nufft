@@ -297,33 +297,33 @@ extern "C" {
 #endif
 int CUFINUFFT_MAKEPLAN(int type, int dim, int *n_modes, int iflag,
 		       int ntransf, FLT tol, int maxbatchsize,
-		       CUFINUFFT_PLAN *d_plan_ptr,
+		       CUFINUFFT_PLAN_S* *d_plan_ptr,
 			   const tensorflow::nufft::Options& options);
 int CUFINUFFT_SETPTS(int M, FLT* h_kx, FLT* h_ky, FLT* h_kz, int N, FLT *h_s,
-	FLT *h_t, FLT *h_u, CUFINUFFT_PLAN d_plan);
-int CUFINUFFT_EXECUTE(CUCPX* h_c, CUCPX* h_fk, CUFINUFFT_PLAN d_plan);
-int CUFINUFFT_INTERP(CUCPX* h_c, CUCPX* h_fk, CUFINUFFT_PLAN d_plan);
-int CUFINUFFT_SPREAD(CUCPX* h_c, CUCPX* h_fk, CUFINUFFT_PLAN d_plan);
-int CUFINUFFT_DESTROY(CUFINUFFT_PLAN d_plan);
+	FLT *h_t, FLT *h_u, CUFINUFFT_PLAN_S* d_plan);
+int CUFINUFFT_EXECUTE(CUCPX* h_c, CUCPX* h_fk, CUFINUFFT_PLAN_S* d_plan);
+int CUFINUFFT_INTERP(CUCPX* h_c, CUCPX* h_fk, CUFINUFFT_PLAN_S* d_plan);
+int CUFINUFFT_SPREAD(CUCPX* h_c, CUCPX* h_fk, CUFINUFFT_PLAN_S* d_plan);
+int CUFINUFFT_DESTROY(CUFINUFFT_PLAN_S* d_plan);
 #ifdef __cplusplus
 }
 #endif
 
 
 // 2d
-int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan);
-int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan);
+int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
+int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
 
 // 3d
-int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan);
-int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan);
+int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
+int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
 
 // 2d
-int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan);
-int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan);
+int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
+int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
 
 // 3d
-int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan);
-int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN d_plan);
+int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
+int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, CUFINUFFT_PLAN_S* d_plan);
 
 #endif

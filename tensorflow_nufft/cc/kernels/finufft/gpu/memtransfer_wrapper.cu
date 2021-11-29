@@ -25,7 +25,7 @@ using namespace tensorflow;
 using namespace tensorflow::nufft;
 
 
-int ALLOCGPUMEM2D_PLAN(CUFINUFFT_PLAN d_plan)
+int ALLOCGPUMEM2D_PLAN(CUFINUFFT_PLAN_S* d_plan)
 /*
 	wrapper for gpu memory allocation in "plan" stage.
 
@@ -114,7 +114,7 @@ int ALLOCGPUMEM2D_PLAN(CUFINUFFT_PLAN d_plan)
 	return 0;
 }
 
-int ALLOCGPUMEM2D_NUPTS(CUFINUFFT_PLAN d_plan)
+int ALLOCGPUMEM2D_NUPTS(CUFINUFFT_PLAN_S* d_plan)
 /*
 	wrapper for gpu memory allocation in "setNUpts" stage.
 
@@ -157,7 +157,7 @@ int ALLOCGPUMEM2D_NUPTS(CUFINUFFT_PLAN d_plan)
 	return 0;
 }
 
-void FREEGPUMEMORY2D(CUFINUFFT_PLAN d_plan)
+void FREEGPUMEMORY2D(CUFINUFFT_PLAN_S* d_plan)
 /*
 	wrapper for freeing gpu memory.
 
@@ -220,22 +220,22 @@ void FREEGPUMEMORY2D(CUFINUFFT_PLAN d_plan)
         cudaSetDevice(orig_gpu_device_id);
 }
 
-int ALLOCGPUMEM1D_PLAN(CUFINUFFT_PLAN d_plan)
+int ALLOCGPUMEM1D_PLAN(CUFINUFFT_PLAN_S* d_plan)
 {
 	cerr<<"Not yet implemented"<<endl;
 	return 1;
 }
-int ALLOCGPUMEM1D_NUPTS(CUFINUFFT_PLAN d_plan)
+int ALLOCGPUMEM1D_NUPTS(CUFINUFFT_PLAN_S* d_plan)
 {
 	cerr<<"Not yet implemented"<<endl;
 	return 1;
 }
-void FREEGPUMEMORY1D(CUFINUFFT_PLAN d_plan)
+void FREEGPUMEMORY1D(CUFINUFFT_PLAN_S* d_plan)
 {
 	cerr<<"Not yet implemented"<<endl;
 }
 
-int ALLOCGPUMEM3D_PLAN(CUFINUFFT_PLAN d_plan)
+int ALLOCGPUMEM3D_PLAN(CUFINUFFT_PLAN_S* d_plan)
 /*
 	wrapper for gpu memory allocation in "plan" stage.
 
@@ -333,7 +333,7 @@ int ALLOCGPUMEM3D_PLAN(CUFINUFFT_PLAN d_plan)
 	return 0;
 }
 
-int ALLOCGPUMEM3D_NUPTS(CUFINUFFT_PLAN d_plan)
+int ALLOCGPUMEM3D_NUPTS(CUFINUFFT_PLAN_S* d_plan)
 /*
 	wrapper for gpu memory allocation in "setNUpts" stage.
 
@@ -381,7 +381,7 @@ int ALLOCGPUMEM3D_NUPTS(CUFINUFFT_PLAN d_plan)
 
 	return 0;
 }
-void FREEGPUMEMORY3D(CUFINUFFT_PLAN d_plan)
+void FREEGPUMEMORY3D(CUFINUFFT_PLAN_S* d_plan)
 /*
 	wrapper for freeing gpu memory.
 

@@ -23,43 +23,41 @@ limitations under the License.
 #include "tensorflow/core/lib/core/status.h"
 
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
 
 namespace tensorflow {
 namespace nufft {
 
 template<typename Device, typename T>
-struct plan_type;
-
-template<typename Device, typename T>
 int makeplan(
     int type, int dim, int64_t* nmodes, int iflag, int ntr, T eps,
-    typename plan_type<Device, T>::type* plan,
+    Plan<Device, T>** plan,
     const Options& options);
 
 template<typename Device, typename T>
 int setpts(
-    typename plan_type<Device, T>::type plan,
+    Plan<Device, T>* plan,
     int64_t M, T* x, T* y, T* z,
     int64_t N, T* s, T* t, T* u);
 
 template<typename Device, typename T>
 int execute(
-    typename plan_type<Device, T>::type plan,
+    Plan<Device, T>* plan,
     std::complex<T>* c, std::complex<T>* f);
 
 template<typename Device, typename T>
 int interp(
-    typename plan_type<Device, T>::type plan,
+    Plan<Device, T>* plan,
     std::complex<T>* c, std::complex<T>* f);
 
 template<typename Device, typename T>
 int spread(
-    typename plan_type<Device, T>::type plan,
+    Plan<Device, T>* plan,
     std::complex<T>* c, std::complex<T>* f);
 
 template<typename Device, typename T>
-int destroy(typename plan_type<Device, T>::type plan);
+int destroy(Plan<Device, T>* plan);
 
 }   // namespace nufft
 
@@ -150,7 +148,7 @@ struct DoNUFFTBase {
     options.num_threads = worker_threads.num_threads;
 
     // Make the NUFFT plan.
-    typename nufft::plan_type<Device, T>::type plan;
+    nufft::Plan<Device, T>* plan;
     int err;
     err = nufft::makeplan<Device, T>(type, rank, nmodes, iflag,
                                      ntrans, tol, &plan, options);

@@ -31,19 +31,9 @@ typedef Eigen::GpuDevice GPUDevice;
 namespace nufft {
 
 template<>
-struct plan_type<GPUDevice, float> {
-  typedef Plan<tensorflow::GPUDevice, float>* type;
-};
-
-template<>
-struct plan_type<GPUDevice, double> {
-  typedef Plan<tensorflow::GPUDevice, double>* type;
-};
-
-template<>
 int makeplan<GPUDevice, float>(
     int type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
-    typename plan_type<GPUDevice, float>::type* plan,
+    Plan<GPUDevice, float>** plan,
     const Options& options) {
 
   int* nmodes_int = new int[dim];
@@ -60,7 +50,7 @@ int makeplan<GPUDevice, float>(
 template<>
 int makeplan<GPUDevice, double>(
     int type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
-    typename plan_type<GPUDevice, double>::type* plan,
+    Plan<GPUDevice, double>** plan,
     const Options& options) {
 
   int* nmodes_int = new int[dim];
@@ -76,7 +66,7 @@ int makeplan<GPUDevice, double>(
 
 template<>
 int setpts<GPUDevice, float>(
-    typename plan_type<GPUDevice, float>::type plan,
+    Plan<GPUDevice, float>* plan,
     int64_t M, float* x, float* y, float* z,
     int64_t N, float* s, float* t, float* u) {
   return cufinufftf_setpts(M, x, y, z, N, s, t, u, plan);
@@ -84,7 +74,7 @@ int setpts<GPUDevice, float>(
 
 template<>
 int setpts<GPUDevice, double>(
-    typename plan_type<GPUDevice, double>::type plan,
+    Plan<GPUDevice, double>* plan,
     int64_t M, double* x, double* y, double* z,
     int64_t N, double* s, double* t, double* u) {
   return cufinufft_setpts(M, x, y, z, N, s, t, u, plan);
@@ -92,7 +82,7 @@ int setpts<GPUDevice, double>(
 
 template<>
 int execute<GPUDevice, float>(
-    typename plan_type<GPUDevice, float>::type plan,
+    Plan<GPUDevice, float>* plan,
     std::complex<float>* c, std::complex<float>* f) {
   return cufinufftf_execute(
     reinterpret_cast<cuFloatComplex*>(c),
@@ -102,7 +92,7 @@ int execute<GPUDevice, float>(
 
 template<>
 int execute<GPUDevice, double>(
-    typename plan_type<GPUDevice, double>::type plan,
+    Plan<GPUDevice, double>* plan,
     std::complex<double>* c, std::complex<double>* f) {
   return cufinufft_execute(
     reinterpret_cast<cuDoubleComplex*>(c),
@@ -112,7 +102,7 @@ int execute<GPUDevice, double>(
 
 template<>
 int interp<GPUDevice, float>(
-    typename plan_type<GPUDevice, float>::type plan,
+    Plan<GPUDevice, float>* plan,
     std::complex<float>* c, std::complex<float>* f) {
   return cufinufftf_interp(
     reinterpret_cast<cuFloatComplex*>(c),
@@ -122,7 +112,7 @@ int interp<GPUDevice, float>(
 
 template<>
 int interp<GPUDevice, double>(
-    typename plan_type<GPUDevice, double>::type plan,
+    Plan<GPUDevice, double>* plan,
     std::complex<double>* c, std::complex<double>* f) {
   return cufinufft_interp(
     reinterpret_cast<cuDoubleComplex*>(c),
@@ -132,7 +122,7 @@ int interp<GPUDevice, double>(
 
 template<>
 int spread<GPUDevice, float>(
-    typename plan_type<GPUDevice, float>::type plan,
+    Plan<GPUDevice, float>* plan,
     std::complex<float>* c, std::complex<float>* f) {
   return cufinufftf_spread(
     reinterpret_cast<cuFloatComplex*>(c),
@@ -142,7 +132,7 @@ int spread<GPUDevice, float>(
 
 template<>
 int spread<GPUDevice, double>(
-    typename plan_type<GPUDevice, double>::type plan,
+    Plan<GPUDevice, double>* plan,
     std::complex<double>* c, std::complex<double>* f) {
   return cufinufft_spread(
     reinterpret_cast<cuDoubleComplex*>(c),
@@ -152,13 +142,13 @@ int spread<GPUDevice, double>(
 
 template<>
 int destroy<GPUDevice, float>(
-    typename plan_type<GPUDevice, float>::type plan) {
+    Plan<GPUDevice, float>* plan) {
   return cufinufftf_destroy(plan);
 };
 
 template<>
 int destroy<GPUDevice, double>(
-    typename plan_type<GPUDevice, double>::type plan) {
+    Plan<GPUDevice, double>* plan) {
   return cufinufft_destroy(plan);
 };
 

@@ -53,7 +53,7 @@ limitations under the License.
 #define WARN_EPS_TOO_SMALL       -1   // Montalt 6/8/2021 - cuFINUFFT uses 1 as
                                       // as an error, so use negative numbers
                                       // for warnings
-// this means that a fine grid array dim exceeded MAX_NF; no malloc tried...
+// this means that a fine grid array rank exceeded MAX_NF; no malloc tried...
 #define ERR_MAXNALLOC            2
 #define ERR_SPREAD_BOX_SMALL     3
 #define ERR_SPREAD_PTS_OUT_RANGE 4

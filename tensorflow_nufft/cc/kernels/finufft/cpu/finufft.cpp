@@ -143,7 +143,7 @@ int SET_NF_TYPE12(BIGINT ms, const Options& options,
 }
 
 int setup_spreader_for_nufft(const Options& options,
-                             SpreadOptions<FLT> &spopts, FLT eps, int dim)
+                             SpreadOptions<FLT> &spopts, FLT eps, int rank)
 // Set up the spreader parameters given eps, and pass across various nufft
 // options. Return status of setup_spreader. Uses pass-by-ref. Barnett 10/30/17
 {
@@ -152,10 +152,10 @@ int setup_spreader_for_nufft(const Options& options,
   // this calls spreadinterp.cpp...
   int ier = setup_spreader(spopts, eps, options.upsampling_factor,
                            static_cast<int>(options.kernel_evaluation_method) - 1, // We subtract 1 temporarily, as spreader expects values of 0 or 1 instead of 1 and 2.
-                           options.verbosity, options.show_warnings, dim);
+                           options.verbosity, options.show_warnings, rank);
   // override various spread opts from their defaults...
   spopts.verbosity = options.verbosity;
-  spopts.sort = static_cast<int>(options.sort_points); // could make dim or CPU choices here?
+  spopts.sort = static_cast<int>(options.sort_points); // could make rank or CPU choices here?
   spopts.pad_kernel = options.pad_kernel; // (only applies to kerevalmeth=0)
   spopts.check_bounds = options.check_bounds;
   spopts.num_threads = options.num_threads;
@@ -368,8 +368,8 @@ void deconvolveshuffle2d(SpreadDirection dir,FLT prefac,FLT *ker1, FLT *ker2,
   if dir == SpreadDirection::SPREAD: copies fw to fk with amplification by prefac/(ker1(k1)*ker2(k2)).
   if dir == SpreadDirection::INTERP: copies fk to fw (and zero pads rest of it), same amplification.
 
-  mode_order=0: use CMCL-compatible mode ordering in fk (each dim increasing)
-          1: use FFT-style (pos then negative, on each dim)
+  mode_order=0: use CMCL-compatible mode ordering in fk (each rank increasing)
+          1: use FFT-style (pos then negative, on each rank)
 
   fk is complex array stored as 2*ms*mt FLTs alternating re,im parts, with
     ms looped over fast and mt slow.
@@ -406,8 +406,8 @@ void deconvolveshuffle3d(SpreadDirection dir,FLT prefac,FLT *ker1, FLT *ker2,
   if dir == SpreadDirection::SPREAD: copies fw to fk with ampl by prefac/(ker1(k1)*ker2(k2)*ker3(k3)).
   if dir == SpreadDirection::INTERP: copies fk to fw (and zero pads rest of it), same amplification.
 
-  mode_order=0: use CMCL-compatible mode ordering in fk (each dim increasing)
-          1: use FFT-style (pos then negative, on each dim)
+  mode_order=0: use CMCL-compatible mode ordering in fk (each rank increasing)
+          1: use FFT-style (pos then negative, on each rank)
 
   fk is complex array stored as 2*ms*mt*mu FLTs alternating re,im parts, with
     ms looped over fastest and mu slowest.
@@ -483,7 +483,7 @@ int deconvolveBatch(int batchSize, Plan<CPUDevice, FLT>* p, CPX* fkBatch)
   Type 2: deconvolves from user-supplied input fk to 0-padded interior fw,
   again looping over fk in fkBatch and fw in p->fwBatch.
   The direction (spread vs interpolate) is set by p->spopts.spread_direction.
-  This is mostly a loop calling deconvolveshuffle?d for the needed dim batchSize
+  This is mostly a loop calling deconvolveshuffle?d for the needed rank batchSize
   times.
   Barnett 5/21/20, simplified from Malleo 2019 (eg t3 logic won't be in here)
 */
@@ -494,12 +494,12 @@ int deconvolveBatch(int batchSize, Plan<CPUDevice, FLT>* p, CPX* fkBatch)
     FFTW_CPX *fwi = p->fwBatch + i*p->nf;  // start of i'th fw array in wkspace
     CPX *fki = fkBatch + i*p->N;           // start of i'th fk array in fkBatch
     
-    // Call routine from common.cpp for the dim; prefactors hardcoded to 1.0...
-    if (p->dim == 1)
+    // Call routine from common.cpp for the rank; prefactors hardcoded to 1.0...
+    if (p->rank_ == 1)
       deconvolveshuffle1d(p->spopts.spread_direction, 1.0, p->phiHat1,
                           p->ms, (FLT *)fki,
                           p->nf1, fwi, p->options.mode_order);
-    else if (p->dim == 2)
+    else if (p->rank_ == 2)
       deconvolveshuffle2d(p->spopts.spread_direction,1.0, p->phiHat1,
                           p->phiHat2, p->ms, p->mt, (FLT *)fki,
                           p->nf1, p->nf2, fwi, p->options.mode_order);
@@ -521,14 +521,14 @@ int deconvolveBatch(int batchSize, Plan<CPUDevice, FLT>* p, CPX* fkBatch)
 #endif
 
 int* GRIDSIZE_FOR_FFTW(Plan<CPUDevice, FLT>* p){
-// local helper func returns a new int array of length dim, extracted from
+// local helper func returns a new int array of length rank, extracted from
 // the finufft plan, that fftw_plan_many_dft needs as its 2nd argument.
   int* nf;
-  if(p->dim == 1){ 
+  if(p->rank_ == 1){ 
     nf = new int[1];
     nf[0] = (int)p->nf1;
   }
-  else if (p->dim == 2){ 
+  else if (p->rank_ == 2){ 
     nf = new int[2];
     nf[0] = (int)p->nf2;
     nf[1] = (int)p->nf1; 
@@ -554,7 +554,7 @@ int* GRIDSIZE_FOR_FFTW(Plan<CPUDevice, FLT>* p){
 // For some of the fields, if "auto" selected, choose the actual setting.
 // For types 1,2 allocates memory for internal working arrays,
 // evaluates spreading kernel coefficients, and instantiates the fft_plan
-int FINUFFT_MAKEPLAN(TransformType type, int dim, BIGINT* n_modes, int iflag,
+int FINUFFT_MAKEPLAN(TransformType type, int rank, BIGINT* n_modes, int iflag,
                      int ntrans, FLT tol, Plan<CPUDevice, FLT> **plan,
                      const Options& options)
 {
@@ -568,8 +568,8 @@ int FINUFFT_MAKEPLAN(TransformType type, int dim, BIGINT* n_modes, int iflag,
   // has no effect.
   p->options = options;
 
-  if ((dim != 1) && (dim != 2) && (dim != 3)) {
-    fprintf(stderr, "[%s] Invalid dim (%d), should be 1, 2 or 3.\n",__func__,dim);
+  if ((rank != 1) && (rank != 2) && (rank != 3)) {
+    fprintf(stderr, "[%s] Invalid rank (%d), should be 1, 2 or 3.\n",__func__,rank);
     return ERR_DIM_NOTVALID;
   }
   if (ntrans < 1) {
@@ -579,7 +579,7 @@ int FINUFFT_MAKEPLAN(TransformType type, int dim, BIGINT* n_modes, int iflag,
   
   // get stuff from args...
   p->type_ = type;
-  p->dim = dim;
+  p->rank_ = rank;
   p->ntrans = ntrans;
   p->tol = tol;
   p->fftSign = (iflag>=0) ? 1 : -1;         // clean up flag input
@@ -615,8 +615,8 @@ int FINUFFT_MAKEPLAN(TransformType type, int dim, BIGINT* n_modes, int iflag,
 
   if (type != TransformType::TYPE_3) {    // read in user Fourier mode array sizes...
     p->ms = n_modes[0];
-    p->mt = (dim>1) ? n_modes[1] : 1;       // leave as 1 for unused dims
-    p->mu = (dim>2) ? n_modes[2] : 1;
+    p->mt = (rank>1) ? n_modes[1] : 1;       // leave as 1 for unused dims
+    p->mu = (rank>2) ? n_modes[2] : 1;
     p->N = p->ms*p->mt*p->mu;               // N = total # modes
   }
   
@@ -626,7 +626,7 @@ int FINUFFT_MAKEPLAN(TransformType type, int dim, BIGINT* n_modes, int iflag,
     if (tol >= (FLT)1E-9) {                   // the tol sigma=5/4 can reach
       if (type == TransformType::TYPE_3)
         p->options.upsampling_factor = 1.25;  // faster b/c smaller RAM & FFT
-      else if ((dim==1 && p->N>10000000) || (dim==2 && p->N>300000) || (dim==3 && p->N>3000000))  // type 1,2 heuristic cutoffs, double, typ tol, 12-core xeon
+      else if ((rank==1 && p->N>10000000) || (rank==2 && p->N>300000) || (rank==3 && p->N>3000000))  // type 1,2 heuristic cutoffs, double, typ tol, 12-core xeon
         p->options.upsampling_factor = 1.25;
     }
     if (p->options.verbosity > 1)
@@ -634,7 +634,7 @@ int FINUFFT_MAKEPLAN(TransformType type, int dim, BIGINT* n_modes, int iflag,
   }
 
   // use opts to choose and write into plan's spread options...
-  int ier = setup_spreader_for_nufft(p->options, p->spopts, tol, dim);
+  int ier = setup_spreader_for_nufft(p->options, p->spopts, tol, rank);
   if (ier>1)                                 // proceed if success or warning
     return ier;
 
@@ -684,12 +684,12 @@ int FINUFFT_MAKEPLAN(TransformType type, int dim, BIGINT* n_modes, int iflag,
     int nfier = SET_NF_TYPE12(p->ms, p->options, p->spopts, &(p->nf1));
     if (nfier) return nfier;    // nf too big; we're done
     p->phiHat1 = (FLT*)malloc(sizeof(FLT)*(p->nf1/2 + 1));
-    if (dim > 1) {
+    if (rank > 1) {
       nfier = SET_NF_TYPE12(p->mt, p->options, p->spopts, &(p->nf2));
       if (nfier) return nfier;
       p->phiHat2 = (FLT*)malloc(sizeof(FLT)*(p->nf2/2 + 1));
     }
-    if (dim > 2) {
+    if (rank > 2) {
       nfier = SET_NF_TYPE12(p->mu, p->options, p->spopts, &(p->nf3)); 
       if (nfier) return nfier;
       p->phiHat3 = (FLT*)malloc(sizeof(FLT)*(p->nf3/2 + 1));
@@ -697,7 +697,7 @@ int FINUFFT_MAKEPLAN(TransformType type, int dim, BIGINT* n_modes, int iflag,
 
     if (p->options.verbosity) { // "long long" here is to avoid warnings with printf...
       printf("[%s] %dd%d: (ms,mt,mu)=(%lld,%lld,%lld) (nf1,nf2,nf3)=(%lld,%lld,%lld)\n               ntrans=%d num_threads=%d batchSize=%d ", __func__,
-             dim, type, (long long)p->ms,(long long)p->mt,
+             rank, type, (long long)p->ms,(long long)p->mt,
              (long long) p->mu, (long long)p->nf1,(long long)p->nf2,
              (long long)p->nf3, ntrans, num_threads, p->batchSize);
       if (p->batchSize==1)          // spreader_threading has no effect in this case
@@ -706,11 +706,11 @@ int FINUFFT_MAKEPLAN(TransformType type, int dim, BIGINT* n_modes, int iflag,
         printf(" spreader_threading=%d\n", p->options.spreader_threading);
     }
 
-    // STEP 0: get Fourier coeffs of spreading kernel along each fine grid dim
+    // STEP 0: get Fourier coeffs of spreading kernel along each fine grid rank
     CNTime timer; timer.start();
     onedim_fseries_kernel(p->nf1, p->phiHat1, p->spopts);
-    if (dim>1) onedim_fseries_kernel(p->nf2, p->phiHat2, p->spopts);
-    if (dim>2) onedim_fseries_kernel(p->nf3, p->phiHat3, p->spopts);
+    if (rank>1) onedim_fseries_kernel(p->nf2, p->phiHat2, p->spopts);
+    if (rank>2) onedim_fseries_kernel(p->nf3, p->phiHat3, p->spopts);
     if (p->options.verbosity) printf("[%s] kernel fser (ns=%d):\t\t%.3g s\n",__func__,p->spopts.nspread, timer.elapsedsec());
 
     timer.restart();
@@ -734,7 +734,7 @@ int FINUFFT_MAKEPLAN(TransformType type, int dim, BIGINT* n_modes, int iflag,
     #pragma omp critical
     {
       p->fft_plan = FFTW_PLAN_MANY_DFT(
-          /* int rank */ dim, /* const int *n */ ns, /* int howmany */ p->batchSize,
+          /* int rank */ rank, /* const int *n */ ns, /* int howmany */ p->batchSize,
           /* fftw_complex *in */ p->fwBatch, /* const int *inembed */ NULL,
           /* int istride */ 1, /* int idist */ p->nf,
           /* fftw_complex *out */ p->fwBatch, /* const int *onembed */ NULL,
@@ -763,7 +763,7 @@ int FINUFFT_SETPTS(Plan<CPUDevice, FLT>* p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj
    and NU target freqs (stu), evaluates spreading kernel FT at all target freqs.
 */
 {
-  int d = p->dim;     // abbrev for spatial dim
+  int d = p->rank_;     // abbrev for spatial rank
   CNTime timer; timer.start();
   p->nj = nj;    // the user only now chooses how many NU (x,y,z) pts
 

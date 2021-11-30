@@ -6,7 +6,7 @@
 using namespace tensorflow::nufft;
 
 
-FLT calculate_scale_factor(SpreadOptions<FLT> &opts, int dim, FLT dummy = 0.0) {
+FLT calculate_scale_factor(SpreadOptions<FLT> &opts, int rank, FLT dummy = 0.0) {
   // Calculates the scaling factor for spread/interp only.
   // Dummy param is used to trigger float/double overloading and avoid
   // redefinition errors.
@@ -26,13 +26,13 @@ FLT calculate_scale_factor(SpreadOptions<FLT> &opts, int dim, FLT dummy = 0.0) {
   // in incorrect results. Instead, applying this correction seems to work. 
   sum *= sqrt(1.0 / opts.ES_c);
   FLT scale = sum;
-  if (dim > 1) { scale *= sum; }
-  if (dim > 2) { scale *= sum; }
+  if (rank > 1) { scale *= sum; }
+  if (rank > 2) { scale *= sum; }
   return 1.0 / scale;
 }
 
 int setup_spreader(SpreadOptions<FLT> &opts,FLT eps, FLT upsampling_factor,
-                   KernelEvaluationMethod kernel_evaluation_method, int dim)
+                   KernelEvaluationMethod kernel_evaluation_method, int rank)
 // Initializes spreader kernel parameters given desired NUFFT tolerance eps,
 // upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), and ker eval meth
 // (etiher 0:exp(sqrt()), 1: Horner ppval).
@@ -92,7 +92,7 @@ int setup_spreader(SpreadOptions<FLT> &opts,FLT eps, FLT upsampling_factor,
   }
   opts.ES_beta = betaoverns * (FLT)ns;    // set the kernel beta parameter
   if (opts.spread_interp_only)
-    opts.ES_scale = calculate_scale_factor(opts, dim);
+    opts.ES_scale = calculate_scale_factor(opts, rank);
   //fprintf(stderr,"setup_spreader: sigma=%.6f, chose ns=%d beta=%.6f\n",(double)upsampling_factor,ns,(double)opts.ES_beta); // user hasn't set debug yet
   return ier;
 }

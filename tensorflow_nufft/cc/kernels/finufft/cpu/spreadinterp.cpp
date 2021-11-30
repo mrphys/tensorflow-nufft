@@ -173,7 +173,7 @@ int spreadinterp(
 }
 
 static int ndims_from_Ns(BIGINT N1, BIGINT N2, BIGINT N3)
-/* rule for getting number of spreading dimensions from the list of Ns per dim.
+/* rule for getting number of spreading dimensions from the list of Ns per rank.
    Split out, Barnett 7/26/18
 */
 {
@@ -277,7 +277,7 @@ int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M,
     maxnthr = min(maxnthr,opts.num_threads);
   
   if (opts.sort==1 || (opts.sort==2 && better_to_sort)) {
-    // store a good permutation ordering of all NU pts (dim=1,2 or 3)
+    // store a good permutation ordering of all NU pts (rank=1,2 or 3)
     int sort_debug = (opts.verbosity>=2);    // show timing output?
     int sort_nthr = opts.sort_threads;   // choose # threads for sorting
     if (sort_nthr==0)   // use auto choice: when N>>M, one thread is better!
@@ -563,7 +563,7 @@ int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
   return 0;
 };
 
-FLT calculate_scale_factor(const SpreadOptions<FLT> &opts, int dim, FLT dummy = 0.0) {
+FLT calculate_scale_factor(const SpreadOptions<FLT> &opts, int rank, FLT dummy = 0.0) {
   // Calculates the scaling factor for spread/interp only mode (Montalt 6/8/2021).
   // Dummy param is used to trigger float/double overloading and avoid
   // redefinition errors.
@@ -579,20 +579,20 @@ FLT calculate_scale_factor(const SpreadOptions<FLT> &opts, int dim, FLT dummy = 
   sum *= h;
   sum *= sqrt(1.0 / opts.ES_c);
   FLT scale = sum;
-  if (dim > 1) { scale *= sum; }
-  if (dim > 2) { scale *= sum; }
+  if (rank > 1) { scale *= sum; }
+  if (rank > 2) { scale *= sum; }
   return 1.0 / scale;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 
 int setup_spreader(SpreadOptions<FLT> &opts, FLT eps, double upsampling_factor,
-                   int kerevalmeth, int debug, bool show_warnings, int dim)
+                   int kerevalmeth, int debug, bool show_warnings, int rank)
 /* Initializes spreader kernel parameters given desired NUFFT tolerance eps,
    upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), ker eval meth
    (either 0:exp(sqrt()), 1: Horner ppval), and some debug-level flags.
    Also sets all default options in SpreadOptions<FLT>. See SpreadOptions<FLT>.h for opts.
-   dim is spatial dimension (1,2, or 3).
+   rank is spatial dimension (1,2, or 3).
    See finufft.cpp:finufft_plan() for where upsampling_factor is set.
    Must call this before any kernel evals done, otherwise segfault likely.
    Returns:
@@ -627,7 +627,7 @@ int setup_spreader(SpreadOptions<FLT> &opts, FLT eps, double upsampling_factor,
   opts.num_threads = 0;            // all avail
   opts.sort_threads = 0;        // 0:auto-choice
   // heuristic dir=1 chunking for nthr>>1, typical for intel i7 and skylake...
-  opts.max_subproblem_size = (dim==1) ? 10000 : 100000;
+  opts.max_subproblem_size = (rank==1) ? 10000 : 100000;
   opts.flags = 0;               // 0:no timing flags (>0 for experts only)
   opts.verbosity = 0;               // 0:no debug output
   // heuristic nthr above which switch OMP critical to atomic (add_wrapped...):
@@ -671,7 +671,7 @@ int setup_spreader(SpreadOptions<FLT> &opts, FLT eps, double upsampling_factor,
     printf("%s (kerevalmeth=%d) eps=%.3g sigma=%.3g: chose ns=%d beta=%.3g\n",__func__,kerevalmeth,(double)eps,upsampling_factor,ns,(double)opts.ES_beta);
   // calculate scaling factor for spread/interp only mode (Montalt 6/8/2021).
   if (opts.spread_interp_only)
-    opts.ES_scale = calculate_scale_factor(opts, dim);
+    opts.ES_scale = calculate_scale_factor(opts, rank);
   return ier;
 }
 
@@ -1020,7 +1020,7 @@ void spread_subproblem_3d(BIGINT off1,BIGINT off2,BIGINT off3,BIGINT size1,
 			  const SpreadOptions<FLT>& opts)
 /* spreader from dd (NU) to du (uniform) in 3D without wrapping.
    See above docs/notes for spread_subproblem_2d.
-   kx,ky,kz (size M) are NU locations in [off+ns/2,off+size-1-ns/2] in each dim.
+   kx,ky,kz (size M) are NU locations in [off+ns/2,off+size-1-ns/2] in each rank.
    dd (size M complex) are complex source strengths
    du (size size1*size2*size3) is uniform complex output array
  */

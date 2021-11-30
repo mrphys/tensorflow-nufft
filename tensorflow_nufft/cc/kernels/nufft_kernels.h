@@ -31,7 +31,7 @@ namespace nufft {
 
 template<typename Device, typename T>
 int makeplan(
-    TransformType type, int dim, int64_t* nmodes, int iflag, int ntr, T eps,
+    TransformType type, int rank, int64_t* nmodes, int iflag, int ntr, T eps,
     Plan<Device, T>** plan,
     const Options& options);
 

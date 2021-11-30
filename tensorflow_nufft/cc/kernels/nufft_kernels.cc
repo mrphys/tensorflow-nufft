@@ -40,20 +40,20 @@ namespace nufft {
 
 template<>
 int makeplan<CPUDevice, float>(
-    TransformType type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
+    TransformType type, int rank, int64_t* nmodes, int iflag, int ntr, float eps,
     Plan<CPUDevice, float>** plan,
     const Options& options) {
   return finufftf_makeplan(
-    type, dim, nmodes, iflag, ntr, eps, plan, options);
+    type, rank, nmodes, iflag, ntr, eps, plan, options);
 };
 
 template<>
 int makeplan<CPUDevice, double>(
-    TransformType type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
+    TransformType type, int rank, int64_t* nmodes, int iflag, int ntr, double eps,
     Plan<CPUDevice, double>** plan,
     const Options& options) {
   return finufft_makeplan(
-    type, dim, nmodes, iflag, ntr, eps, plan, options);
+    type, rank, nmodes, iflag, ntr, eps, plan, options);
 };
 
 template<>

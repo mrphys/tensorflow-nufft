@@ -29,9 +29,9 @@ using namespace std;
 using namespace tensorflow;
 using namespace tensorflow::nufft;
 
-void SETUP_BINSIZE(TransformType type, int dim, Options& options)
+void SETUP_BINSIZE(TransformType type, int rank, Options& options)
 {
-	switch(dim)
+	switch(rank)
 	{
 		case 2:
 		{
@@ -83,7 +83,7 @@ void SETUP_BINSIZE(TransformType type, int dim, Options& options)
 #ifdef __cplusplus
 extern "C" {
 #endif
-int CUFINUFFT_MAKEPLAN(TransformType type, int dim, int *nmodes, int iflag,
+int CUFINUFFT_MAKEPLAN(TransformType type, int rank, int *nmodes, int iflag,
 		       int ntransf, FLT tol, int maxbatchsize,
 		       Plan<GPUDevice, FLT>* *d_plan_ptr,
 			   const Options& options)
@@ -148,13 +148,13 @@ This performs:
 
   // Select spreading method.
   if (d_plan->options.gpu_spread_method == GpuSpreadMethod::AUTO) {
-    if (dim == 2 && type == TransformType::TYPE_1)
+    if (rank == 2 && type == TransformType::TYPE_1)
       d_plan->options.gpu_spread_method = GpuSpreadMethod::SUBPROBLEM;
-    else if (dim == 2 && type == TransformType::TYPE_2)
+    else if (rank == 2 && type == TransformType::TYPE_2)
       d_plan->options.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
-    else if (dim == 3 && type == TransformType::TYPE_1)
+    else if (rank == 3 && type == TransformType::TYPE_1)
       d_plan->options.gpu_spread_method = GpuSpreadMethod::SUBPROBLEM;
-    else if (dim == 3 && type == TransformType::TYPE_2)
+    else if (rank == 3 && type == TransformType::TYPE_2)
       d_plan->options.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
   }
 
@@ -163,26 +163,26 @@ This performs:
 
 	/* Setup Spreader */
 	ier = setup_spreader_for_nufft(d_plan->spopts, tol,
-								   d_plan->options, dim);
+								   d_plan->options, rank);
 	if (ier>1)                           // proceed if success or warning
 	  return ier;
 
-	d_plan->dim = dim;
+	d_plan->rank_ = rank;
 	d_plan->ms = nmodes[0];
 	d_plan->mt = nmodes[1];
 	d_plan->mu = nmodes[2];
 
-	SETUP_BINSIZE(type, dim, d_plan->options);
+	SETUP_BINSIZE(type, rank, d_plan->options);
 	BIGINT nf1=1, nf2=1, nf3=1;
 	ier = SET_NF_TYPE12(d_plan->ms, d_plan->spopts, d_plan->options, &nf1,
 				  		d_plan->options.gpu_obin_size.x);
 	if (ier > 0) return ier;
-	if (dim > 1) {
+	if (rank > 1) {
 		ier = SET_NF_TYPE12(d_plan->mt, d_plan->spopts, d_plan->options, &nf2,
                       d_plan->options.gpu_obin_size.y);
 		if (ier > 0) return ier;
 	}
-	if (dim > 2) {
+	if (rank > 2) {
 		ier = SET_NF_TYPE12(d_plan->mu, d_plan->spopts, d_plan->options, &nf3,
                       d_plan->options.gpu_obin_size.z);
 		if (ier > 0) return ier;
@@ -210,11 +210,11 @@ This performs:
 		
 		fwkerhalf1 = (FLT*)malloc(sizeof(FLT)*(nf1/2+1));
 		onedim_fseries_kernel(nf1, fwkerhalf1, d_plan->spopts);
-		if (dim > 1) {
+		if (rank > 1) {
 			fwkerhalf2 = (FLT*)malloc(sizeof(FLT)*(nf2/2+1));
 			onedim_fseries_kernel(nf2, fwkerhalf2, d_plan->spopts);
 		}
-		if (dim > 2) {
+		if (rank > 2) {
 			fwkerhalf3 = (FLT*)malloc(sizeof(FLT)*(nf3/2+1));
 			onedim_fseries_kernel(nf3, fwkerhalf3, d_plan->spopts);
 		}
@@ -225,7 +225,7 @@ This performs:
 #endif
 
 	cudaEventRecord(start);
-	switch(d_plan->dim)
+	switch(d_plan->rank_)
 	{
 		case 1:
 		{
@@ -255,10 +255,10 @@ This performs:
 	{
 		checkCudaErrors(cudaMemcpy(d_plan->fwkerhalf1,fwkerhalf1,(nf1/2+1)*
 			sizeof(FLT),cudaMemcpyHostToDevice));
-		if (dim > 1)
+		if (rank > 1)
 			checkCudaErrors(cudaMemcpy(d_plan->fwkerhalf2,fwkerhalf2,(nf2/2+1)*
 				sizeof(FLT),cudaMemcpyHostToDevice));
-		if (dim > 2)
+		if (rank > 2)
 			checkCudaErrors(cudaMemcpy(d_plan->fwkerhalf3,fwkerhalf3,(nf3/2+1)*
 				sizeof(FLT),cudaMemcpyHostToDevice));
 	}
@@ -272,7 +272,7 @@ This performs:
 	cudaEventRecord(start);
 	if (!d_plan->options.spread_interp_only) {
 		cufftHandle fftplan;
-		switch(d_plan->dim)
+		switch(d_plan->rank_)
 		{
 			case 1:
 			{
@@ -287,7 +287,7 @@ This performs:
 				//cufftCreate(&fftplan);
 				//cufftPlan2d(&fftplan,n[0],n[1],CUFFT_TYPE);
 				cufftResult result = cufftPlanMany(
-					&fftplan,dim,n,inembed,1,inembed[0]*inembed[1],
+					&fftplan,rank,n,inembed,1,inembed[0]*inembed[1],
 					inembed,1,inembed[0]*inembed[1],CUFFT_TYPE,maxbatchsize);
 				if (result != CUFFT_SUCCESS) {
 					fprintf(stderr,"[%s] cufftPlanMany failed with error code: %d\n",__func__,result);
@@ -297,12 +297,12 @@ This performs:
 			break;
 			case 3:
 			{
-				int dim = 3;
+				int rank = 3;
 				int n[] = {nf3, nf2, nf1};
 				int inembed[] = {nf3, nf2, nf1};
 				int istride = 1;
 				cufftResult result = cufftPlanMany(
-					&fftplan,dim,n,inembed,istride,inembed[0]*inembed[1]*
+					&fftplan,rank,n,inembed,istride,inembed[0]*inembed[1]*
 					inembed[2],inembed,istride,inembed[0]*inembed[1]*inembed[2],
 					CUFFT_TYPE,maxbatchsize);
 				if (result != CUFFT_SUCCESS) {
@@ -322,9 +322,9 @@ This performs:
 #endif
 	if (!d_plan->options.spread_interp_only) {
 		free(fwkerhalf1);
-		if (dim > 1)
+		if (rank > 1)
 			free(fwkerhalf2);
-		if (dim > 2)
+		if (rank > 2)
 			free(fwkerhalf3);
 	}
 
@@ -347,7 +347,7 @@ int CUFINUFFT_SETPTS(int M, FLT* d_kx, FLT* d_ky, FLT* d_kz, int N, FLT *d_s,
 		(4) determine the spread/interp properties that only relates to the
 		    locations of nupts (see 2d/spread2d_wrapper.cu,
 		    3d/spread3d_wrapper.cu for what have been done in
-		    function spread<dim>d_<method>_prop() )
+		    function spread<rank>d_<method>_prop() )
 
         See ../docs/cppdoc.md for main user-facing documentation.
         Here is the old developer docs, which are useful only to translate
@@ -382,7 +382,7 @@ Notes: the type FLT means either single or double, matching the
 	int nf1 = d_plan->nf1;
 	int nf2 = d_plan->nf2;
 	int nf3 = d_plan->nf3;
-	int dim = d_plan->dim;
+	int rank = d_plan->rank_;
 
 	d_plan->M = M;
 #ifdef INFO
@@ -396,7 +396,7 @@ Notes: the type FLT means either single or double, matching the
 
 	int ier;
 	cudaEventRecord(start);
-	switch(d_plan->dim)
+	switch(d_plan->rank_)
 	{
 		case 1:
 		{
@@ -423,13 +423,13 @@ Notes: the type FLT means either single or double, matching the
 #endif
 
 	d_plan->kx = d_kx;
-	if (dim > 1)
+	if (rank > 1)
 		d_plan->ky = d_ky;
-	if (dim > 2)
+	if (rank > 2)
 		d_plan->kz = d_kz;
 
 	cudaEventRecord(start);
-	switch(d_plan->dim)
+	switch(d_plan->rank_)
 	{
 		case 1:
 		{
@@ -560,7 +560,7 @@ int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
         cudaSetDevice(d_plan->options.gpu_device_id);
 
 	int ier;
-	switch(d_plan->dim)
+	switch(d_plan->rank_)
 	{
 		case 1:
 		{
@@ -609,7 +609,7 @@ int CUFINUFFT_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 
 	int ier;
 
-	switch(d_plan->dim)
+	switch(d_plan->rank_)
 	{
 		case 1:
 			cerr<<"Not Implemented yet"<<endl;
@@ -638,7 +638,7 @@ int CUFINUFFT_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 
 	int ier;
 
-	switch(d_plan->dim)
+	switch(d_plan->rank_)
 	{
 		case 1:
 			cerr<<"Not Implemented yet"<<endl;
@@ -690,7 +690,7 @@ int CUFINUFFT_DESTROY(Plan<GPUDevice, FLT>* d_plan)
 	if (d_plan->fftplan)
 		cufftDestroy(d_plan->fftplan);
 
-	switch(d_plan->dim)
+	switch(d_plan->rank_)
 	{
 		case 1:
 		{

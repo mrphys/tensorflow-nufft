@@ -58,6 +58,6 @@ int spreadinterpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
 		             FLT *data_nonuniform, tensorflow::nufft::SpreadOptions<FLT> opts, int did_sort);
 FLT evaluate_kernel(FLT x,const tensorflow::nufft::SpreadOptions<FLT> &opts);
 FLT evaluate_kernel_noexp(FLT x,const tensorflow::nufft::SpreadOptions<FLT> &opts);
-int setup_spreader(tensorflow::nufft::SpreadOptions<FLT> &opts,FLT eps,double upsampling_factor,int kerevalmeth, int debug, bool show_warnings, int dim);
+int setup_spreader(tensorflow::nufft::SpreadOptions<FLT> &opts,FLT eps,double upsampling_factor,int kerevalmeth, int debug, bool show_warnings, int rank);
 
 #endif  // SPREADINTERP_H

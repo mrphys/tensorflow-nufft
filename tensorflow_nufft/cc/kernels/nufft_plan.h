@@ -157,6 +157,9 @@ class PlanBase {
  public:
   // The type of the transform. See enum above.
   TransformType type_;
+
+  // The rank of the transform (number of dimensions). Must be 1, 2 or 3.
+  int rank_;
 };
 
 template<typename Device, typename FloatType>
@@ -166,12 +169,14 @@ template<typename FloatType>
 class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
  public:
-  
-  // // The type of the transform. See enum above.
-  // TransformType type;
 
-  // // The rank of the transform (number of dimensions). Must be 1, 2 or 3.
-  // unsigned int rank;
+  // Plan(TransformType type,
+  //      int rank,
+  //      int64_t* num_modes,
+  //      FftDirection fft_direction,
+  //      int num_transforms,
+  //      FloatType tolerance,
+  //      const Options& options);
 
   // // How many transforms to compute.
   // unsigned int num_transforms;
@@ -182,7 +187,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // // Relative tolerance.
   // FloatType tolerance;
 
-  int dim;         // overall dimension: 1,2 or 3
   int ntrans;      // how many transforms to do at once (vector or "many" mode)
   int nj;          // number of NU pts in type 1,2 (for type 3, num input x pts)
   int nk;          // number of NU freq pts (type 3 only)
@@ -235,7 +239,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
  public:
 
-	int dim;
 	int M;
 	int nf1;
 	int nf2;

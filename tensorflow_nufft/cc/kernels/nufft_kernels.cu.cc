@@ -32,16 +32,16 @@ namespace nufft {
 
 template<>
 int makeplan<GPUDevice, float>(
-    TransformType type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
+    TransformType type, int rank, int64_t* nmodes, int iflag, int ntr, float eps,
     Plan<GPUDevice, float>** plan,
     const Options& options) {
 
-  int* nmodes_int = new int[dim];
-  for (int d = 0; d < dim; d++)
+  int* nmodes_int = new int[rank];
+  for (int d = 0; d < rank; d++)
     nmodes_int[d] = static_cast<int>(nmodes[d]);
 
   int err = cufinufftf_makeplan(
-    type, dim, nmodes_int, iflag, ntr, eps, 0, plan, options);
+    type, rank, nmodes_int, iflag, ntr, eps, 0, plan, options);
   
   delete[] nmodes_int;
   return err;
@@ -49,16 +49,16 @@ int makeplan<GPUDevice, float>(
 
 template<>
 int makeplan<GPUDevice, double>(
-    TransformType type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
+    TransformType type, int rank, int64_t* nmodes, int iflag, int ntr, double eps,
     Plan<GPUDevice, double>** plan,
     const Options& options) {
 
-  int* nmodes_int = new int[dim];
-  for (int d = 0; d < dim; d++)
+  int* nmodes_int = new int[rank];
+  for (int d = 0; d < rank; d++)
     nmodes_int[d] = static_cast<int>(nmodes[d]);
 
   int err = cufinufft_makeplan(
-    type, dim, nmodes_int, iflag, ntr, eps, 0, plan, options);
+    type, rank, nmodes_int, iflag, ntr, eps, 0, plan, options);
   
   delete[] nmodes_int;
   return err;

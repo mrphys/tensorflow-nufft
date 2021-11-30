@@ -33,6 +33,6 @@ FLT evaluate_kernel(FLT x, const tensorflow::nufft::SpreadOptions<FLT> &opts);
 
 int setup_spreader(tensorflow::nufft::SpreadOptions<FLT> &opts, FLT eps, FLT upsampling_factor,
                    tensorflow::nufft::KernelEvaluationMethod kernel_evaluation_method,
-                   int dim);
+                   int rank);
 
 #endif  // SPREADINTERP_H

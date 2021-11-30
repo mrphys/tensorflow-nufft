@@ -66,7 +66,7 @@ extern "C"
 // ------------------ the guru interface ------------------------------------
 // (sources in finufft.cpp)
   
-int FINUFFT_MAKEPLAN(tensorflow::nufft::TransformType type, int dim, BIGINT* n_modes, int iflag, int n_transf, FLT tol, tensorflow::nufft::Plan<tensorflow::CPUDevice, FLT>** plan, const tensorflow::nufft::Options& options);
+int FINUFFT_MAKEPLAN(tensorflow::nufft::TransformType type, int rank, BIGINT* n_modes, int iflag, int n_transf, FLT tol, tensorflow::nufft::Plan<tensorflow::CPUDevice, FLT>** plan, const tensorflow::nufft::Options& options);
 int FINUFFT_SETPTS(tensorflow::nufft::Plan<tensorflow::CPUDevice, FLT>* plan , BIGINT M, FLT *xj, FLT *yj, FLT *zj, BIGINT N, FLT *s, FLT *t, FLT *u); 
 int FINUFFT_EXECUTE(tensorflow::nufft::Plan<tensorflow::CPUDevice, FLT>* plan, CPX* weights, CPX* result);
 int FINUFFT_INTERP(tensorflow::nufft::Plan<tensorflow::CPUDevice, FLT>* plan, CPX* weights, CPX* result);

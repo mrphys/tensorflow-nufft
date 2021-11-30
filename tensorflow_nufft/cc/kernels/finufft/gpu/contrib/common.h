@@ -18,7 +18,7 @@
 // common.cpp provides...
 int setup_spreader_for_nufft(tensorflow::nufft::SpreadOptions<FLT> &spopts, FLT eps,
                              const tensorflow::nufft::Options& options,
-                             int dim);
+                             int rank);
 int SET_NF_TYPE12(BIGINT ms, tensorflow::nufft::SpreadOptions<FLT> spopts,
                   const tensorflow::nufft::Options& options, BIGINT *nf,
                   BIGINT b);

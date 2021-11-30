@@ -20,13 +20,13 @@ using namespace tensorflow::nufft;
 
 int setup_spreader_for_nufft(SpreadOptions<FLT> &spopts, FLT eps,
                              const Options& options,
-                             int dim)
+                             int rank)
 // Set up the spreader parameters given eps, and pass across various nufft
 // options. Report status of setup_spreader.  Barnett 10/30/17
 {
   int ier = setup_spreader(spopts, eps,
                            options.upsampling_factor,
-                           options.kernel_evaluation_method, dim);
+                           options.kernel_evaluation_method, rank);
   spopts.pirange = 1;                 // could allow user control?
   return ier;
 }

@@ -199,10 +199,6 @@ int spreadcheck(BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M, FLT *kx, FLT *ky,
     fprintf(stderr,"%s error: one or more non-trivial box dims is less than 2.nspread!\n",__func__);
     return ERR_SPREAD_BOX_SMALL;
   }
-  if (opts.spread_direction!=1 && opts.spread_direction!=2) {
-    fprintf(stderr,"%s error: opts.spread_direction must be 1 or 2!\n",__func__);
-    return ERR_SPREAD_DIR;
-  }
   int ndims = ndims_from_Ns(N1,N2,N3);
   
   // BOUNDS CHECKING .... check NU pts are valid (+-3pi if pirange, or [-N,2N])
@@ -272,7 +268,7 @@ int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M,
   double bin_size_x = 16, bin_size_y = 4, bin_size_z = 4;
   // put in heuristics based on cache sizes (only useful for single-thread) ?
 
-  int better_to_sort = !(ndims==1 && (opts.spread_direction==2 || (M > 1000*N1))); // 1D small-N or dir=2 case: don't sort
+  int better_to_sort = !(ndims == 1 && (opts.spread_direction == SpreadDirection::INTERP || (M > 1000 * N1))); // 1D small-N or dir=2 case: don't sort
 
   timer.start();                 // if needed, sort all the NU pts...
   int did_sort=0;
@@ -313,10 +309,9 @@ int spreadinterpSorted(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3,
    Split out by Melody Shih, Jun 2018; renamed Barnett 5/20/20.
 */
 {
-  if (opts.spread_direction==1)  // ========= direction 1 (spreading) =======
+  if (opts.spread_direction == SpreadDirection::SPREAD)
     spreadSorted(sort_indices, N1, N2, N3, data_uniform, M, kx, ky, kz, data_nonuniform, opts, did_sort);
-  
-  else           // ================= direction 2 (interpolation) ===========
+  else // if (opts.spread_direction == SpreadDirection::INTERP)
     interpSorted(sort_indices, N1, N2, N3, data_uniform, M, kx, ky, kz, data_nonuniform, opts, did_sort);
   
   return 0;
@@ -623,7 +618,6 @@ int setup_spreader(SpreadOptions<FLT> &opts, FLT eps, double upsampling_factor,
   }
     
   // write out default SpreadOptions<FLT> (some overridden in setup_spreader_for_nufft)
-  opts.spread_direction = 0;    // user should always set to 1 or 2 as desired
   opts.pirange = 1;             // user also should always set this
   opts.check_bounds = false;
   opts.sort = 2;                // 2:auto-choice

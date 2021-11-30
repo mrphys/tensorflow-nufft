@@ -113,11 +113,20 @@ enum class TransformType {
   TYPE_3  // non-uniform to non-uniform (not implemented)
 };
 
+enum class SpreadDirection {
+  SPREAD, // non-uniform to uniform
+  INTERP  // uniform to non-uniform
+};
+
 template<typename FloatType>
 struct SpreadOptions {  // see spreadinterp:setup_spreader for defaults.
+
+  // The spread direction (U->NU or NU->U). See enum above.
+  SpreadDirection spread_direction;
+  
   // This is the main documentation for these options...
   int nspread;            // w, the kernel width in grid pts
-  int spread_direction;   // 1 means spread NU->U, 2 means interpolate U->NU
+
   int pirange;            // 0: NU periodic domain is [0,N), 1: domain [-pi,pi)
   bool check_bounds;      // 0: don't check NU pts in 3-period range; 1: do
   int sort;               // 0: don't sort NU pts, 1: do, 2: heuristic choice

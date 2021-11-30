@@ -304,11 +304,11 @@ void onedim_nuft_kernel(BIGINT nk, FLT *k, FLT *phihat, SpreadOptions<FLT> opts)
   }
 }  
 
-void deconvolveshuffle1d(int dir,FLT prefac,FLT* ker, BIGINT ms,
+void deconvolveshuffle1d(SpreadDirection dir, FLT prefac,FLT* ker, BIGINT ms,
 			 FLT *fk, BIGINT nf1, FFTW_CPX* fw, ModeOrder mode_order)
 /*
-  if dir==1: copies fw to fk with amplification by prefac/ker
-  if dir==2: copies fk to fw (and zero pads rest of it), same amplification.
+  if dir == SpreadDirection::SPREAD: copies fw to fk with amplification by prefac/ker
+  if dir == SpreadDirection::INTERP: copies fk to fw (and zero pads rest of it), same amplification.
 
   mode_order=0: use CMCL-compatible mode ordering in fk (from -N/2 up to N/2-1)
           1: use FFT-style (from 0 to N/2-1, then -N/2 up to -1).
@@ -335,7 +335,7 @@ void deconvolveshuffle1d(int dir,FLT prefac,FLT* ker, BIGINT ms,
   // set up pp & pn as ptrs to start of pos(ie nonneg) & neg chunks of fk array
   BIGINT pp = -2*kmin, pn = 0;       // CMCL mode-ordering case (2* since cmplx)
   if (mode_order==ModeOrder::FFT) { pp = 0; pn = 2*(kmax+1); }   // or, instead, FFT ordering
-  if (dir==1) {    // read fw, write out to fk...
+  if (dir == SpreadDirection::SPREAD) {    // read fw, write out to fk...
     for (BIGINT k=0;k<=kmax;++k) {                    // non-neg freqs k
       fk[pp++] = prefac * fw[k][0] / ker[k];          // re
       fk[pp++] = prefac * fw[k][1] / ker[k];          // im
@@ -358,15 +358,15 @@ void deconvolveshuffle1d(int dir,FLT prefac,FLT* ker, BIGINT ms,
   }
 }
 
-void deconvolveshuffle2d(int dir,FLT prefac,FLT *ker1, FLT *ker2,
+void deconvolveshuffle2d(SpreadDirection dir,FLT prefac,FLT *ker1, FLT *ker2,
 			 BIGINT ms, BIGINT mt,
 			 FLT *fk, BIGINT nf1, BIGINT nf2, FFTW_CPX* fw,
 			 ModeOrder mode_order)
 /*
   2D version of deconvolveshuffle1d, calls it on each x-line using 1/ker2 fac.
 
-  if dir==1: copies fw to fk with amplification by prefac/(ker1(k1)*ker2(k2)).
-  if dir==2: copies fk to fw (and zero pads rest of it), same amplification.
+  if dir == SpreadDirection::SPREAD: copies fw to fk with amplification by prefac/(ker1(k1)*ker2(k2)).
+  if dir == SpreadDirection::INTERP: copies fk to fw (and zero pads rest of it), same amplification.
 
   mode_order=0: use CMCL-compatible mode ordering in fk (each dim increasing)
           1: use FFT-style (pos then negative, on each dim)
@@ -386,7 +386,7 @@ void deconvolveshuffle2d(int dir,FLT prefac,FLT *ker1, FLT *ker2,
   // set up pp & pn as ptrs to start of pos(ie nonneg) & neg chunks of fk array
   BIGINT pp = -2*k2min*ms, pn = 0;   // CMCL mode-ordering case (2* since cmplx)
   if (mode_order == ModeOrder::FFT) { pp = 0; pn = 2*(k2max+1)*ms; }  // or, instead, FFT ordering
-  if (dir==2)               // zero pad needed x-lines (contiguous in memory)
+  if (dir == SpreadDirection::INTERP)               // zero pad needed x-lines (contiguous in memory)
     for (BIGINT j=nf1*(k2max+1); j<nf1*(nf2+k2min); ++j)  // sweeps all dims
       fw[j][0] = fw[j][1] = 0.0;
   for (BIGINT k2=0;k2<=k2max;++k2, pp+=2*ms)          // non-neg y-freqs
@@ -396,15 +396,15 @@ void deconvolveshuffle2d(int dir,FLT prefac,FLT *ker1, FLT *ker2,
     deconvolveshuffle1d(dir,prefac/ker2[-k2],ker1,ms,fk + pn,nf1,&fw[nf1*(nf2+k2)],mode_order);
 }
 
-void deconvolveshuffle3d(int dir,FLT prefac,FLT *ker1, FLT *ker2,
+void deconvolveshuffle3d(SpreadDirection dir,FLT prefac,FLT *ker1, FLT *ker2,
 			 FLT *ker3, BIGINT ms, BIGINT mt, BIGINT mu,
 			 FLT *fk, BIGINT nf1, BIGINT nf2, BIGINT nf3,
 			 FFTW_CPX* fw, ModeOrder mode_order)
 /*
   3D version of deconvolveshuffle2d, calls it on each xy-plane using 1/ker3 fac.
 
-  if dir==1: copies fw to fk with ampl by prefac/(ker1(k1)*ker2(k2)*ker3(k3)).
-  if dir==2: copies fk to fw (and zero pads rest of it), same amplification.
+  if dir == SpreadDirection::SPREAD: copies fw to fk with ampl by prefac/(ker1(k1)*ker2(k2)*ker3(k3)).
+  if dir == SpreadDirection::INTERP: copies fk to fw (and zero pads rest of it), same amplification.
 
   mode_order=0: use CMCL-compatible mode ordering in fk (each dim increasing)
           1: use FFT-style (pos then negative, on each dim)
@@ -425,7 +425,7 @@ void deconvolveshuffle3d(int dir,FLT prefac,FLT *ker1, FLT *ker2,
   BIGINT pp = -2*k3min*ms*mt, pn = 0; // CMCL mode-ordering (2* since cmplx)
   if (mode_order == ModeOrder::FFT) { pp = 0; pn = 2*(k3max+1)*ms*mt; }  // or FFT ordering
   BIGINT np = nf1*nf2;  // # pts in an upsampled Fourier xy-plane
-  if (dir==2)           // zero pad needed xy-planes (contiguous in memory)
+  if (dir == SpreadDirection::INTERP)           // zero pad needed xy-planes (contiguous in memory)
     for (BIGINT j=np*(k3max+1);j<np*(nf3+k3min);++j)  // sweeps all dims
       fw[j][0] = fw[j][1] = 0.0;
   for (BIGINT k3=0;k3<=k3max;++k3, pp+=2*ms*mt)      // non-neg z-freqs
@@ -670,7 +670,10 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
       }
     }
 
-    p->spopts.spread_direction = type;
+    if (type == 1)
+      p->spopts.spread_direction = SpreadDirection::SPREAD;
+    else // if (type == 2)
+      p->spopts.spread_direction = SpreadDirection::INTERP;
 
     if (p->options.show_warnings) {  // user warn round-off error...
       if (EPSILON*p->ms>1.0)
@@ -904,69 +907,7 @@ int FINUFFT_EXECUTE(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk){
 
     // TODO: raise error
 
-    // //for (BIGINT j=0;j<10;++j) printf("\tcj[%ld]=%.15g+%.15gi\n",(long int)j,(double)real(cj[j]),(double)imag(cj[j]));  // debug
-    
-    // double t_pre=0.0, t_spr=0.0, t_t2=0.0, t_deconv=0.0;  // accumulated timings
-    // if (p->options.verbosity)
-    //   printf("[%s t3] start ntrans=%d (%d batches, bsize=%d)...\n",__func__,p->ntrans, p->nbatch, p->batchSize);
-
-    // for (int b=0; b*p->batchSize < p->ntrans; b++) { // .....loop b over batches
-
-    //   // batching and pointers to this batch, identical to t1,2 above...
-    //   int thisBatchSize = min(p->ntrans - b*p->batchSize, p->batchSize);
-    //   int bB = b*p->batchSize;
-    //   CPX* cjb = cj + bB*p->nj;           // batch of input strengths
-    //   CPX* fkb = fk + bB*p->nk;           // batch of output strengths
-    //   if (p->options.verbosity>1) printf("[%s t3] start batch %d (size %d):\n",__func__,b,thisBatchSize);
-      
-    //   // STEP 0: pre-phase (possibly) the c_j input strengths into c'_j batch...
-    //   timer.restart();
-      
-    //   #pragma omp parallel for num_threads(p->options.num_threads)   // or p->batchSize?
-    //   for (int i=0; i<thisBatchSize; i++) {
-    //     BIGINT ioff = i*p->nj;
-    //     for (BIGINT j=0;j<p->nj;++j)
-    //       p->CpBatch[ioff+j] = p->prephase[j] * cjb[ioff+j];
-    //   }
-    //   t_pre += timer.elapsedsec(); 
-      
-    //   // STEP 1: spread c'_j batch (x'_j NU pts) into fw batch grid...
-    //   timer.restart();
-    //   p->spopts.spread_direction = 1;                         // spread
-    //   spreadinterpSortedBatch(thisBatchSize, p, p->CpBatch);  // p->X are primed
-    //   t_spr += timer.elapsedsec();
-
-    //   //for (int j=0;j<p->nf1;++j) printf("fw[%d]=%.3g+%.3gi\n",j,p->fwBatch[j][0],p->fwBatch[j][1]);  // debug
-   
-    //   // STEP 2: type 2 NUFFT from fw batch to user output fk array batch...
-    //   timer.restart();
-    //   // illegal possible shrink of ntrans *after* plan for smaller last batch:
-    //   p->innerT2plan->ntrans = thisBatchSize;      // do not try this at home!
-    //   /* (alarming that FFTW not shrunk, but safe, because t2's fwBatch array
-    //      still the same size, as Andrea explained; just wastes a few flops) */
-    //   FINUFFT_EXECUTE(p->innerT2plan, fkb, (CPX*)(p->fwBatch));
-    //   t_t2 += timer.elapsedsec();
-
-    //   // STEP 3: apply deconvolve (precomputed 1/phiHat(targ_k), phasing too)...
-    //   timer.restart();
-      
-    //   #pragma omp parallel for num_threads(p->options.num_threads)
-    //   for (int i=0; i<thisBatchSize; i++) {
-    //     BIGINT ioff = i*p->nk;
-    //     for (BIGINT k=0;k<p->nk;++k)
-    //       fkb[ioff+k] *= p->deconv[k];
-    //   }
-    //   t_deconv += timer.elapsedsec();
-    // }                                                   // ........end b loop
-
-    // if (p->options.verbosity) {  // report total times in their natural order...
-    //   printf("[%s t3] done. tot prephase:\t\t%.3g s\n",__func__,t_pre);
-    //   printf("                  tot spread:\t\t\t%.3g s\n",t_spr);
-    //   printf("                  tot type 2:\t\t\t%.3g s\n", t_t2);
-    //   printf("                  tot deconvolve:\t\t%.3g s\n", t_deconv);
-    // }    
   }
-  //for (BIGINT k=0;k<10;++k) printf("\tfk[%ld]=%.15g+%.15gi\n",(long int)k,(double)real(fk[k]),(double)imag(fk[k]));  // debug
   
   return 0; 
 }

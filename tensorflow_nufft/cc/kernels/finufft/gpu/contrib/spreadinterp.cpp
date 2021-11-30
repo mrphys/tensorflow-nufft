@@ -55,7 +55,7 @@ int setup_spreader(SpreadOptions<FLT> &opts,FLT eps, FLT upsampling_factor,
   }
     
   // defaults... (user can change after this function called)
-  opts.spread_direction = 1;    // user should always set to 1 or 2 as desired
+  opts.spread_direction = SpreadDirection::SPREAD;
   opts.pirange = 1;             // user also should always set this
   opts.upsampling_factor = upsampling_factor;
 

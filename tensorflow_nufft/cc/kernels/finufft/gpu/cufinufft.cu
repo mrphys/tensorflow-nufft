@@ -200,9 +200,9 @@ This performs:
 	d_plan->type = type;
 
 	if (d_plan->type == 1)
-		d_plan->spopts.spread_direction = 1;
+		d_plan->spopts.spread_direction = SpreadDirection::SPREAD;
 	if (d_plan->type == 2)
-		d_plan->spopts.spread_direction = 2;
+		d_plan->spopts.spread_direction = SpreadDirection::INTERP;
 	// this may move to gpu
 	cufinufft::CNTime timer; timer.start();
 	FLT *fwkerhalf1, *fwkerhalf2, *fwkerhalf3;

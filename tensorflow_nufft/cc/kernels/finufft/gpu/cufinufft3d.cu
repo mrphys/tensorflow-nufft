@@ -197,7 +197,7 @@ int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 
 int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 {
-	assert(d_plan->spopts.spread_direction == 2);
+	assert(d_plan->spopts.spread_direction == SpreadDirection::INTERP);
 
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
@@ -237,7 +237,7 @@ int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 
 int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 {
-	assert(d_plan->spopts.spread_direction == 1);
+	assert(d_plan->spopts.spread_direction == SpreadDirection::SPREAD);
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);

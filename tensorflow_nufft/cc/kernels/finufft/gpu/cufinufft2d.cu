@@ -47,7 +47,7 @@ int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	Melody Shih 07/25/19		
 */
 {
-	assert(d_plan->spopts.spread_direction == 1);
+	assert(d_plan->spopts.spread_direction == SpreadDirection::SPREAD);
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -130,7 +130,7 @@ int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	Melody Shih 07/25/19
 */
 {
-	assert(d_plan->spopts.spread_direction == 2);
+	assert(d_plan->spopts.spread_direction == SpreadDirection::INTERP);
 
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
@@ -196,7 +196,7 @@ int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 
 int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 {
-	assert(d_plan->spopts.spread_direction == 2);
+	assert(d_plan->spopts.spread_direction == SpreadDirection::INTERP);
 
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
@@ -236,7 +236,7 @@ int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 
 int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 {
-	assert(d_plan->spopts.spread_direction == 1);
+	assert(d_plan->spopts.spread_direction == SpreadDirection::SPREAD);
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);

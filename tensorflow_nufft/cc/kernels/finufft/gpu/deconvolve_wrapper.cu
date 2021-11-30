@@ -128,7 +128,7 @@ int CUDECONVOLVE2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 	int nmodes=ms*mt;
 	int maxbatchsize=d_plan->maxbatchsize;
 
-	if (d_plan->spopts.spread_direction == 1) {
+	if (d_plan->spopts.spread_direction == SpreadDirection::SPREAD) {
 		for (int t=0; t<blksize; t++) {
 			Deconvolve_2d<<<(nmodes+256-1)/256, 256>>>(ms, mt, nf1, nf2, 
 				d_plan->fw+t*nf1*nf2,d_plan->fk+t*nmodes,d_plan->fwkerhalf1, 
@@ -175,7 +175,7 @@ int CUDECONVOLVE3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 	int nf3=d_plan->nf3;
 	int nmodes=ms*mt*mu;
 	int maxbatchsize=d_plan->maxbatchsize;
-	if (d_plan->spopts.spread_direction == 1) {
+	if (d_plan->spopts.spread_direction == SpreadDirection::SPREAD) {
 		for (int t=0; t<blksize; t++) {
 			Deconvolve_3d<<<(nmodes+256-1)/256, 256>>>(ms, mt, mu, nf1, nf2, 
 				nf3, d_plan->fw+t*nf1*nf2*nf3, d_plan->fk+t*nmodes, 

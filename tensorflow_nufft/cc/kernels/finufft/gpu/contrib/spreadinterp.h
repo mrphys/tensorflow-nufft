@@ -21,19 +21,6 @@
 #define SPREADINTERP_H
 #endif
 
-// struct tensorflow::nufft::SpreadOptions<FLT> {      // see cnufftspread:setup_spreader for defaults.
-//   int nspread;            // w, the kernel width in grid pts
-//   int spread_direction;   // 1 means spread NU->U, 2 means interpolate U->NU
-//   int pirange;            // 0: coords in [0,N), 1 coords in [-pi,pi)
-//   FLT upsampling_factor;          // sigma, upsampling factor, default 2.0
-//   bool spread_interp_only; // 0: NUFFT, 1: spread or interpolation only
-//   // ES kernel specific...
-//   FLT ES_beta;
-//   FLT ES_halfwidth;
-//   FLT ES_c;
-//   FLT ES_scale;           // used for spread/interp only
-// };
-
 // NU coord handling macro: if p is true, rescales from [-pi,pi] to [0,N], then
 // folds *only* one period below and above, ie [-N,2N], into the domain [0,N]...
 #define RESCALE(x,N,p) (p ? \

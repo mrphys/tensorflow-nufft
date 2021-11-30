@@ -32,7 +32,7 @@ namespace nufft {
 
 template<>
 int makeplan<GPUDevice, float>(
-    TransformType type, int rank, int64_t* nmodes, int iflag, int ntr, float eps,
+    TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, float eps,
     Plan<GPUDevice, float>** plan,
     const Options& options) {
 
@@ -41,7 +41,7 @@ int makeplan<GPUDevice, float>(
     nmodes_int[d] = static_cast<int>(nmodes[d]);
 
   int err = cufinufftf_makeplan(
-    type, rank, nmodes_int, iflag, ntr, eps, 0, plan, options);
+    type, rank, nmodes_int, fft_direction, ntr, eps, 0, plan, options);
   
   delete[] nmodes_int;
   return err;
@@ -49,7 +49,7 @@ int makeplan<GPUDevice, float>(
 
 template<>
 int makeplan<GPUDevice, double>(
-    TransformType type, int rank, int64_t* nmodes, int iflag, int ntr, double eps,
+    TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, double eps,
     Plan<GPUDevice, double>** plan,
     const Options& options) {
 
@@ -58,7 +58,7 @@ int makeplan<GPUDevice, double>(
     nmodes_int[d] = static_cast<int>(nmodes[d]);
 
   int err = cufinufft_makeplan(
-    type, rank, nmodes_int, iflag, ntr, eps, 0, plan, options);
+    type, rank, nmodes_int, fft_direction, ntr, eps, 0, plan, options);
   
   delete[] nmodes_int;
   return err;
@@ -161,7 +161,7 @@ struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
   Status operator()(OpKernelContext* ctx,
                     TransformType type,
                     int rank,
-                    int iflag,
+                    FftDirection fft_direction,
                     int ntrans,
                     T tol,
                     OpType optype,
@@ -174,7 +174,7 @@ struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
                     std::complex<T>* source,
                     std::complex<T>* target) {
     return this->compute(
-      ctx, type, rank, iflag, ntrans, tol, optype,
+      ctx, type, rank, fft_direction, ntrans, tol, optype,
       nbdims, source_bdims, points_bdims,
       nmodes, npts, points, source, target);
   }

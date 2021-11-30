@@ -113,6 +113,13 @@ enum class TransformType {
   TYPE_3  // non-uniform to non-uniform (not implemented)
 };
 
+// Direction of the FFT. The enum value is the sign of the exponent.
+enum class FftDirection {
+  FORWARD = -1,
+  BACKWARD = 1
+};
+
+// Direction of the spreading/interpolation.
 enum class SpreadDirection {
   SPREAD, // non-uniform to uniform
   INTERP  // uniform to non-uniform
@@ -154,12 +161,16 @@ struct SpreadOptions {  // see spreadinterp:setup_spreader for defaults.
 template<typename Device, typename FloatType>
 class PlanBase {
 
- public:
-  // The type of the transform. See enum above.
-  TransformType type_;
+ public: // TODO: make protected
 
   // The rank of the transform (number of dimensions). Must be 1, 2 or 3.
   int rank_;
+
+  // The type of the transform. See enum above.
+  TransformType type_;  
+
+  // Direction of the FFT. See enum above.
+  FftDirection fft_direction_;
 };
 
 template<typename Device, typename FloatType>
@@ -170,13 +181,15 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
  public:
 
-  // Plan(TransformType type,
-  //      int rank,
+  // Plan(int rank,
   //      int64_t* num_modes,
+  //      TransformType type,
   //      FftDirection fft_direction,
   //      int num_transforms,
   //      FloatType tolerance,
   //      const Options& options);
+
+ public: // TODO: make protected.
 
   // // How many transforms to compute.
   // unsigned int num_transforms;
@@ -204,8 +217,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   int64_t nf3;      // " z
   int64_t nf;       // total # fine grid points (product of the above three)
   
-  int fftSign;     // sign in exponential for NUFFT defn, guaranteed to be +-1
-
   FloatType* phiHat1;    // FT of kernel in t1,2, on x-axis mode grid
   FloatType* phiHat2;    // " y-axis.
   FloatType* phiHat3;    // " z-axis.
@@ -248,7 +259,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 	int mu;
 	int ntransf;
 	int maxbatchsize;
-	int iflag;
 
 	int totalnumsubprob;
 	int byte_now;

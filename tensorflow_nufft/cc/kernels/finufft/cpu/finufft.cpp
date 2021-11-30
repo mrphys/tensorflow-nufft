@@ -554,7 +554,7 @@ int* GRIDSIZE_FOR_FFTW(Plan<CPUDevice, FLT>* p){
 // For some of the fields, if "auto" selected, choose the actual setting.
 // For types 1,2 allocates memory for internal working arrays,
 // evaluates spreading kernel coefficients, and instantiates the fft_plan
-int FINUFFT_MAKEPLAN(TransformType type, int rank, BIGINT* n_modes, int iflag,
+int FINUFFT_MAKEPLAN(TransformType type, int rank, BIGINT* n_modes, FftDirection fft_direction,
                      int ntrans, FLT tol, Plan<CPUDevice, FLT> **plan,
                      const Options& options)
 {
@@ -582,7 +582,7 @@ int FINUFFT_MAKEPLAN(TransformType type, int rank, BIGINT* n_modes, int iflag,
   p->rank_ = rank;
   p->ntrans = ntrans;
   p->tol = tol;
-  p->fftSign = (iflag>=0) ? 1 : -1;         // clean up flag input
+  p->fft_direction_ = fft_direction;
 
   // Choose kernel evaluation method.
   if (p->options.kernel_evaluation_method == KernelEvaluationMethod::AUTO) {
@@ -739,7 +739,8 @@ int FINUFFT_MAKEPLAN(TransformType type, int rank, BIGINT* n_modes, int iflag,
           /* int istride */ 1, /* int idist */ p->nf,
           /* fftw_complex *out */ p->fwBatch, /* const int *onembed */ NULL,
           /* int ostride */ 1, /* int odist */ p->nf,
-          /* int sign */ p->fftSign, /* unsigned flags */ p->options.fftw_flags);
+          /* int sign */ static_cast<int>(p->fft_direction_),
+          /* unsigned flags */ p->options.fftw_flags);
     }
 
     if (p->options.verbosity) printf("[%s] FFTW plan (mode %d, num_threads=%d):\t%.3g s\n", __func__,p->options.fftw_flags, fftw_threads, timer.elapsedsec());

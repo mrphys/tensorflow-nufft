@@ -73,7 +73,7 @@ CUFINUFFT_CUFLAGS ?= -std=c++14 -ccbin=$(CXX) -O3 $(NVARCH) \
 	-Wno-deprecated-gpu-targets --default-stream per-thread \
 	-Xcompiler "$(CXXFLAGS)" --expt-relaxed-constexpr
 CUFINUFFT_CUFLAGS += -I$(CUFINUFFT_ROOT)
-CUFINUFFT_CUFLAGS += -Xcudafe --diag_suppress=20012
+CUFINUFFT_CUFLAGS += -Xcudafe "--diag_suppress=20012 --display_error_number"
 
 
 # ==============================================================================
@@ -149,8 +149,7 @@ CUFINUFFT_HEADERS = $(CUFINUFFT_ROOT)/cufinufft.h \
 					$(CUFINUFFT_ROOT)/cuspreadinterp.h \
 					$(CUFINUFFT_ROOT)/cufinufft_eitherprec.h \
 					$(CUFINUFFT_ROOT)/cufinufft_errors.h
-CONTRIBOBJS=$(CUFINUFFT_ROOT)/contrib/dirft2d.o \
-			$(CUFINUFFT_ROOT)/contrib/common.o \
+CONTRIBOBJS=$(CUFINUFFT_ROOT)/contrib/common.o \
 			$(CUFINUFFT_ROOT)/contrib/spreadinterp.o \
 			$(CUFINUFFT_ROOT)/contrib/utils_fp.o
 

@@ -83,7 +83,7 @@ void SETUP_BINSIZE(TransformType type, int rank, Options& options)
 #ifdef __cplusplus
 extern "C" {
 #endif
-int CUFINUFFT_MAKEPLAN(TransformType type, int rank, int *nmodes, int iflag,
+int CUFINUFFT_MAKEPLAN(TransformType type, int rank, int *nmodes, FftDirection fft_direction,
 		       int ntransf, FLT tol, int maxbatchsize,
 		       Plan<GPUDevice, FLT>* *d_plan_ptr,
 			   const Options& options)
@@ -187,12 +187,11 @@ This performs:
                       d_plan->options.gpu_obin_size.z);
 		if (ier > 0) return ier;
 	}
-	int fftsign = (iflag>=0) ? 1 : -1;
 
 	d_plan->nf1 = nf1;
 	d_plan->nf2 = nf2;
 	d_plan->nf3 = nf3;
-	d_plan->iflag = fftsign;
+	d_plan->fft_direction_ = fft_direction;
 	d_plan->ntransf = ntransf;
 	if (maxbatchsize==0)                    // implies: use a heuristic.
 	   maxbatchsize = min(ntransf, 8);      // heuristic from test codes

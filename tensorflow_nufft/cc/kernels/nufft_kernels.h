@@ -31,7 +31,7 @@ namespace nufft {
 
 template<typename Device, typename T>
 int makeplan(
-    TransformType type, int rank, int64_t* nmodes, int iflag, int ntr, T eps,
+    TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, T eps,
     Plan<Device, T>** plan,
     const Options& options);
 
@@ -69,7 +69,7 @@ struct DoNUFFTBase {
   Status compute(OpKernelContext* ctx,
                  nufft::TransformType type,
                  int rank,
-                 int iflag,
+                 nufft::FftDirection fft_direction,
                  int ntrans,
                  T tol,
                  OpType optype,
@@ -150,7 +150,7 @@ struct DoNUFFTBase {
     // Make the NUFFT plan.
     nufft::Plan<Device, T>* plan;
     int err;
-    err = nufft::makeplan<Device, T>(type, rank, nmodes, iflag,
+    err = nufft::makeplan<Device, T>(type, rank, nmodes, fft_direction,
                                      ntrans, tol, &plan, options);
 
     if (err > 0) {
@@ -253,7 +253,7 @@ struct DoNUFFT : DoNUFFTBase<Device, T> {
   Status operator()(OpKernelContext* ctx,
                     nufft::TransformType type,
                     int rank,
-                    int iflag,
+                    nufft::FftDirection fft_direction,
                     int ntrans,
                     T tol,
                     OpType optype,

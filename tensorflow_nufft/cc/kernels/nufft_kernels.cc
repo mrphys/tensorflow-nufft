@@ -40,20 +40,20 @@ namespace nufft {
 
 template<>
 int makeplan<CPUDevice, float>(
-    TransformType type, int rank, int64_t* nmodes, int iflag, int ntr, float eps,
+    TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, float eps,
     Plan<CPUDevice, float>** plan,
     const Options& options) {
   return finufftf_makeplan(
-    type, rank, nmodes, iflag, ntr, eps, plan, options);
+    type, rank, nmodes, fft_direction, ntr, eps, plan, options);
 };
 
 template<>
 int makeplan<CPUDevice, double>(
-    TransformType type, int rank, int64_t* nmodes, int iflag, int ntr, double eps,
+    TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, double eps,
     Plan<CPUDevice, double>** plan,
     const Options& options) {
   return finufft_makeplan(
-    type, rank, nmodes, iflag, ntr, eps, plan, options);
+    type, rank, nmodes, fft_direction, ntr, eps, plan, options);
 };
 
 template<>
@@ -135,7 +135,7 @@ struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
   Status operator()(OpKernelContext* ctx,
                     TransformType type,
                     int rank,
-                    int iflag,
+                    FftDirection fft_direction,
                     int ntrans,
                     T tol,
                     OpType optype,
@@ -148,7 +148,7 @@ struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
                     std::complex<T>* source,
                     std::complex<T>* target) {
     return this->compute(
-      ctx, type, rank, iflag, ntrans, tol, optype,
+      ctx, type, rank, fft_direction, ntrans, tol, optype,
       nbdims, source_bdims, points_bdims,
       nmodes, npts, points, source, target);
   }
@@ -451,7 +451,7 @@ class NUFFTBaseOp : public OpKernel {
       ctx,
       transform_type_,
       static_cast<int>(rank),
-      j_sign_,
+      fft_direction_,
       num_transforms,
       static_cast<T>(tol_),
       op_type_,
@@ -476,7 +476,7 @@ class NUFFTBaseOp : public OpKernel {
  protected:
 
   TransformType transform_type_;
-  int j_sign_;
+  FftDirection fft_direction_;
   float tol_;
   OpType op_type_;
 
@@ -505,9 +505,9 @@ class NUFFT : public NUFFTBaseOp<Device, T> {
     }
 
     if (fft_direction_str == "backward") {
-      this->j_sign_ = 1;
+      this->fft_direction_ = FftDirection::BACKWARD;
     } else if (fft_direction_str == "forward") {
-      this->j_sign_ = -1;
+      this->fft_direction_ = FftDirection::FORWARD;
     }
 
     this->op_type_ = OpType::NUFFT;
@@ -525,7 +525,7 @@ class Interp : public NUFFTBaseOp<Device, T> {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
 
     this->transform_type_ = TransformType::TYPE_2;
-    this->j_sign_ = 1;
+    this->fft_direction_ = FftDirection::BACKWARD; // irrelevant
 
     this->op_type_ = OpType::INTERP;
   }
@@ -542,7 +542,7 @@ class Spread : public NUFFTBaseOp<Device, T> {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
 
     this->transform_type_ = TransformType::TYPE_1;
-    this->j_sign_ = 1;
+    this->fft_direction_ = FftDirection::BACKWARD; // irrelevant
 
     this->op_type_ = OpType::SPREAD;
   }

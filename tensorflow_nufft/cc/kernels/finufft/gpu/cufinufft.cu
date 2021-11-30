@@ -29,7 +29,7 @@ using namespace std;
 using namespace tensorflow;
 using namespace tensorflow::nufft;
 
-void SETUP_BINSIZE(int type, int dim, Options& options)
+void SETUP_BINSIZE(TransformType type, int dim, Options& options)
 {
 	switch(dim)
 	{
@@ -83,7 +83,7 @@ void SETUP_BINSIZE(int type, int dim, Options& options)
 #ifdef __cplusplus
 extern "C" {
 #endif
-int CUFINUFFT_MAKEPLAN(int type, int dim, int *nmodes, int iflag,
+int CUFINUFFT_MAKEPLAN(TransformType type, int dim, int *nmodes, int iflag,
 		       int ntransf, FLT tol, int maxbatchsize,
 		       Plan<GPUDevice, FLT>* *d_plan_ptr,
 			   const Options& options)
@@ -148,13 +148,13 @@ This performs:
 
   // Select spreading method.
   if (d_plan->options.gpu_spread_method == GpuSpreadMethod::AUTO) {
-    if (dim == 2 && type == 1)
+    if (dim == 2 && type == TransformType::TYPE_1)
       d_plan->options.gpu_spread_method = GpuSpreadMethod::SUBPROBLEM;
-    else if (dim == 2 && type == 2)
+    else if (dim == 2 && type == TransformType::TYPE_2)
       d_plan->options.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
-    else if (dim == 3 && type == 1)
+    else if (dim == 3 && type == TransformType::TYPE_1)
       d_plan->options.gpu_spread_method = GpuSpreadMethod::SUBPROBLEM;
-    else if (dim == 3 && type == 2)
+    else if (dim == 3 && type == TransformType::TYPE_2)
       d_plan->options.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
   }
 
@@ -197,11 +197,11 @@ This performs:
 	if (maxbatchsize==0)                    // implies: use a heuristic.
 	   maxbatchsize = min(ntransf, 8);      // heuristic from test codes
 	d_plan->maxbatchsize = maxbatchsize;
-	d_plan->type = type;
+	d_plan->type_ = type;
 
-	if (d_plan->type == 1)
+	if (d_plan->type_ == TransformType::TYPE_1)
 		d_plan->spopts.spread_direction = SpreadDirection::SPREAD;
-	if (d_plan->type == 2)
+	if (d_plan->type_ == TransformType::TYPE_2)
 		d_plan->spopts.spread_direction = SpreadDirection::INTERP;
 	// this may move to gpu
 	cufinufft::CNTime timer; timer.start();
@@ -560,7 +560,6 @@ int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
         cudaSetDevice(d_plan->options.gpu_device_id);
 
 	int ier;
-	int type=d_plan->type;
 	switch(d_plan->dim)
 	{
 		case 1:
@@ -571,11 +570,11 @@ int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		break;
 		case 2:
 		{
-			if (type == 1)
+			if (d_plan->type_ == TransformType::TYPE_1)
 				ier = CUFINUFFT2D1_EXEC(d_c,  d_fk, d_plan);
-			if (type == 2)
+			if (d_plan->type_ == TransformType::TYPE_2)
 				ier = CUFINUFFT2D2_EXEC(d_c,  d_fk, d_plan);
-			if (type == 3) {
+			if (d_plan->type_ == TransformType::TYPE_3) {
 				cerr<<"Not Implemented yet"<<endl;
 				ier = ERR_NOTIMPLEMENTED;
 			}
@@ -583,11 +582,11 @@ int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		break;
 		case 3:
 		{
-			if (type == 1)
+			if (d_plan->type_ == TransformType::TYPE_1)
 				ier = CUFINUFFT3D1_EXEC(d_c,  d_fk, d_plan);
-			if (type == 2)
+			if (d_plan->type_ == TransformType::TYPE_2)
 				ier = CUFINUFFT3D2_EXEC(d_c,  d_fk, d_plan);
-			if (type == 3) {
+			if (d_plan->type_ == TransformType::TYPE_3) {
 				cerr<<"Not Implemented yet"<<endl;
 				ier = ERR_NOTIMPLEMENTED;
 			}

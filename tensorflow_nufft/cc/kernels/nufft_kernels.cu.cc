@@ -21,7 +21,7 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft.h"
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
-#include "tensorflow_nufft/cc/kernels/nufft.h"
+#include "tensorflow_nufft/cc/kernels/nufft_kernels.h"
 
 
 namespace tensorflow {
@@ -32,7 +32,7 @@ namespace nufft {
 
 template<>
 int makeplan<GPUDevice, float>(
-    int type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
+    TransformType type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
     Plan<GPUDevice, float>** plan,
     const Options& options) {
 
@@ -49,7 +49,7 @@ int makeplan<GPUDevice, float>(
 
 template<>
 int makeplan<GPUDevice, double>(
-    int type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
+    TransformType type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
     Plan<GPUDevice, double>** plan,
     const Options& options) {
 
@@ -154,10 +154,12 @@ int destroy<GPUDevice, double>(
 
 }   // namespace nufft
 
+using namespace tensorflow::nufft;
+
 template<typename T>
 struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
   Status operator()(OpKernelContext* ctx,
-                    int type,
+                    TransformType type,
                     int rank,
                     int iflag,
                     int ntrans,

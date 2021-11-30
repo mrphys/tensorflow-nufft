@@ -554,7 +554,7 @@ int* GRIDSIZE_FOR_FFTW(Plan<CPUDevice, FLT>* p){
 // For some of the fields, if "auto" selected, choose the actual setting.
 // For types 1,2 allocates memory for internal working arrays,
 // evaluates spreading kernel coefficients, and instantiates the fft_plan
-int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
+int FINUFFT_MAKEPLAN(TransformType type, int dim, BIGINT* n_modes, int iflag,
                      int ntrans, FLT tol, Plan<CPUDevice, FLT> **plan,
                      const Options& options)
 {
@@ -568,10 +568,6 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
   // has no effect.
   p->options = options;
 
-  if ((type != 1) && (type != 2) && (type != 3)) {
-    fprintf(stderr, "[%s] Invalid type (%d), should be 1, 2 or 3.\n",__func__,type);
-    return ERR_TYPE_NOTVALID;
-  }
   if ((dim != 1) && (dim != 2) && (dim != 3)) {
     fprintf(stderr, "[%s] Invalid dim (%d), should be 1, 2 or 3.\n",__func__,dim);
     return ERR_DIM_NOTVALID;
@@ -582,7 +578,7 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
   }
   
   // get stuff from args...
-  p->type = type;
+  p->type_ = type;
   p->dim = dim;
   p->ntrans = ntrans;
   p->tol = tol;
@@ -617,7 +613,7 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
     return ERR_SPREAD_THREAD_NOTVALID;
   }
 
-  if (type!=3) {    // read in user Fourier mode array sizes...
+  if (type != TransformType::TYPE_3) {    // read in user Fourier mode array sizes...
     p->ms = n_modes[0];
     p->mt = (dim>1) ? n_modes[1] : 1;       // leave as 1 for unused dims
     p->mu = (dim>2) ? n_modes[2] : 1;
@@ -628,7 +624,7 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
   if (p->options.upsampling_factor == 0.0) {  // indicates auto-choose
     p->options.upsampling_factor = 2.0;       // default, and need for tol small
     if (tol >= (FLT)1E-9) {                   // the tol sigma=5/4 can reach
-      if (type == 3)
+      if (type == TransformType::TYPE_3)
         p->options.upsampling_factor = 1.25;  // faster b/c smaller RAM & FFT
       else if ((dim==1 && p->N>10000000) || (dim==2 && p->N>300000) || (dim==3 && p->N>3000000))  // type 1,2 heuristic cutoffs, double, typ tol, 12-core xeon
         p->options.upsampling_factor = 1.25;
@@ -649,7 +645,7 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
   p->sortIndices = NULL;               // used in all three types
   
   //  ------------------------ types 1,2: planning needed ---------------------
-  if (type == 1 || type == 2) {
+  if (type == TransformType::TYPE_1 || type == TransformType::TYPE_2) {
 
     // Give FFTW all threads (or use o.spreader_threading?).
     int fftw_threads = num_threads;
@@ -670,9 +666,9 @@ int FINUFFT_MAKEPLAN(int type, int dim, BIGINT* n_modes, int iflag,
       }
     }
 
-    if (type == 1)
+    if (type == TransformType::TYPE_1)
       p->spopts.spread_direction = SpreadDirection::SPREAD;
-    else // if (type == 2)
+    else // if (type == TransformType::TYPE_2)
       p->spopts.spread_direction = SpreadDirection::INTERP;
 
     if (p->options.show_warnings) {  // user warn round-off error...
@@ -771,7 +767,7 @@ int FINUFFT_SETPTS(Plan<CPUDevice, FLT>* p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj
   CNTime timer; timer.start();
   p->nj = nj;    // the user only now chooses how many NU (x,y,z) pts
 
-  if (p->type!=3) {  // ------------------ TYPE 1,2 SETPTS -------------------
+  if (p->type_ != TransformType::TYPE_3) {  // ------------------ TYPE 1,2 SETPTS -------------------
                      // (all we can do is check and maybe bin-sort the NU pts)
     p->X = xj;       // plan must keep pointers to user's fixed NU pts
     p->Y = yj;
@@ -847,7 +843,7 @@ int FINUFFT_EXECUTE(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk){
 */
   CNTime timer; timer.start();
   
-  if (p->type!=3){ // --------------------- TYPE 1,2 EXEC ------------------
+  if (p->type_ != TransformType::TYPE_3){ // --------------------- TYPE 1,2 EXEC ------------------
   
     double t_sprint = 0.0, t_fft = 0.0, t_deconv = 0.0;  // accumulated timing
     if (p->options.verbosity)
@@ -864,7 +860,7 @@ int FINUFFT_EXECUTE(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk){
       
       // STEP 1: (varies by type)
       timer.restart();
-      if (p->type == 1) {  // type 1: spread NU pts p->X, weights cj, to fw grid
+      if (p->type_ == TransformType::TYPE_1) {  // type 1: spread NU pts p->X, weights cj, to fw grid
         spreadinterpSortedBatch(thisBatchSize, p, cjb);
         t_sprint += timer.elapsedsec();
       } else {          //  type 2: amplify Fourier coeffs fk into 0-padded fw
@@ -881,7 +877,7 @@ int FINUFFT_EXECUTE(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk){
       
       // STEP 3: (varies by type)
       timer.restart();        
-      if (p->type == 1) {   // type 1: deconvolve (amplify) fw and shuffle to fk
+      if (p->type_ == TransformType::TYPE_1) {   // type 1: deconvolve (amplify) fw and shuffle to fk
         deconvolveBatch(thisBatchSize, p, fkb);
         t_deconv += timer.elapsedsec();
       } else {          // type 2: interpolate unif fw grid to NU target pts
@@ -891,7 +887,7 @@ int FINUFFT_EXECUTE(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk){
     }                                                   // ........end b loop
     
     if (p->options.verbosity) {  // report total times in their natural order...
-      if(p->type == 1) {
+      if(p->type_ == TransformType::TYPE_1) {
         printf("[%s] done. tot spread:\t\t%.3g s\n",__func__,t_sprint);
         printf("               tot FFT:\t\t\t\t%.3g s\n", t_fft);
         printf("               tot deconvolve:\t\t\t%.3g s\n", t_deconv);
@@ -924,7 +920,7 @@ int FINUFFT_DESTROY(Plan<CPUDevice, FLT>* p)
     return 1;
   FFTW_FREE(p->fwBatch);   // free the big FFTW (or t3 spread) working array
   free(p->sortIndices);
-  if (p->type==1 || p->type==2) {
+  if (p->type_ == TransformType::TYPE_1 || p->type_ == TransformType::TYPE_2) {
     FFTW_DESTROY_PLAN(p->fft_plan);
     free(p->phiHat1);
     free(p->phiHat2);

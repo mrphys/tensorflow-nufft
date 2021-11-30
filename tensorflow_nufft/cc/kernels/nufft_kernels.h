@@ -31,7 +31,7 @@ namespace nufft {
 
 template<typename Device, typename T>
 int makeplan(
-    int type, int dim, int64_t* nmodes, int iflag, int ntr, T eps,
+    TransformType type, int dim, int64_t* nmodes, int iflag, int ntr, T eps,
     Plan<Device, T>** plan,
     const Options& options);
 
@@ -67,7 +67,7 @@ template<typename Device, typename T>
 struct DoNUFFTBase {
   
   Status compute(OpKernelContext* ctx,
-                 int type,
+                 nufft::TransformType type,
                  int rank,
                  int iflag,
                  int ntrans,
@@ -120,13 +120,13 @@ struct DoNUFFTBase {
     int* pcs;
     int* pcc;
     switch (type) {
-      case 1: // nonuniform to uniform
+      case nufft::TransformType::TYPE_1: // nonuniform to uniform
         strengths = source;
         coeffs = target;
         pcs = &csrc;
         pcc = &ctgt;
         break;
-      case 2: // uniform to nonuniform
+      case nufft::TransformType::TYPE_2: // uniform to nonuniform
         strengths = target;
         coeffs = source;
         pcs = &ctgt;
@@ -251,7 +251,7 @@ template<typename Device, typename T>
 struct DoNUFFT : DoNUFFTBase<Device, T> {
 
   Status operator()(OpKernelContext* ctx,
-                    int type,
+                    nufft::TransformType type,
                     int rank,
                     int iflag,
                     int ntrans,

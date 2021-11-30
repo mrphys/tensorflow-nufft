@@ -17,7 +17,7 @@ limitations under the License.
 #define EIGEN_USE_GPU
 #endif  // GOOGLE_CUDA
 
-#include "tensorflow_nufft/cc/kernels/nufft.h"
+#include "tensorflow_nufft/cc/kernels/nufft_kernels.h"
 
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/op_kernel.h"
@@ -40,7 +40,7 @@ namespace nufft {
 
 template<>
 int makeplan<CPUDevice, float>(
-    int type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
+    TransformType type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
     Plan<CPUDevice, float>** plan,
     const Options& options) {
   return finufftf_makeplan(
@@ -49,7 +49,7 @@ int makeplan<CPUDevice, float>(
 
 template<>
 int makeplan<CPUDevice, double>(
-    int type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
+    TransformType type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
     Plan<CPUDevice, double>** plan,
     const Options& options) {
   return finufft_makeplan(
@@ -128,10 +128,12 @@ int destroy<CPUDevice, double>(
 
 }   // namespace nufft
 
+using namespace tensorflow::nufft;
+
 template<typename T>
 struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
   Status operator()(OpKernelContext* ctx,
-                    int type,
+                    TransformType type,
                     int rank,
                     int iflag,
                     int ntrans,
@@ -188,7 +190,7 @@ class NUFFTBaseOp : public OpKernel {
 
     TensorShape grid_shape;
     switch (transform_type_) {
-      case 1: {   // nonuniform to uniform
+      case TransformType::TYPE_1: {   // nonuniform to uniform
         // Get shape of grid from the `grid_shape` input.
         const Tensor& grid_shape_tensor = ctx->input(2);
         OP_REQUIRES(ctx, TensorShapeUtils::IsVector(grid_shape_tensor.shape()),
@@ -210,7 +212,7 @@ class NUFFTBaseOp : public OpKernel {
 
         break;
       }
-      case 2: {   // uniform to nonuniform
+      case TransformType::TYPE_2: {   // uniform to nonuniform
         // Get shape of grid from `source` input.
         OP_REQUIRES(ctx, source.dims() >= rank,
               errors::InvalidArgument(
@@ -230,10 +232,10 @@ class NUFFTBaseOp : public OpKernel {
     gtl::InlinedVector<int64_t, 4> points_batch_shape;
 
     switch (transform_type_) {
-      case 1: // nonuniform to uniform
+      case TransformType::TYPE_1: // nonuniform to uniform
         source_batch_shape.resize(source.dims() - 1);
         break;
-      case 2: // uniform to nonuniform
+      case TransformType::TYPE_2: // uniform to nonuniform
         source_batch_shape.resize(source.dims() - rank);
         break;
     }
@@ -303,10 +305,10 @@ class NUFFTBaseOp : public OpKernel {
     Tensor* target = nullptr;
     TensorShape target_shape(bcast.output_shape());
     switch (transform_type_) {
-      case 1: // nonuniform to uniform
+      case TransformType::TYPE_1: // nonuniform to uniform
         target_shape.AppendShape(grid_shape);
         break;
-      case 2: // uniform to nonuniform
+      case TransformType::TYPE_2: // uniform to nonuniform
         target_shape.AppendShape({num_points});
         break;
     }
@@ -473,7 +475,7 @@ class NUFFTBaseOp : public OpKernel {
 
  protected:
 
-  int transform_type_;
+  TransformType transform_type_;
   int j_sign_;
   float tol_;
   OpType op_type_;
@@ -497,9 +499,9 @@ class NUFFT : public NUFFTBaseOp<Device, T> {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
 
     if (transform_type_str == "type_1") {
-      this->transform_type_ = 1;
+      this->transform_type_ = TransformType::TYPE_1;
     } else if (transform_type_str == "type_2") {
-      this->transform_type_ = 2;
+      this->transform_type_ = TransformType::TYPE_2;
     }
 
     if (fft_direction_str == "backward") {
@@ -522,7 +524,7 @@ class Interp : public NUFFTBaseOp<Device, T> {
 
     OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
 
-    this->transform_type_ = 2;
+    this->transform_type_ = TransformType::TYPE_2;
     this->j_sign_ = 1;
 
     this->op_type_ = OpType::INTERP;
@@ -539,7 +541,7 @@ class Spread : public NUFFTBaseOp<Device, T> {
 
     OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
 
-    this->transform_type_ = 1;
+    this->transform_type_ = TransformType::TYPE_1;
     this->j_sign_ = 1;
 
     this->op_type_ = OpType::SPREAD;

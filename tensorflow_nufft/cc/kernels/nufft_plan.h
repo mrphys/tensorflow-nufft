@@ -123,7 +123,9 @@ struct SpreadOptions {  // see spreadinterp:setup_spreader for defaults.
 
   // The spread direction (U->NU or NU->U). See enum above.
   SpreadDirection spread_direction;
-  
+
+  // TODO: revise the following options.
+
   // This is the main documentation for these options...
   int nspread;            // w, the kernel width in grid pts
 
@@ -152,6 +154,9 @@ struct SpreadOptions {  // see spreadinterp:setup_spreader for defaults.
 template<typename Device, typename FloatType>
 class PlanBase {
 
+ public:
+  // The type of the transform. See enum above.
+  TransformType type_;
 };
 
 template<typename Device, typename FloatType>
@@ -177,7 +182,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // // Relative tolerance.
   // FloatType tolerance;
 
-  int type;        // transform type (Rokhlin naming): 1,2 or 3
   int dim;         // overall dimension: 1,2 or 3
   int ntrans;      // how many transforms to do at once (vector or "many" mode)
   int nj;          // number of NU pts in type 1,2 (for type 3, num input x pts)
@@ -231,7 +235,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
  public:
 
-	int type;
 	int dim;
 	int M;
 	int nf1;

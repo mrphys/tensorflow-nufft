@@ -16,7 +16,7 @@ limitations under the License.
 #include <iostream>
 #include <iomanip>
 #include <math.h>
-#include <tensorflow_nufft/cc/kernels/finufft/gpu/contrib/cuda_samples/helper_cuda.h>
+#include <tensorflow_nufft/third_party/cuda_samples/helper_cuda.h>
 #include <complex>
 #include <cufft.h>
 #include <thrust/device_ptr.h>
@@ -57,17 +57,17 @@ int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	int ier;
 	CUCPX* d_fkstart;
 	CUCPX* d_cstart;
-	for (int i=0; i*d_plan->maxbatchsize < d_plan->num_transforms_; i++) {
-		blksize = min(d_plan->num_transforms_ - i*d_plan->maxbatchsize, 
-			d_plan->maxbatchsize);
-		d_cstart = d_c + i*d_plan->maxbatchsize*d_plan->M;
-		d_fkstart = d_fk + i*d_plan->maxbatchsize*d_plan->ms*d_plan->mt*
+	for (int i=0; i*d_plan->options_.max_batch_size < d_plan->num_transforms_; i++) {
+		blksize = min(d_plan->num_transforms_ - i*d_plan->options_.max_batch_size, 
+			d_plan->options_.max_batch_size);
+		d_cstart = d_c + i*d_plan->options_.max_batch_size*d_plan->M;
+		d_fkstart = d_fk + i*d_plan->options_.max_batch_size*d_plan->ms*d_plan->mt*
 			d_plan->mu;
 
 		d_plan->c = d_cstart;
 		d_plan->fk = d_fkstart;
 
-		checkCudaErrors(cudaMemset(d_plan->fw,0,d_plan->maxbatchsize*
+		checkCudaErrors(cudaMemset(d_plan->fw,0,d_plan->options_.max_batch_size*
 					d_plan->nf1*d_plan->nf2*d_plan->nf3*sizeof(CUCPX)));
 #ifdef TIME
 		float milliseconds = 0;
@@ -140,11 +140,11 @@ int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	int ier;
 	CUCPX* d_fkstart;
 	CUCPX* d_cstart;
-	for (int i=0; i*d_plan->maxbatchsize < d_plan->num_transforms_; i++) {
-		blksize = min(d_plan->num_transforms_ - i*d_plan->maxbatchsize, 
-			d_plan->maxbatchsize);
-		d_cstart  = d_c  + i*d_plan->maxbatchsize*d_plan->M;
-		d_fkstart = d_fk + i*d_plan->maxbatchsize*d_plan->ms*d_plan->mt*
+	for (int i=0; i*d_plan->options_.max_batch_size < d_plan->num_transforms_; i++) {
+		blksize = min(d_plan->num_transforms_ - i*d_plan->options_.max_batch_size, 
+			d_plan->options_.max_batch_size);
+		d_cstart  = d_c  + i*d_plan->options_.max_batch_size*d_plan->M;
+		d_fkstart = d_fk + i*d_plan->options_.max_batch_size*d_plan->ms*d_plan->mt*
 			d_plan->mu;
 
 		d_plan->c = d_cstart;
@@ -210,11 +210,11 @@ int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	CUCPX* d_fkstart;
 	CUCPX* d_cstart;
 	
-	for (int i=0; i*d_plan->maxbatchsize < d_plan->num_transforms_; i++) {
-		blksize = min(d_plan->num_transforms_ - i*d_plan->maxbatchsize, 
-			d_plan->maxbatchsize);
-		d_cstart  = d_c  + i*d_plan->maxbatchsize*d_plan->M;
-		d_fkstart = d_fk + i*d_plan->maxbatchsize*gridsize;
+	for (int i=0; i*d_plan->options_.max_batch_size < d_plan->num_transforms_; i++) {
+		blksize = min(d_plan->num_transforms_ - i*d_plan->options_.max_batch_size, 
+			d_plan->options_.max_batch_size);
+		d_cstart  = d_c  + i*d_plan->options_.max_batch_size*d_plan->M;
+		d_fkstart = d_fk + i*d_plan->options_.max_batch_size*gridsize;
 
 		d_plan->c = d_cstart;
 		d_plan->fw = d_fkstart;
@@ -248,11 +248,11 @@ int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	int gridsize = d_plan->ms*d_plan->mt*d_plan->mu;
 	CUCPX* d_fkstart;
 	CUCPX* d_cstart;
-	for (int i=0; i*d_plan->maxbatchsize < d_plan->num_transforms_; i++) {
-		blksize = min(d_plan->num_transforms_ - i*d_plan->maxbatchsize, 
-			d_plan->maxbatchsize);
-		d_cstart   = d_c + i*d_plan->maxbatchsize*d_plan->M;
-		d_fkstart = d_fk + i*d_plan->maxbatchsize*gridsize;
+	for (int i=0; i*d_plan->options_.max_batch_size < d_plan->num_transforms_; i++) {
+		blksize = min(d_plan->num_transforms_ - i*d_plan->options_.max_batch_size, 
+			d_plan->options_.max_batch_size);
+		d_cstart   = d_c + i*d_plan->options_.max_batch_size*d_plan->M;
+		d_fkstart = d_fk + i*d_plan->options_.max_batch_size*gridsize;
 
 		d_plan->c  = d_cstart;
 		d_plan->fw = d_fkstart;

@@ -28,13 +28,37 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H
-#define TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H
+#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H_
+#define TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H_
 
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 namespace tensorflow {
 namespace nufft {
+
+// Calculates the scaling factor needed to ensure that the interpolation and
+// spreading do not scale the values.
+template<typename FloatType>
+FloatType calculate_scale_factor(int rank,
+                                 const SpreadOptions<FloatType>& opts);
+
+// Evaluates the exponential of semi-circle kernel at the specified point.
+// Kernel is related to an asymptotic approximation to the Kaiser-Bessel kernel,
+// itself an approximation to prolate spheroidal wavefunction (PSWF) of order 0.
+template<typename FloatType>
+FloatType evaluate_kernel(FloatType x, const SpreadOptions<FloatType> &opts);
+
+// Approximates exact Fourier series coeffs of cnufftspread's real symmetric
+// kernel, directly via q-node quadrature on Euler-Fourier formula, exploiting
+// narrowness of kernel. Uses phase winding for cheap eval on the regular freq
+// grid. Note that this is also the Fourier transform of the non-periodized
+// kernel. The FT definition is f(k) = int e^{-ikx} f(x) dx. The output has an
+// overall prefactor of 1/h, which is needed anyway for the correction, and
+// arises because the quadrature weights are scaled for grid units not x units.
+template<typename FloatType>
+void kernel_fseries_1d(int grid_size,     
+                       const SpreadOptions<FloatType>& spopts,
+                       FloatType* fseries_coeffs);
 
 // Finds even integer not less than n, with prime factors no larger than 5
 // (ie, "smooth"). If b is specified, the returned number must also be a
@@ -45,4 +69,4 @@ IntType next_smooth_int(IntType n, IntType b = 1);
 } // namespace nufft
 } // namespace tensorflow
 
-#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H
+#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H_

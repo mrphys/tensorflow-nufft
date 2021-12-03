@@ -102,7 +102,6 @@ Design notes for guru interface implementation:
 
 
 
-// ---------- local math routines (were in common.cpp; no need now): --------
 
 // We macro because it has no FLT args but gets compiled for both prec's...
 
@@ -259,10 +258,10 @@ int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch
      the internal array p->fWBatch. Montalt 5/8/2021
 */
 {
-  // opts.spreader_threading: 1 sequential multithread, 2 parallel single-thread.
+  // opts.spread_threading: 1 sequential multithread, 2 parallel single-thread.
   // omp_sets_nested deprecated, so don't use; assume not nested for 2 to work.
   // But when nthr_outer=1 here, omp par inside the loop sees all threads...
-  int nthr_outer = p->options_.spreader_threading == SpreaderThreading::SEQUENTIAL_MULTI_THREADED ? 1 : batch_size;
+  int nthr_outer = p->options_.spread_threading == SpreadThreading::SEQUENTIAL_MULTI_THREADED ? 1 : batch_size;
 
   if (fBatch == NULL) {
     fBatch = (CPX*) p->fwBatch;
@@ -303,7 +302,6 @@ int deconvolveBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* fkBatch)
     FFTW_CPX *fwi = p->fwBatch + i*p->num_grid_points_;  // start of i'th fw array in wkspace
     CPX *fki = fkBatch + i*p->num_modes_total_;           // start of i'th fk array in fkBatch
     
-    // Call routine from common.cpp for the rank; prefactors hardcoded to 1.0...
     if (p->rank_ == 1)
       deconvolveshuffle1d(p->spopts.spread_direction, 1.0, p->phiHat1,
                           p->num_modes_[0], (FLT *)fki,

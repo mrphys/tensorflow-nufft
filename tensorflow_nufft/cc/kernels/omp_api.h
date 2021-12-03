@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_OMP_API_H
-#define TENSORFLOW_NUFFT_KERNELS_OMP_API_H
+#ifndef TENSORFLOW_NUFFT_KERNELS_OMP_API_H_
+#define TENSORFLOW_NUFFT_KERNELS_OMP_API_H_
 
 #ifdef _OPENMP
   // Compiled with OpenMP support.
@@ -31,4 +31,4 @@ limitations under the License.
   #define OMP_SET_NUM_THREADS(x)
 #endif
 
-#endif // TENSORFLOW_NUFFT_KERNELS_OMP_API_H
+#endif // TENSORFLOW_NUFFT_KERNELS_OMP_API_H_

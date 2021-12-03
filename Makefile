@@ -151,8 +151,7 @@ CUFINUFFT_HEADERS = $(CUFINUFFT_ROOT)/cufinufft.h \
 					$(CUFINUFFT_ROOT)/cuspreadinterp.h \
 					$(CUFINUFFT_ROOT)/cufinufft_eitherprec.h \
 					$(CUFINUFFT_ROOT)/cufinufft_errors.h
-CONTRIBOBJS=$(CUFINUFFT_ROOT)/contrib/common.o \
-			$(CUFINUFFT_ROOT)/contrib/spreadinterp.o \
+CONTRIBOBJS=$(CUFINUFFT_ROOT)/contrib/spreadinterp.o \
 			$(CUFINUFFT_ROOT)/contrib/utils_fp.o
 
 # We create three collections of objects:

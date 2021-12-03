@@ -15,7 +15,7 @@ limitations under the License.
 
 #include <iostream>
 #include <math.h>
-#include <tensorflow_nufft/cc/kernels/finufft/gpu/contrib/cuda_samples/helper_cuda.h>
+#include <tensorflow_nufft/third_party/cuda_samples/helper_cuda.h>
 #include <cuda.h>
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/utils.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/utils_fp.h"

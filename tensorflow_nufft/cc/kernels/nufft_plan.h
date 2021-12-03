@@ -28,8 +28,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H
-#define TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H
+#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H_
+#define TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H_
 
 #define EIGEN_USE_THREADS
 #if GOOGLE_CUDA
@@ -54,6 +54,29 @@ typedef Eigen::ThreadPoolDevice CPUDevice;
 typedef Eigen::GpuDevice GPUDevice;
 
 namespace nufft {
+
+// The maximum allowed array size.
+constexpr static int kMaxArraySize = 2000000000; // 2 billion points
+
+// Max number of positive quadrature nodes for kernel FT.
+constexpr static int kMaxQuadNodes = 100;
+
+// Largest possible kernel spread width per dimension, in fine grid points.
+constexpr static int kMaxKernelWidth = 16;
+
+// Mathematical constants.
+template<typename FloatType>
+constexpr static FloatType kPi = FloatType(3.14159265358979329);
+
+template<typename FloatType>
+constexpr static std::complex<FloatType> kImaginaryUnit = std::complex<FloatType>(0.0, 1.0);
+
+template<typename FloatType>
+constexpr FloatType kEpsilon;
+template<>
+constexpr float kEpsilon<float> = 6e-08f;
+template<>
+constexpr double kEpsilon<double> = 1.1e-16;
 
 template<typename Device, typename FloatType>
 struct FftPlanType;
@@ -85,23 +108,23 @@ struct ComplexType;
 
 template<>
 struct ComplexType<CPUDevice, float> {
-  typedef fftwf_complex Type;
+  using Type = fftwf_complex;
 };
 
 template<>
 struct ComplexType<CPUDevice, double> {
-  typedef fftw_complex Type;
+  using Type = fftw_complex;
 };
 
 #ifdef GOOGLE_CUDA
 template<>
 struct ComplexType<GPUDevice, float> {
-  typedef cuFloatComplex Type;
+  using Type = cuFloatComplex;
 };
 
 template<>
 struct ComplexType<GPUDevice, double> {
-  typedef cuDoubleComplex Type;
+  using Type = cuDoubleComplex;
 };
 #endif
 
@@ -118,45 +141,6 @@ enum class TransformType {
 enum class FftDirection {
   FORWARD = -1,
   BACKWARD = 1
-};
-
-// Direction of the spreading/interpolation.
-enum class SpreadDirection {
-  SPREAD, // non-uniform to uniform
-  INTERP  // uniform to non-uniform
-};
-
-template<typename FloatType>
-struct SpreadOptions {  // see spreadinterp:setup_spreader for defaults.
-
-  // The spread direction (U->NU or NU->U). See enum above.
-  SpreadDirection spread_direction;
-
-  // TODO: revise the following options.
-
-  // This is the main documentation for these options...
-  int nspread;            // w, the kernel width in grid pts
-
-  int pirange;            // 0: NU periodic domain is [0,N), 1: domain [-pi,pi)
-  bool check_bounds;      // 0: don't check NU pts in 3-period range; 1: do
-  int sort;               // 0: don't sort NU pts, 1: do, 2: heuristic choice
-  int kerevalmeth;        // 0: direct exp(sqrt()), or 1: Horner ppval, fastest
-  bool pad_kernel;            // 0: no pad w to mult of 4, 1: do pad
-                          // (this helps SIMD for kerevalmeth=0, eg on i7).
-  int num_threads;        // # threads for spreadinterp (0: use max avail)
-  int sort_threads;       // # threads for sort (0: auto-choice up to num_threads)
-  int max_subproblem_size; // # pts per t1 subprob; sets extra RAM per thread
-  int flags;              // binary flags for timing only (may give wrong ans
-                          // if changed from 0!). See spreadinterp.h
-  int verbosity;          // 0: silent, 1: small text output, 2: verbose
-  int atomic_threshold;   // num threads before switching spreadSorted to using atomic ops
-  double upsampling_factor;       // sigma, upsampling factor
-  bool spread_interp_only;   // 0: NUFFT, 1: spread or interpolation only
-  // ES kernel specific consts used in fast eval, depend on precision FLT...
-  FloatType ES_beta;
-  FloatType ES_halfwidth;
-  FloatType ES_c;
-  FloatType ES_scale;           // used for spread/interp only
 };
 
 template<typename Device, typename FloatType>
@@ -273,7 +257,14 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
  public:
 
-  Plan();
+  Plan(OpKernelContext* context,
+       TransformType type,
+       int rank,
+       gtl::InlinedVector<int, 4> num_modes,
+       FftDirection fft_direction,
+       int num_transforms,
+       FloatType tol,
+       const Options& options);
 
  public:
 
@@ -284,8 +275,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 	int ms;
 	int mt;
 	int mu;
-	int num_transforms;
-	int maxbatchsize;
 
 	int totalnumsubprob;
 	int byte_now;
@@ -327,4 +316,4 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 } // namespace nufft
 } // namespace tensorflow
 
-#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H
+#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H_

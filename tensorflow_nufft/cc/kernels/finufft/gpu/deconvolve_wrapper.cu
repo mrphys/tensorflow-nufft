@@ -14,7 +14,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include <cuda.h>
-#include <tensorflow_nufft/cc/kernels/finufft/gpu/contrib/cuda_samples/helper_cuda.h>
+#include <tensorflow_nufft/third_party/cuda_samples/helper_cuda.h>
 #include <iostream>
 #include <iomanip>
 
@@ -126,7 +126,7 @@ int CUDECONVOLVE2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 	int nf1=d_plan->nf1;
 	int nf2=d_plan->nf2;
 	int nmodes=ms*mt;
-	int maxbatchsize=d_plan->maxbatchsize;
+	int max_batch_size=d_plan->options_.max_batch_size;
 
 	if (d_plan->spopts.spread_direction == SpreadDirection::SPREAD) {
 		for (int t=0; t<blksize; t++) {
@@ -135,7 +135,7 @@ int CUDECONVOLVE2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 				d_plan->fwkerhalf2);
 		}
 	}else{
-		checkCudaErrors(cudaMemset(d_plan->fw,0,maxbatchsize*nf1*nf2*
+		checkCudaErrors(cudaMemset(d_plan->fw,0,max_batch_size*nf1*nf2*
 			sizeof(CUCPX)));
 		for (int t=0; t<blksize; t++) {
 			Amplify_2d<<<(nmodes+256-1)/256, 256>>>(ms, 
@@ -174,7 +174,7 @@ int CUDECONVOLVE3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 	int nf2=d_plan->nf2;
 	int nf3=d_plan->nf3;
 	int nmodes=ms*mt*mu;
-	int maxbatchsize=d_plan->maxbatchsize;
+	int max_batch_size=d_plan->options_.max_batch_size;
 	if (d_plan->spopts.spread_direction == SpreadDirection::SPREAD) {
 		for (int t=0; t<blksize; t++) {
 			Deconvolve_3d<<<(nmodes+256-1)/256, 256>>>(ms, mt, mu, nf1, nf2, 
@@ -182,7 +182,7 @@ int CUDECONVOLVE3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 				d_plan->fwkerhalf1, d_plan->fwkerhalf2, d_plan->fwkerhalf3);
 		}
 	}else{
-		checkCudaErrors(cudaMemset(d_plan->fw,0,maxbatchsize*nf1*nf2*nf3*
+		checkCudaErrors(cudaMemset(d_plan->fw,0,max_batch_size*nf1*nf2*nf3*
 			sizeof(CUCPX)));
 		for (int t=0; t<blksize; t++) {
 			Amplify_3d<<<(nmodes+256-1)/256, 256>>>(ms, mt, mu, nf1, nf2, nf3,

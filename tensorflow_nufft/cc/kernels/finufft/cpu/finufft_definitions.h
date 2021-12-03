@@ -36,8 +36,6 @@ limitations under the License.
 // Fraction growth cut-off in utils:arraywidcen, sets when translate in type-3
 #define ARRAYWIDCEN_GROWFRAC 0.1
 
-// Max number of positive quadr nodes for kernel FT (used only in common.cpp)
-#define MAX_NQUAD 100
 
 
 
@@ -79,13 +77,6 @@ limitations under the License.
 #define M_2PI   6.28318530717958648
 // to avoid mixed precision operators in eg i*pi, an either-prec PI...
 #define PI (FLT)M_PI
-
-// machine epsilon for decisions of achievable tol...
-#ifdef SINGLE
-  #define EPSILON (float)6e-08
-#else
-  #define EPSILON (double)1.1e-16
-#endif
 
 // Random numbers: crappy unif random number generator in [0,1):
 // (RAND_MAX is in stdlib.h)

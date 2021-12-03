@@ -31,8 +31,4 @@ namespace cufinufft {
 FLT evaluate_kernel(FLT x, const tensorflow::nufft::SpreadOptions<FLT> &opts);
 } // namespace cufinufft
 
-int setup_spreader(tensorflow::nufft::SpreadOptions<FLT> &opts, FLT eps, FLT upsampling_factor,
-                   tensorflow::nufft::KernelEvaluationMethod kernel_evaluation_method,
-                   int rank);
-
 #endif  // SPREADINTERP_H

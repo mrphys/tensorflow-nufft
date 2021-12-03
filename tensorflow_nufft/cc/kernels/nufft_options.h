@@ -28,8 +28,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_OPTIONS_H
-#define TENSORFLOW_NUFFT_KERNELS_NUFFT_OPTIONS_H
+#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_OPTIONS_H_
+#define TENSORFLOW_NUFFT_KERNELS_NUFFT_OPTIONS_H_
 
 #include <fftw3.h>
 
@@ -57,10 +57,16 @@ enum class KernelEvaluationMethod {
   HORNER = 2  // Evaluate using Horner piecewise polynomial. Faster.
 };
 
-enum class SpreaderThreading {
+enum class SpreadThreading {
   AUTO = 0,                       // Choose automatically.
   SEQUENTIAL_MULTI_THREADED = 1,  // Use sequential multi-threaded spreading.
   PARALLEL_SINGLE_THREADED = 2    // Use parallel single-threaded spreading.
+};
+
+// Direction of the spreading/interpolation.
+enum class SpreadDirection {
+  SPREAD, // non-uniform to uniform
+  INTERP  // uniform to non-uniform
 };
 
 #if GOOGLE_CUDA
@@ -121,10 +127,10 @@ struct Options {
 
   // The spreader threading strategy. See enum above. Only relevant if the
   // number of threads is larger than 1. Applies only to the CPU kernel.
-  SpreaderThreading spreader_threading = SpreaderThreading::AUTO;
+  SpreadThreading spread_threading = SpreadThreading::AUTO;
 
   // The maximum batch size for the vectorized NUFFT. A value of 0 means the
-  // batch size is automatically chosen. Applies only to the CPU kernel.
+  // batch size is automatically chosen. Applies to CPU and GPU kernels.
   int max_batch_size = 0;
 
   // The number of threads above which the spreader OMP critical goes atomic.
@@ -164,7 +170,40 @@ struct Options {
   #endif // GOOGLE_CUDA
 };
 
+template<typename FloatType>
+struct SpreadOptions {
+
+  // The spread direction (U->NU or NU->U). See enum above.
+  SpreadDirection spread_direction;
+
+  // TODO: revise the following options.
+
+  // This is the main documentation for these options...
+  int nspread;            // w, the kernel width in grid pts
+
+  int pirange;            // 0: NU periodic domain is [0,N), 1: domain [-pi,pi)
+  bool check_bounds;      // 0: don't check NU pts in 3-period range; 1: do
+  int sort;               // 0: don't sort NU pts, 1: do, 2: heuristic choice
+  int kerevalmeth;        // 0: direct exp(sqrt()), or 1: Horner ppval, fastest
+  bool pad_kernel;            // 0: no pad w to mult of 4, 1: do pad
+                          // (this helps SIMD for kerevalmeth=0, eg on i7).
+  int num_threads;        // # threads for spreadinterp (0: use max avail)
+  int sort_threads;       // # threads for sort (0: auto-choice up to num_threads)
+  int max_subproblem_size; // # pts per t1 subprob; sets extra RAM per thread
+  int flags;              // binary flags for timing only (may give wrong ans
+                          // if changed from 0!). See spreadinterp.h
+  int verbosity;          // 0: silent, 1: small text output, 2: verbose
+  int atomic_threshold;   // num threads before switching spreadSorted to using atomic ops
+  double upsampling_factor;       // sigma, upsampling factor
+  bool spread_interp_only;   // 0: NUFFT, 1: spread or interpolation only
+  // ES kernel specific consts used in fast eval, depend on precision FLT...
+  FloatType ES_beta;
+  FloatType ES_halfwidth;
+  FloatType ES_c;
+  FloatType ES_scale;           // used for spread/interp only
+};
+
 } // namespace nufft
 } // namespace tensorflow
 
-#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_OPTIONS_H
+#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_OPTIONS_H_

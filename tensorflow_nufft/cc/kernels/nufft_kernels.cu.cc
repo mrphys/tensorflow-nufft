@@ -36,15 +36,15 @@ int makeplan<GPUDevice, float>(
     Plan<GPUDevice, float>** plan,
     const Options& options) {
 
-  int* nmodes_int = new int[rank];
-  for (int d = 0; d < rank; d++)
-    nmodes_int[d] = static_cast<int>(nmodes[d]);
+  gtl::InlinedVector<int, 4> num_modes(rank);
+  for (int i = 0; i < rank; ++i) {
+    num_modes[i] = nmodes[i];
+  }
 
-  int err = cufinufftf_makeplan(
-    type, rank, nmodes_int, fft_direction, ntr, eps, 0, plan, options);
-  
-  delete[] nmodes_int;
-  return err;
+  *plan = new Plan<GPUDevice, float>(
+      context, type, rank, num_modes, fft_direction, ntr, eps, options);
+
+  return 0;
 };
 
 template<>
@@ -53,15 +53,15 @@ int makeplan<GPUDevice, double>(
     Plan<GPUDevice, double>** plan,
     const Options& options) {
 
-  int* nmodes_int = new int[rank];
-  for (int d = 0; d < rank; d++)
-    nmodes_int[d] = static_cast<int>(nmodes[d]);
+  gtl::InlinedVector<int, 4> num_modes(rank);
+  for (int i = 0; i < rank; ++i) {
+    num_modes[i] = nmodes[i];
+  }
 
-  int err = cufinufft_makeplan(
-    type, rank, nmodes_int, fft_direction, ntr, eps, 0, plan, options);
-  
-  delete[] nmodes_int;
-  return err;
+  *plan = new Plan<GPUDevice, double>(
+      context, type, rank, num_modes, fft_direction, ntr, eps, options);
+
+  return 0;
 };
 
 template<>

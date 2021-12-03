@@ -30,7 +30,6 @@ limitations under the License.
 
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
-#include "tensorflow_nufft/cc/kernels/legendre_rule_fast.h"
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
 #include "tensorflow_nufft/cc/kernels/omp_api.h"
 
@@ -38,45 +37,18 @@ limitations under the License.
 namespace tensorflow {
 namespace nufft {
 
-// The maximum allowed array size.
-constexpr static int kMaxArraySize = 2000000000; // 2 billion points
-
-// Max number of positive quadrature nodes for kernel FT.
-constexpr static int kMaxQuadNodes = 100;
-
-// Largest possible kernel spread width per dimension, in fine grid points.
-constexpr static int kMaxKernelWidth = 16;
-
-// Mathematical constants.
-template<typename FloatType>
-constexpr static FloatType kPi = FloatType(3.14159265358979329);
-template<typename FloatType>
-constexpr static std::complex<FloatType> kImaginaryUnit = std::complex<FloatType>(0.0, 1.0);
-template<typename FloatType>
-constexpr FloatType kEpsilon;
-template<>
-constexpr float kEpsilon<float> = 6e-08f;
-template<>
-constexpr double kEpsilon<double> = 1.1e-16;
+namespace {
 
 // Forward declarations. Defined below.
 template<typename FloatType>
-Status upsampled_dim_size(int ms,
-                          const Options& options,
-                          SpreadOptions<FloatType> spopts,
-                          int* grid_size);
+Status set_grid_size(int ms,
+                     const Options& options,
+                     SpreadOptions<FloatType> spopts,
+                     int* grid_size);
 
 template<typename T>
 Status reverse_vector(const gtl::InlinedVector<T, 4>& vec,
                       gtl::InlinedVector<T, 4>& rev);
-
-template<typename FloatType>
-void kernel_fseries_1d(int grid_size,     
-                       SpreadOptions<FloatType> spopts,
-                       FloatType* fseries_coeffs);
-
-template<typename FloatType>
-FloatType evaluate_kernel(FloatType x, const SpreadOptions<FloatType> &opts);
 
 template<typename FloatType>
 Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
@@ -88,9 +60,7 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
                                 const Options& options,
                                 SpreadOptions<FloatType> &spopts);
 
-template<typename FloatType>
-FloatType calculate_scale_factor(int rank,
-                                 const SpreadOptions<FloatType> &opts);
+} // namespace
 
 // Creates a new NUFFT plan. Allocates memory for internal working arrays,
 // evaluates spreading kernel coefficients, and instantiates the FFT plan.
@@ -145,8 +115,8 @@ Plan<CPUDevice, FloatType>::Plan(
   }
 
   // Choose default spreader threading configuration.
-  if (this->options_.spreader_threading == SpreaderThreading::AUTO)
-    this->options_.spreader_threading = SpreaderThreading::PARALLEL_SINGLE_THREADED;
+  if (this->options_.spread_threading == SpreadThreading::AUTO)
+    this->options_.spread_threading = SpreadThreading::PARALLEL_SINGLE_THREADED;
 
   // Read in user Fourier mode array sizes.
   if (type != TransformType::TYPE_3) {
@@ -210,16 +180,16 @@ Plan<CPUDevice, FloatType>::Plan(
   // Determine fine grid sizes.
   this->grid_sizes_.resize(rank);
   OP_REQUIRES_OK(
-      context, upsampled_dim_size(
+      context, set_grid_size(
           this->num_modes_[0], this->options_, this->spopts, &this->grid_sizes_[0]));
   if (rank > 1) {
     OP_REQUIRES_OK(
-        context, upsampled_dim_size(
+        context, set_grid_size(
             this->num_modes_[1], this->options_, this->spopts, &this->grid_sizes_[1]));
   }
   if (rank > 2) {
     OP_REQUIRES_OK(
-        context, upsampled_dim_size(
+        context, set_grid_size(
             this->num_modes_[2], this->options_, this->spopts, &this->grid_sizes_[2]));
   }
 
@@ -272,13 +242,16 @@ Plan<CPUDevice, FloatType>::Plan(
   }
 }
 
+
+namespace {
+
 // Set 1D size of upsampled array, grid_size, given options and requested number of
 // Fourier modes.
 template<typename FloatType>
-Status upsampled_dim_size(int ms,
-                          const Options& options,
-                          SpreadOptions<FloatType> spopts,
-                          int* grid_size) {
+Status set_grid_size(int ms,
+                     const Options& options,
+                     SpreadOptions<FloatType> spopts,
+                     int* grid_size) {
   // for spread/interp only, we do not apply oversampling (Montalt 6/8/2021).
   if (options.spread_interp_only) {
     *grid_size = ms;
@@ -310,7 +283,6 @@ Status upsampled_dim_size(int ms,
   return Status::OK();
 }
 
-
 // Reverses the input vector. Only supports up to rank 3 (this is not checked).
 template<typename T>
 Status reverse_vector(const gtl::InlinedVector<T, 4>& vec,
@@ -336,91 +308,6 @@ Status reverse_vector(const gtl::InlinedVector<T, 4>& vec,
 
   return Status::OK();
 }
-
-
-template<typename FloatType>
-void kernel_fseries_1d(int grid_size,     
-                       SpreadOptions<FloatType> spopts,
-                       FloatType* fseries_coeffs)
-/*
-  Approximates exact Fourier series coeffs of cnufftspread's real symmetric
-  kernel, directly via q-node quadrature on Euler-Fourier formula, exploiting
-  narrowness of kernel. Uses phase winding for cheap eval on the regular freq
-  grid. Note that this is also the Fourier transform of the non-periodized
-  kernel. The FT definition is f(k) = int e^{-ikx} f(x) dx. The output has an
-  overall prefactor of 1/h, which is needed anyway for the correction, and
-  arises because the quadrature weights are scaled for grid units not x units.
-
-  Inputs:
-  grid_size - size of 1d uniform spread grid, must be even.
-  spopts - spreading spopts object, needed to eval kernel (must be already set up)
-
-  Outputs:
-  fseries_coeffs - real Fourier series coeffs from indices 0 to grid_size/2 inclusive,
-              divided by h = 2pi/n.
-              (should be allocated for at least grid_size/2+1 FLTs)
-
-  Compare onedim_dct_kernel which has same interface, but computes DFT of
-  sampled kernel, not quite the same object.
-
-  Barnett 2/7/17. openmp (since slow vs fftw in 1D large-N case) 3/3/18.
-  Fixed num_threads 7/20/20
- */
-{
-  FloatType kernel_half_width = spopts.nspread / 2.0;
-  // # quadr nodes in z (from 0 to J/2; reflections will be added)...
-  int q = (int)(2 + 3.0 * kernel_half_width);  // not sure why so large? cannot exceed kMaxQuadNodes
-  FloatType f[kMaxQuadNodes];
-  double z[2 * kMaxQuadNodes];
-  double w[2 * kMaxQuadNodes];
-  legendre_compute_glr(2 * q, z, w);        // only half the nodes used, eg on (0,1)
-  std::complex<FloatType> a[kMaxQuadNodes];
-  for (int n=0; n < q; ++n) {               // set up nodes z_n and vals f_n
-    z[n] *= kernel_half_width;                         // rescale nodes
-    f[n] = kernel_half_width*(FloatType)w[n] * evaluate_kernel((FloatType)z[n], spopts); // vals & quadr wei
-    a[n] = exp(2 * kPi<FloatType> * kImaginaryUnit<FloatType> * (FloatType)(grid_size / 2 - z[n]) / (FloatType)grid_size);  // phase winding rates
-  }
-  int nout = grid_size / 2 + 1;                   // how many values we're writing to
-  int nt = std::min(nout, (int)spopts.num_threads);         // how many chunks
-  std::vector<int> brk(nt + 1);        // start indices for each thread
-  for (int t = 0; t <= nt; ++t)             // split nout mode indices btw threads
-    brk[t] = (int)(0.5 + nout * t / (double)nt);
-  
-  #pragma omp parallel num_threads(nt)
-  {                                     // each thread gets own chunk to do
-    int t = OMP_GET_THREAD_NUM();
-    std::complex<FloatType> aj[kMaxQuadNodes];    // phase rotator for this thread
-
-    for (int n = 0; n < q; ++n)
-      aj[n] = pow(a[n], (FloatType)brk[t]);    // init phase factors for chunk
-    
-    for (int j = brk[t]; j < brk[t + 1]; ++j) {          // loop along output array  
-      FloatType x = 0.0;                      // accumulator for answer at this j
-      for (int n = 0; n < q; ++n) {
-        x += f[n] * 2 * real(aj[n]);      // include the negative freq
-        aj[n] *= a[n];                  // wind the phases
-      }
-      fseries_coeffs[j] = x;
-    }
-  }
-}
-
-
-template<typename FloatType>
-FloatType evaluate_kernel(FloatType x, const SpreadOptions<FloatType> &opts)
-/* ES ("exp sqrt") kernel evaluation at single real argument:
-      phi(x) = exp(beta.sqrt(1 - (2x/n_s)^2)),    for |x| < nspread/2
-   related to an asymptotic approximation to the Kaiser--Bessel, itself an
-   approximation to prolate spheroidal wavefunction (PSWF) of order 0.
-   This is the "reference implementation", used by eg finufft/onedim_* 2/17/17
-*/
-{
-  if (abs(x) >= opts.ES_halfwidth)
-    return 0.0;
-  else
-    return exp(opts.ES_beta * sqrt(1.0 - opts.ES_c * x * x));
-}
-
 
 template<typename FloatType>
 Status setup_spreader(
@@ -463,27 +350,24 @@ Status setup_spreader(
   spopts.num_threads = 0;            // all avail
   spopts.sort_threads = 0;        // 0:auto-choice
   // heuristic dir=1 chunking for nthr>>1, typical for intel i7 and skylake...
-  spopts.max_subproblem_size = (rank==1) ? 10000 : 100000;
+  spopts.max_subproblem_size = (rank == 1) ? 10000 : 100000;
   spopts.flags = 0;               // 0:no timing flags (>0 for experts only)
   spopts.verbosity = 0;               // 0:no debug output
   // heuristic nthr above which switch OMP critical to atomic (add_wrapped...):
   spopts.atomic_threshold = 10;   // R Blackwell's value
 
   int ns = 0;  // Set kernel width w (aka ns, nspread) then copy to spopts...
-  if (eps < kEpsilon<FloatType>) {            // safety; there's no hope of beating e_mach
-    if (show_warnings)
-      fprintf(stderr,"%s warning: increasing tol=%.3g to eps_mach=%.3g.\n",__func__,(double)eps,(double)kEpsilon<FloatType>);
-    eps = kEpsilon<FloatType>;              // only changes local copy (not any spopts)
+  if (eps < kEpsilon<FloatType>) {
+    eps = kEpsilon<FloatType>;
   }
-  if (upsampling_factor==2.0)           // standard sigma (see SISC paper)
+
+  // Select kernel width.
+  if (upsampling_factor == 2.0)           // standard sigma (see SISC paper)
     ns = std::ceil(-log10(eps / (FloatType)10.0));          // 1 digit per power of 10
   else                          // custom sigma
-    ns = std::ceil(-log(eps) / (kPi<FloatType> * sqrt(1.0 - 1.0/upsampling_factor)));  // formula, gam=1
+    ns = std::ceil(-log(eps) / (kPi<FloatType> * sqrt(1.0 - 1.0 / upsampling_factor)));  // formula, gam=1
   ns = std::max(2, ns);               // (we don't have ns=1 version yet)
   if (ns > kMaxKernelWidth) {         // clip to fit allocated arrays, Horner rules
-    if (show_warnings)
-      fprintf(stderr,"%s warning: at upsampling_factor=%.3g, tol=%.3g would need kernel width ns=%d; clipping to max %d.\n",__func__,
-              upsampling_factor,(double)eps,ns,kMaxKernelWidth);
     ns = kMaxKernelWidth;
   }
   spopts.nspread = ns;
@@ -498,7 +382,7 @@ Status setup_spreader(
   if (ns == 4) beta_over_ns = 2.38;
   if (upsampling_factor != 2.0) {          // again, override beta for custom sigma
     FloatType gamma = 0.97;              // must match devel/gen_all_horner_C_code.m !
-    beta_over_ns = gamma*kPi<FloatType>*(1.0-1.0/(2*upsampling_factor));  // formula based on cutoff
+    beta_over_ns = gamma * kPi<FloatType>*(1.0 - 1.0 / (2 * upsampling_factor));  // formula based on cutoff
   }
   spopts.ES_beta = beta_over_ns * (FloatType)ns;    // set the kernel beta parameter
 
@@ -508,7 +392,6 @@ Status setup_spreader(
 
   return Status::OK();
 }
-
 
 template<typename FloatType>
 Status setup_spreader_for_nufft(int rank, FloatType eps,
@@ -520,11 +403,10 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
   // This must be set before calling setup_spreader
   spopts.spread_interp_only = options.spread_interp_only;
 
-  Status status = setup_spreader(
+  TF_RETURN_IF_ERROR(setup_spreader(
       rank, eps, options.upsampling_factor,
       static_cast<int>(options.kernel_evaluation_method) - 1, // We subtract 1 temporarily, as spreader expects values of 0 or 1 instead of 1 and 2.
-      options.show_warnings, spopts);
-  if (!status.ok()) return status;
+      options.show_warnings, spopts));
 
   // override various spread spopts from their defaults...
   spopts.verbosity = options.verbosity;
@@ -540,28 +422,7 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
   return Status::OK();
 }
 
-
-// Calculates the scaling factor for spread/interp only mode.
-template<typename FloatType>
-FloatType calculate_scale_factor(
-    int rank, const SpreadOptions<FloatType> &opts) {
-  int n = 100;
-  FloatType h = 2.0 / n;
-  FloatType x = -1.0;
-  FloatType sum = 0.0;
-  for(int i = 1; i < n; i++) {
-    x += h;
-    sum += exp(opts.ES_beta * sqrt(1.0 - x * x));
-  }
-  sum += 1.0;
-  sum *= h;
-  sum *= sqrt(1.0 / opts.ES_c);
-  FloatType scale = sum;
-  if (rank > 1) { scale *= sum; }
-  if (rank > 2) { scale *= sum; }
-  return 1.0 / scale;
-}
-
+} // namespace
 
 // Explicit instatiations.
 template class Plan<CPUDevice, float>;

@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <tensorflow_nufft/cc/kernels/finufft/gpu/contrib/cuda_samples/helper_cuda.h>
+#include <tensorflow_nufft/third_party/cuda_samples/helper_cuda.h>
 #include <iostream>
 #include <iomanip>
 #include <assert.h>
@@ -29,90 +29,6 @@ using namespace std;
 using namespace tensorflow;
 using namespace tensorflow::nufft;
 
-
-int CUFINUFFT_SPREAD2D(int nf1, int nf2, CUCPX* d_fw, int M,
-	FLT *d_kx, FLT *d_ky, CUCPX *d_c, Plan<GPUDevice, FLT>* d_plan)
-/*
-	This c function is written for only doing 2D spreading. See
-	test/spread2d_test.cu for usage.
-
-	Melody Shih 07/25/19
-	not allocate,transfer and free memories on gpu. Shih 09/24/20
-*/
-{
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-
-	d_plan->kx = d_kx;
-	d_plan->ky = d_ky;
-	d_plan->c  = d_c;
-	d_plan->fw = d_fw;
-
-	int ier;
-	d_plan->nf1 = nf1;
-	d_plan->nf2 = nf2;
-	d_plan->M = M;
-	d_plan->maxbatchsize = 1;
-
-	cudaEventRecord(start);
-	ier = ALLOCGPUMEM2D_PLAN(d_plan);
-	ier = ALLOCGPUMEM2D_NUPTS(d_plan);
-
-	if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
-		ier = CUSPREAD2D_NUPTSDRIVEN_PROP(nf1,nf2,M,d_plan);
-		if (ier != 0 ) {
-			printf("error: cuspread2d_nuptsdriven_prop, method(%d)\n",
-				d_plan->options_.gpu_spread_method);
-			return ier;
-		}
-	}
-
-	if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
-		ier = CUSPREAD2D_SUBPROB_PROP(nf1,nf2,M,d_plan);
-		if (ier != 0 ) {
-			printf("error: cuspread2d_subprob_prop, method(%d)\n",
-				d_plan->options_.gpu_spread_method);
-			return ier;
-		}
-	}
-
-	if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::PAUL) {
-		ier = CUSPREAD2D_PAUL_PROP(nf1,nf2,M,d_plan);
-		if (ier != 0 ) {
-			printf("error: cuspread2d_subprob_prop, method(%d)\n",
-				d_plan->options_.gpu_spread_method);
-			return ier;
-		}
-	}
-#ifdef TIME
-	float milliseconds = 0;
-	cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("[time  ] Obtain Spread Prop\t %.3g ms\n", milliseconds);
-#endif
-
-	cudaEventRecord(start);
-	ier = CUSPREAD2D(d_plan,1);
-#ifdef TIME
-	cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("[time  ] Spread (%d)\t\t %5.3f ms\n", d_plan->options_.gpu_spread_method,
-		milliseconds);
-#endif
-
-	cudaEventRecord(start);
-	FREEGPUMEMORY2D(d_plan);
-#ifdef TIME
-	cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("[time  ] Free GPU memory\t %.3g ms\n", milliseconds);
-#endif
-	return ier;
-}
 
 int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 /*

@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_H
-#define TENSORFLOW_NUFFT_KERNELS_NUFFT_H
+#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_KERNELS_H_
+#define TENSORFLOW_NUFFT_KERNELS_NUFFT_KERNELS_H_
 
 #include <complex>
 #include <cstdint>
@@ -270,4 +270,4 @@ struct DoNUFFT : DoNUFFTBase<Device, T> {
 
 }   // namespace tensorflow
 
-#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_H
+#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_KERNELS_H_

@@ -44,7 +44,6 @@ limitations under the License.
 
 
 /* Undefine things so we don't get warnings/errors later */
-#undef CUFINUFFT_MAKEPLAN
 #undef CUFINUFFT_SETPTS
 #undef CUFINUFFT_EXECUTE
 #undef CUFINUFFT_INTERP
@@ -58,22 +57,13 @@ limitations under the License.
 #undef CUFINUFFT2D_SPREAD
 #undef CUFINUFFT3D_INTERP
 #undef CUFINUFFT3D_SPREAD
-#undef SETUP_BINSIZE
 /* memtransfer.h */
-#undef ALLOCGPUMEM1D_PLAN
 #undef ALLOCGPUMEM1D_NUPTS
 #undef FREEGPUMEMORY1D
-#undef ALLOCGPUMEM2D_PLAN
 #undef ALLOCGPUMEM2D_NUPTS
 #undef FREEGPUMEMORY2D
-#undef ALLOCGPUMEM3D_PLAN
 #undef ALLOCGPUMEM3D_NUPTS
 #undef FREEGPUMEMORY3D
-/* spreading and interp only*/
-#undef CUFINUFFT_SPREAD2D
-#undef CUFINUFFT_SPREAD3D
-#undef CUFINUFFT_INTERP2D
-#undef CUFINUFFT_INTERP3D
 /* spreading 2D */
 #undef CUSPREAD2D
 #undef CUSPREAD2D_NUPTSDRIVEN_PROP
@@ -105,7 +95,6 @@ limitations under the License.
 
 #ifdef SINGLE
 
-#define CUFINUFFT_MAKEPLAN cufinufftf_makeplan
 #define CUFINUFFT_SETPTS cufinufftf_setpts
 #define CUFINUFFT_EXECUTE cufinufftf_execute
 #define CUFINUFFT_INTERP cufinufftf_interp
@@ -116,22 +105,13 @@ limitations under the License.
 #define CUFINUFFT3D1_EXEC cufinufftf3d1_exec
 #define CUFINUFFT3D2_EXEC cufinufftf3d2_exec
 #define CUFINUFFT2D_INTERP cufinufftf2d_interp
-#define SETUP_BINSIZE setup_binsizef
 /* memtransfer.h */
-#define ALLOCGPUMEM1D_PLAN allocgpumem1df_plan
 #define ALLOCGPUMEM1D_NUPTS allocgpumem1df_nupts
 #define FREEGPUMEMORY1D freegpumemory1df
-#define ALLOCGPUMEM2D_PLAN allocgpumem2df_plan
 #define ALLOCGPUMEM2D_NUPTS allocgpumem2df_nupts
 #define FREEGPUMEMORY2D freegpumemory2df
-#define ALLOCGPUMEM3D_PLAN allocgpumem3df_plan
 #define ALLOCGPUMEM3D_NUPTS allocgpumem3df_nupts
 #define FREEGPUMEMORY3D freegpumemory3df
-/* spreading and interp only*/
-#define CUFINUFFT_SPREAD2D cufinufft_spread2df
-#define CUFINUFFT_SPREAD3D cufinufft_spread3df
-#define CUFINUFFT_INTERP2D cufinufft_interp2df
-#define CUFINUFFT_INTERP3D cufinufft_interp3df
 /* spreading 2D */
 #define CUSPREAD2D cuspread2df
 #define CUSPREAD2D_NUPTSDRIVEN_PROP cuspread2df_nuptsdriven_prop
@@ -162,7 +142,6 @@ limitations under the License.
 
 #else
 
-#define CUFINUFFT_MAKEPLAN cufinufft_makeplan
 #define CUFINUFFT_SETPTS cufinufft_setpts
 #define CUFINUFFT_EXECUTE cufinufft_execute
 #define CUFINUFFT_INTERP cufinufft_interp
@@ -176,22 +155,13 @@ limitations under the License.
 #define CUFINUFFT2D_SPREAD cufinufft2d_spread
 #define CUFINUFFT3D_INTERP cufinufft3d_interp
 #define CUFINUFFT3D_SPREAD cufinufft3d_spread
-#define SETUP_BINSIZE setup_binsize
 /* memtransfer.h */
-#define ALLOCGPUMEM1D_PLAN allocgpumem1d_plan
 #define ALLOCGPUMEM1D_NUPTS allocgpumem1d_nupts
 #define FREEGPUMEMORY1D freegpumemory1d
-#define ALLOCGPUMEM2D_PLAN allocgpumem2d_plan
 #define ALLOCGPUMEM2D_NUPTS allocgpumem2d_nupts
 #define FREEGPUMEMORY2D freegpumemory2d
-#define ALLOCGPUMEM3D_PLAN allocgpumem3d_plan
 #define ALLOCGPUMEM3D_NUPTS allocgpumem3d_nupts
 #define FREEGPUMEMORY3D freegpumemory3d
-/* spreading and interp only*/
-#define CUFINUFFT_SPREAD2D cufinufft_spread2d
-#define CUFINUFFT_SPREAD3D cufinufft_spread3d
-#define CUFINUFFT_INTERP2D cufinufft_interp2d
-#define CUFINUFFT_INTERP3D cufinufft_interp3d
 /* spreading 2D */
 #define CUSPREAD2D cuspread2d
 #define CUSPREAD2D_NUPTSDRIVEN_PROP cuspread2d_nuptsdriven_prop
@@ -222,22 +192,11 @@ limitations under the License.
 
 #endif
 
-/* We include common.h here because it depends on SpreadOptions<FLT> and
-   tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT> structs being completely defined first. */
-#include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/common.h"
-
 #define checkCufftErrors(call)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-int CUFINUFFT_MAKEPLAN(
-			   tensorflow::nufft::TransformType type,
-			   int rank, int *n_modes,
-			   tensorflow::nufft::FftDirection fft_direction,
-		       int num_transforms, FLT tol, int maxbatchsize,
-		       tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>** d_plan_ptr,
-			   const tensorflow::nufft::Options& options);
 int CUFINUFFT_SETPTS(int M, FLT* h_kx, FLT* h_ky, FLT* h_kz, int N, FLT *h_s,
 	FLT *h_t, FLT *h_u, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 int CUFINUFFT_EXECUTE(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);

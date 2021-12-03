@@ -32,9 +32,89 @@ limitations under the License.
 
 #include <cstdint>
 
+#include "tensorflow_nufft/cc/kernels/legendre_rule_fast.h"
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
+#include "tensorflow_nufft/cc/kernels/omp_api.h"
+
 
 namespace tensorflow {
 namespace nufft {
+
+template<typename FloatType>
+FloatType calculate_scale_factor(
+    int rank, const SpreadOptions<FloatType> &opts) {
+
+  int n = 100;
+  FloatType h = 2.0 / n;
+  FloatType x = -1.0;
+  FloatType sum = 0.0;
+  for(int i = 1; i < n; i++) {
+    x += h;
+    sum += exp(opts.ES_beta * sqrt(1.0 - x * x));
+  }
+  sum += 1.0;
+  sum *= h;
+  sum *= sqrt(1.0 / opts.ES_c);
+  FloatType scale = sum;
+  if (rank > 1) { scale *= sum; }
+  if (rank > 2) { scale *= sum; }
+  return 1.0 / scale;
+}
+
+template<typename FloatType>
+FloatType evaluate_kernel(FloatType x, const SpreadOptions<FloatType> &opts) {
+  if (abs(x) >= opts.ES_halfwidth)
+    return 0.0;
+  return exp(opts.ES_beta * sqrt(1.0 - opts.ES_c * x * x));
+}
+
+template<typename FloatType>
+void kernel_fseries_1d(int grid_size,     
+                       const SpreadOptions<FloatType>& spopts,
+                       FloatType* fseries_coeffs) {
+
+  FloatType kernel_half_width = spopts.nspread / 2.0;
+
+  // Number of quadrature nodes in z (from 0 to J/2, reflections will be added).
+  int q = static_cast<int>(2 + 3.0 * kernel_half_width);
+  FloatType f[kMaxQuadNodes];
+  double z[2 * kMaxQuadNodes];
+  double w[2 * kMaxQuadNodes];
+
+  // Only half the nodes used, eg on (0, 1).
+  legendre_compute_glr(2 * q, z, w);
+
+  // Set up nodes z[n] and values f[n].
+  std::complex<FloatType> a[kMaxQuadNodes];
+  for (int n=0; n < q; ++n) {
+    z[n] *= kernel_half_width;                         // rescale nodes
+    f[n] = kernel_half_width * (FloatType)w[n] * evaluate_kernel((FloatType)z[n], spopts); // vals & quadr wei
+    a[n] = exp(2 * kPi<FloatType> * kImaginaryUnit<FloatType> * (FloatType)(grid_size / 2 - z[n]) / (FloatType)grid_size);  // phase winding rates
+  }
+  int nout = grid_size / 2 + 1;                   // how many values we're writing to
+  int nt = std::min(nout, (int)spopts.num_threads);         // how many chunks
+  std::vector<int> brk(nt + 1);        // start indices for each thread
+  for (int t = 0; t <= nt; ++t)             // split nout mode indices btw threads
+    brk[t] = (int)(0.5 + nout * t / (double)nt);
+  
+  #pragma omp parallel num_threads(nt)
+  {                                     // each thread gets own chunk to do
+    int t = OMP_GET_THREAD_NUM();
+    std::complex<FloatType> aj[kMaxQuadNodes];    // phase rotator for this thread
+
+    for (int n = 0; n < q; ++n)
+      aj[n] = pow(a[n], (FloatType)brk[t]);    // init phase factors for chunk
+    
+    for (int j = brk[t]; j < brk[t + 1]; ++j) {          // loop along output array  
+      FloatType x = 0.0;                      // accumulator for answer at this j
+      for (int n = 0; n < q; ++n) {
+        x += f[n] * 2 * real(aj[n]);      // include the negative freq
+        aj[n] *= a[n];                  // wind the phases
+      }
+      fseries_coeffs[j] = x;
+    }
+  }
+}
 
 template<typename IntType>
 IntType next_smooth_int(IntType n, IntType b) {
@@ -52,8 +132,19 @@ IntType next_smooth_int(IntType n, IntType b) {
   return nplus;
 }
 
+template float calculate_scale_factor<float>(
+    int, const SpreadOptions<float>&);
+template double calculate_scale_factor<double>(
+    int, const SpreadOptions<double>&);
+
+template void kernel_fseries_1d<float>(
+    int, const SpreadOptions<float>&, float*);
+template void kernel_fseries_1d<double>(
+    int, const SpreadOptions<double>&, double*);
+
 template int next_smooth_int<int>(int, int);
 template int64_t next_smooth_int<int64_t>(int64_t, int64_t);
+
 
 } // namespace nufft
 } // namespace tensorflow

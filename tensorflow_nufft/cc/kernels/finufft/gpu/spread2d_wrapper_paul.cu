@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <tensorflow_nufft/cc/kernels/finufft/gpu/contrib/cuda_samples/helper_cuda.h>
+#include <tensorflow_nufft/third_party/cuda_samples/helper_cuda.h>
 #include <iostream>
 #include <iomanip>
 #include <assert.h>

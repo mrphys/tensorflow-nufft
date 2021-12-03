@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_FFTW_API_H
-#define TENSORFLOW_NUFFT_KERNELS_FFTW_API_H
+#ifndef TENSORFLOW_NUFFT_KERNELS_FFTW_API_H_
+#define TENSORFLOW_NUFFT_KERNELS_FFTW_API_H_
 
 #include <fftw3.h>
 
@@ -155,4 +155,4 @@ inline typename PlanType<double>::Type plan_many_dft<double>(
 } // namespace fftw
 } // namespace tensorflow
 
-#endif // TENSORFLOW_NUFFT_KERNELS_FFTW_API_H
+#endif // TENSORFLOW_NUFFT_KERNELS_FFTW_API_H_

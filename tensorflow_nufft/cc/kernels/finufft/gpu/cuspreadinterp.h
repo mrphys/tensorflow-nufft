@@ -212,19 +212,6 @@ void Interp_3d_Subprob(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 	int maxsubprobsize, int nbinx, int nbiny, int nbinz, int* idxnupts,
 	int pirange);
 
-/* C wrapper for calling CUDA kernels */
-// Wrapper for testing spread, interpolation only
-int CUFINUFFT_SPREAD2D(int nf1, int nf2, CUCPX* d_fw, int M,
-	FLT *d_kx, FLT *d_ky, CUCPX* d_c, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUFINUFFT_INTERP2D(int nf1, int nf2, CUCPX* d_fw, int M,
-	FLT *d_kx, FLT *d_ky, CUCPX* d_c, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUFINUFFT_SPREAD3D(int nf1, int nf2, int nf3,
-	CUCPX* d_fw, int M, FLT *d_kx, FLT *d_ky, FLT* d_kz,
-	CUCPX* d_c, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* dplan);
-int CUFINUFFT_INTERP3D(int nf1, int nf2, int nf3,
-	CUCPX* d_fw, int M, FLT *d_kx, FLT *d_ky, FLT *d_kz, 
-    CUCPX* d_c, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* dplan);
-
 // Functions for calling different methods of spreading & interpolation
 int CUSPREAD2D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
 int CUINTERP2D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);

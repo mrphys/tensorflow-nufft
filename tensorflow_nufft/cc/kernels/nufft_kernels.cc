@@ -50,6 +50,8 @@ int makeplan<CPUDevice, float>(
 
   *plan = new Plan<CPUDevice, float>(
       context, type, rank, num_modes, fft_direction, ntr, eps, options);
+  
+  return 0;
 };
 
 template<>
@@ -64,6 +66,8 @@ int makeplan<CPUDevice, double>(
 
   *plan = new Plan<CPUDevice, double>(
       context, type, rank, num_modes, fft_direction, ntr, eps, options);
+
+  return 0;
 };
 
 template<>

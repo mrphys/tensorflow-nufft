@@ -31,7 +31,8 @@ namespace nufft {
 
 template<typename Device, typename T>
 int makeplan(
-    TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, T eps,
+    OpKernelContext* context, TransformType type, int rank, int64_t* nmodes,
+    FftDirection fft_direction, int ntr, T eps,
     Plan<Device, T>** plan,
     const Options& options);
 
@@ -65,12 +66,12 @@ enum class OpType { NUFFT, INTERP, SPREAD };
 
 template<typename Device, typename T>
 struct DoNUFFTBase {
-  
+
   Status compute(OpKernelContext* ctx,
                  nufft::TransformType type,
                  int rank,
                  nufft::FftDirection fft_direction,
-                 int ntrans,
+                 int num_transforms,
                  T tol,
                  OpType optype,
                  int64_t nbdims,
@@ -150,8 +151,8 @@ struct DoNUFFTBase {
     // Make the NUFFT plan.
     nufft::Plan<Device, T>* plan;
     int err;
-    err = nufft::makeplan<Device, T>(type, rank, nmodes, fft_direction,
-                                     ntrans, tol, &plan, options);
+    err = nufft::makeplan<Device, T>(ctx, type, rank, nmodes, fft_direction,
+                                     num_transforms, tol, &plan, options);
 
     if (err > 0) {
       return errors::Internal("Failed during `nufft::makeplan`: ", err);
@@ -210,8 +211,8 @@ struct DoNUFFTBase {
         csrc += source_binds[d] * source_bfactors[d];
       }
 
-      bstrengths = strengths + *pcs * ntrans * npts;
-      bcoeffs = coeffs + *pcc * ntrans * ncoeffs;
+      bstrengths = strengths + *pcs * num_transforms * npts;
+      bcoeffs = coeffs + *pcc * num_transforms * ncoeffs;
 
       // Execute the NUFFT.
       switch (optype)
@@ -254,7 +255,7 @@ struct DoNUFFT : DoNUFFTBase<Device, T> {
                     nufft::TransformType type,
                     int rank,
                     nufft::FftDirection fft_direction,
-                    int ntrans,
+                    int num_transforms,
                     T tol,
                     OpType optype,
                     int64_t nbdims,

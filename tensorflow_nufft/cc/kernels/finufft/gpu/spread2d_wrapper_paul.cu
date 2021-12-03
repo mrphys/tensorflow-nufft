@@ -38,14 +38,14 @@ int CUSPREAD2D_PAUL_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan)
 	cudaEventCreate(&stop);
 
 	int ns=d_plan->spopts.nspread;
-	int bin_size_x=d_plan->options.gpu_bin_size.x;
-	int bin_size_y=d_plan->options.gpu_bin_size.y;
+	int bin_size_x=d_plan->options_.gpu_bin_size.x;
+	int bin_size_y=d_plan->options_.gpu_bin_size.y;
 	int numbins[2];
 	numbins[0] = ceil((FLT) nf1/bin_size_x);
 	numbins[1] = ceil((FLT) nf2/bin_size_y);
 #ifdef DEBUG
 	cout<<"[debug ] Dividing the uniform grids to bin size["
-		<<d_plan->options.gpu_bin_size.x<<"x"<<d_plan->options.gpu_bin_size.y<<"]"<<endl;
+		<<d_plan->options_.gpu_bin_size.x<<"x"<<d_plan->options_.gpu_bin_size.y<<"]"<<endl;
 	cout<<"[debug ] numbins = ["<<numbins[0]<<"x"<<numbins[1]<<"]"<<endl;
 #endif
 
@@ -100,12 +100,12 @@ int CUSPREAD2D_PAUL_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan)
 	checkCudaErrors(cudaMemcpy(h_finegridsize,d_finegridsize,
 				nf1*nf2*sizeof(int),cudaMemcpyDeviceToHost));
 	for (int j=0; j<nf2; j++) {
-		if ( j % d_plan->options.gpu_bin_size.y == 0)
+		if ( j % d_plan->options_.gpu_bin_size.y == 0)
 			printf("\n");
 		biny = floor(j/bin_size_y);
 		cout<<"[debug ] ";
 		for (int i=0; i<nf1; i++) {
-			if ( i % d_plan->options.gpu_bin_size.x == 0 && i!=0)
+			if ( i % d_plan->options_.gpu_bin_size.x == 0 && i!=0)
 				printf(" |");
 			binx = floor(i/bin_size_x);
 			binidx = binx+biny*numbins[0];
@@ -168,12 +168,12 @@ int CUSPREAD2D_PAUL_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan)
 				(nf1*nf2)*sizeof(int),cudaMemcpyDeviceToHost));
 	cout<<"[debug ] Result of scan finegridsize array:"<<endl;
 	for (int j=0; j<nf2; j++) {
-		if ( j % d_plan->options.gpu_bin_size.y == 0)
+		if ( j % d_plan->options_.gpu_bin_size.y == 0)
 			printf("\n");
 		biny = floor(j/bin_size_y);
 		cout<<"[debug ] ";
 		for (int i=0; i<nf1; i++) {
-			if ( i % d_plan->options.gpu_bin_size.x == 0 && i!=0)
+			if ( i % d_plan->options_.gpu_bin_size.x == 0 && i!=0)
 				printf(" |");
 			binx = floor(i/bin_size_x);
 			binidx = binx+biny*numbins[0];
@@ -209,7 +209,7 @@ int CUSPREAD2D_PAUL_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan)
 	cout<<endl;
 	free(h_idxnupts);
 #endif
-	int maxsubprobsize = d_plan->options.gpu_max_subproblem_size;
+	int maxsubprobsize = d_plan->options_.gpu_max_subproblem_size;
 	cudaEventRecord(start);
 	int blocksize = bin_size_x*bin_size_y;
 	cudaEventRecord(start);
@@ -314,17 +314,17 @@ int CUSPREAD2D_PAUL(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan, int b
 	int ns=d_plan->spopts.nspread;   // psi's support in terms of number of cells
 	FLT es_c=d_plan->spopts.ES_c;
 	FLT es_beta=d_plan->spopts.ES_beta;
-	int maxsubprobsize=d_plan->options.gpu_max_subproblem_size;
+	int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
 
 	// assume that bin_size_x > ns/2;
-	int bin_size_x=d_plan->options.gpu_bin_size.x;
-	int bin_size_y=d_plan->options.gpu_bin_size.y;
+	int bin_size_x=d_plan->options_.gpu_bin_size.x;
+	int bin_size_y=d_plan->options_.gpu_bin_size.y;
 	int numbins[2];
 	numbins[0] = ceil((FLT) nf1/bin_size_x);
 	numbins[1] = ceil((FLT) nf2/bin_size_y);
 #ifdef INFO
 	cout<<"[info  ] Dividing the uniform grids to bin size["
-		<<d_plan->options.gpu_bin_size.x<<"x"<<d_plan->options.gpu_bin_size.y<<"]"<<endl;
+		<<d_plan->options_.gpu_bin_size.x<<"x"<<d_plan->options_.gpu_bin_size.y<<"]"<<endl;
 	cout<<"[info  ] numbins = ["<<numbins[0]<<"x"<<numbins[1]<<"]"<<endl;
 #endif
 
@@ -345,7 +345,7 @@ int CUSPREAD2D_PAUL(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan, int b
 	int *d_subprob_to_bin = d_plan->subprob_to_bin;
 
 	int pirange=d_plan->spopts.pirange;
-	FLT sigma=d_plan->options.upsampling_factor;
+	FLT sigma=d_plan->options_.upsampling_factor;
 	cudaEventRecord(start);
 	size_t sharedplanorysize = (bin_size_x+2*ceil(ns/2.0))*(bin_size_y+
 			2*ceil(ns/2.0))*sizeof(CUCPX);

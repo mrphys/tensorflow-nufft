@@ -39,10 +39,6 @@ limitations under the License.
 // Max number of positive quadr nodes for kernel FT (used only in common.cpp)
 #define MAX_NQUAD 100
 
-// Internal (nf1 etc) array allocation size that immediately raises error.
-// (Note: next235 takes 1s for this size, so it is also to prevent hang here.)
-// Increase this if you need >1TB RAM... (used only in common.cpp)
-#define MAX_NF    (BIGINT)1e11
 
 
 
@@ -84,7 +80,7 @@ limitations under the License.
 // to avoid mixed precision operators in eg i*pi, an either-prec PI...
 #define PI (FLT)M_PI
 
-// machine epsilon for decisions of achievable tolerance...
+// machine epsilon for decisions of achievable tol...
 #ifdef SINGLE
   #define EPSILON (float)6e-08
 #else
@@ -126,10 +122,6 @@ limitations under the License.
   #define FINUFFT_GET_MAX_THREADS() 1
   #define FINUFFT_GET_THREAD_NUM() 0
   #define FINUFFT_SET_NUM_THREADS(x)
-  #undef FFTW_INIT
-  #define FFTW_INIT()
-  #undef FFTW_PLAN_TH
-  #define FFTW_PLAN_TH(x)
   #undef FFTW_CLEANUP_THREADS
   #define FFTW_CLEANUP_THREADS()
 #endif

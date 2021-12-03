@@ -59,29 +59,29 @@ int CUFINUFFT_SPREAD2D(int nf1, int nf2, CUCPX* d_fw, int M,
 	ier = ALLOCGPUMEM2D_PLAN(d_plan);
 	ier = ALLOCGPUMEM2D_NUPTS(d_plan);
 
-	if (d_plan->options.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
+	if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
 		ier = CUSPREAD2D_NUPTSDRIVEN_PROP(nf1,nf2,M,d_plan);
 		if (ier != 0 ) {
 			printf("error: cuspread2d_nuptsdriven_prop, method(%d)\n",
-				d_plan->options.gpu_spread_method);
+				d_plan->options_.gpu_spread_method);
 			return ier;
 		}
 	}
 
-	if (d_plan->options.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
+	if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
 		ier = CUSPREAD2D_SUBPROB_PROP(nf1,nf2,M,d_plan);
 		if (ier != 0 ) {
 			printf("error: cuspread2d_subprob_prop, method(%d)\n",
-				d_plan->options.gpu_spread_method);
+				d_plan->options_.gpu_spread_method);
 			return ier;
 		}
 	}
 
-	if (d_plan->options.gpu_spread_method == GpuSpreadMethod::PAUL) {
+	if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::PAUL) {
 		ier = CUSPREAD2D_PAUL_PROP(nf1,nf2,M,d_plan);
 		if (ier != 0 ) {
 			printf("error: cuspread2d_subprob_prop, method(%d)\n",
-				d_plan->options.gpu_spread_method);
+				d_plan->options_.gpu_spread_method);
 			return ier;
 		}
 	}
@@ -99,7 +99,7 @@ int CUFINUFFT_SPREAD2D(int nf1, int nf2, CUCPX* d_fw, int M,
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("[time  ] Spread (%d)\t\t %5.3f ms\n", d_plan->options.gpu_spread_method,
+	printf("[time  ] Spread (%d)\t\t %5.3f ms\n", d_plan->options_.gpu_spread_method,
 		milliseconds);
 #endif
 
@@ -135,7 +135,7 @@ int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 	cudaEventCreate(&stop);
 
 	int ier;
-	switch(d_plan->options.gpu_spread_method)
+	switch(d_plan->options_.gpu_spread_method)
 	{
 		case GpuSpreadMethod::NUPTS_DRIVEN:
 			{
@@ -187,10 +187,10 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 
-	if (d_plan->options.gpu_sort_points) {
+	if (d_plan->options_.gpu_sort_points) {
 
-		int bin_size_x=d_plan->options.gpu_bin_size.x;
-		int bin_size_y=d_plan->options.gpu_bin_size.y;
+		int bin_size_x=d_plan->options_.gpu_bin_size.x;
+		int bin_size_y=d_plan->options_.gpu_bin_size.y;
 		if (bin_size_x < 0 || bin_size_y < 0) {
 			cout<<"error: invalid binsize (binsizex, binsizey) = (";
 			cout<<bin_size_x<<","<<bin_size_y<<")"<<endl;
@@ -203,7 +203,7 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d
 
 #ifdef DEBUG
 		cout<<"[debug ] Dividing the uniform grids to bin size["
-			<<d_plan->options.gpu_bin_size.x<<"x"<<d_plan->options.gpu_bin_size.y<<"]"<<endl;
+			<<d_plan->options_.gpu_bin_size.x<<"x"<<d_plan->options_.gpu_bin_size.y<<"]"<<endl;
 		cout<<"[debug ] numbins = ["<<numbins[0]<<"x"<<numbins[1]<<"]"<<endl;
 #endif
 
@@ -381,7 +381,7 @@ int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
 	blocks.x = (M + threadsPerBlock.x - 1)/threadsPerBlock.x;
 	blocks.y = 1;
 	cudaEventRecord(start);
-	if (d_plan->options.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+	if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
 		for (int t=0; t<blksize; t++) {
 			Spread_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_kx,
 				d_ky, d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2, sigma,
@@ -401,7 +401,7 @@ int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&milliseconds, start, stop);
 	printf("[time  ] \tKernel Spread_2d_NUptsdriven (%d)\t%.3g ms\n",
-		milliseconds, d_plan->options.kernel_evaluation_method);
+		milliseconds, d_plan->options_.kernel_evaluation_method);
 #endif
 	return 0;
 }
@@ -416,9 +416,9 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_pla
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 
-	int maxsubprobsize=d_plan->options.gpu_max_subproblem_size;
-	int bin_size_x=d_plan->options.gpu_bin_size.x;
-	int bin_size_y=d_plan->options.gpu_bin_size.y;
+	int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
+	int bin_size_x=d_plan->options_.gpu_bin_size.x;
+	int bin_size_y=d_plan->options_.gpu_bin_size.y;
 	if (bin_size_x < 0 || bin_size_y < 0) {
 		cout<<"error: invalid binsize (binsizex, binsizey) = (";
 		cout<<bin_size_x<<","<<bin_size_y<<")"<<endl;
@@ -429,7 +429,7 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_pla
 	numbins[1] = ceil((FLT) nf2/bin_size_y);
 #ifdef DEBUG
 	cout<<"[debug  ] Dividing the uniform grids to bin size["
-		<<d_plan->options.gpu_bin_size.x<<"x"<<d_plan->options.gpu_bin_size.y<<"]"<<endl;
+		<<d_plan->options_.gpu_bin_size.x<<"x"<<d_plan->options_.gpu_bin_size.y<<"]"<<endl;
 	cout<<"[debug  ] numbins = ["<<numbins[0]<<"x"<<numbins[1]<<"]"<<endl;
 #endif
 
@@ -648,17 +648,17 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 	int ns=d_plan->spopts.nspread;// psi's support in terms of number of cells
 	FLT es_c=d_plan->spopts.ES_c;
 	FLT es_beta=d_plan->spopts.ES_beta;
-	int maxsubprobsize=d_plan->options.gpu_max_subproblem_size;
+	int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
 
 	// assume that bin_size_x > ns/2;
-	int bin_size_x=d_plan->options.gpu_bin_size.x;
-	int bin_size_y=d_plan->options.gpu_bin_size.y;
+	int bin_size_x=d_plan->options_.gpu_bin_size.x;
+	int bin_size_y=d_plan->options_.gpu_bin_size.y;
 	int numbins[2];
 	numbins[0] = ceil((FLT) nf1/bin_size_x);
 	numbins[1] = ceil((FLT) nf2/bin_size_y);
 #ifdef INFO
 	cout<<"[info  ] Dividing the uniform grids to bin size["
-		<<d_plan->options.gpu_bin_size.x<<"x"<<d_plan->options.gpu_bin_size.y<<"]"<<endl;
+		<<d_plan->options_.gpu_bin_size.x<<"x"<<d_plan->options_.gpu_bin_size.y<<"]"<<endl;
 	cout<<"[info  ] numbins = ["<<numbins[0]<<"x"<<numbins[1]<<"]"<<endl;
 #endif
 
@@ -678,7 +678,7 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 
 	int pirange=d_plan->spopts.pirange;
 
-	FLT sigma=d_plan->options.upsampling_factor;
+	FLT sigma=d_plan->options_.upsampling_factor;
 	cudaEventRecord(start);
 
 	size_t sharedplanorysize = (bin_size_x+2*(int)ceil(ns/2.0))*
@@ -689,7 +689,7 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 		return 1;
 	}
 
-	if (d_plan->options.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+	if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
 		for (int t=0; t<blksize; t++) {
 			Spread_2d_Subprob_Horner<<<totalnumsubprob, 256,
 				sharedplanorysize>>>(d_kx, d_ky, d_c+t*M, d_fw+t*nf1*nf2, M,
@@ -714,7 +714,7 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&milliseconds, start, stop);
 	printf("[time  ] \tKernel Spread_2d_Subprob (%d)\t\t%.3g ms\n",
-		milliseconds, d_plan->options.kernel_evaluation_method);
+		milliseconds, d_plan->options_.kernel_evaluation_method);
 #endif
 	return 0;
 }

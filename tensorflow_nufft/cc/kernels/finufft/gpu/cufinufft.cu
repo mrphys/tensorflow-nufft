@@ -84,7 +84,7 @@ void SETUP_BINSIZE(TransformType type, int rank, Options& options)
 extern "C" {
 #endif
 int CUFINUFFT_MAKEPLAN(TransformType type, int rank, int *nmodes, FftDirection fft_direction,
-		       int ntransf, FLT tol, int maxbatchsize,
+		       int num_transforms, FLT tol, int maxbatchsize,
 		       Plan<GPUDevice, FLT>* *d_plan_ptr,
 			   const Options& options)
 /*
@@ -134,36 +134,36 @@ This performs:
 	memset(d_plan, 0, sizeof(*d_plan));
 
 	// Copy options.
-	d_plan->options = options;
+	d_plan->options_ = options;
 
   // Select kernel evaluation method.
-  if (d_plan->options.kernel_evaluation_method == KernelEvaluationMethod::AUTO) {
-	  d_plan->options.kernel_evaluation_method = KernelEvaluationMethod::DIRECT;
+  if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::AUTO) {
+	  d_plan->options_.kernel_evaluation_method = KernelEvaluationMethod::DIRECT;
 	}
 
 	// Select upsampling factor. Currently always defaults to 2.
-	if (d_plan->options.upsampling_factor == 0.0) {
-	  d_plan->options.upsampling_factor = 2.0;
+	if (d_plan->options_.upsampling_factor == 0.0) {
+	  d_plan->options_.upsampling_factor = 2.0;
 	}
 
   // Select spreading method.
-  if (d_plan->options.gpu_spread_method == GpuSpreadMethod::AUTO) {
+  if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::AUTO) {
     if (rank == 2 && type == TransformType::TYPE_1)
-      d_plan->options.gpu_spread_method = GpuSpreadMethod::SUBPROBLEM;
+      d_plan->options_.gpu_spread_method = GpuSpreadMethod::SUBPROBLEM;
     else if (rank == 2 && type == TransformType::TYPE_2)
-      d_plan->options.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
+      d_plan->options_.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
     else if (rank == 3 && type == TransformType::TYPE_1)
-      d_plan->options.gpu_spread_method = GpuSpreadMethod::SUBPROBLEM;
+      d_plan->options_.gpu_spread_method = GpuSpreadMethod::SUBPROBLEM;
     else if (rank == 3 && type == TransformType::TYPE_2)
-      d_plan->options.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
+      d_plan->options_.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
   }
 
 	// this must be set before calling "setup_spreader_for_nufft"
-	d_plan->spopts.spread_interp_only = d_plan->options.spread_interp_only;
+	d_plan->spopts.spread_interp_only = d_plan->options_.spread_interp_only;
 
 	/* Setup Spreader */
 	ier = setup_spreader_for_nufft(d_plan->spopts, tol,
-								   d_plan->options, rank);
+								   d_plan->options_, rank);
 	if (ier>1)                           // proceed if success or warning
 	  return ier;
 
@@ -172,19 +172,19 @@ This performs:
 	d_plan->mt = nmodes[1];
 	d_plan->mu = nmodes[2];
 
-	SETUP_BINSIZE(type, rank, d_plan->options);
+	SETUP_BINSIZE(type, rank, d_plan->options_);
 	BIGINT nf1=1, nf2=1, nf3=1;
-	ier = SET_NF_TYPE12(d_plan->ms, d_plan->spopts, d_plan->options, &nf1,
-				  		d_plan->options.gpu_obin_size.x);
+	ier = SET_NF_TYPE12(d_plan->ms, d_plan->spopts, d_plan->options_, &nf1,
+				  		d_plan->options_.gpu_obin_size.x);
 	if (ier > 0) return ier;
 	if (rank > 1) {
-		ier = SET_NF_TYPE12(d_plan->mt, d_plan->spopts, d_plan->options, &nf2,
-                      d_plan->options.gpu_obin_size.y);
+		ier = SET_NF_TYPE12(d_plan->mt, d_plan->spopts, d_plan->options_, &nf2,
+                      d_plan->options_.gpu_obin_size.y);
 		if (ier > 0) return ier;
 	}
 	if (rank > 2) {
-		ier = SET_NF_TYPE12(d_plan->mu, d_plan->spopts, d_plan->options, &nf3,
-                      d_plan->options.gpu_obin_size.z);
+		ier = SET_NF_TYPE12(d_plan->mu, d_plan->spopts, d_plan->options_, &nf3,
+                      d_plan->options_.gpu_obin_size.z);
 		if (ier > 0) return ier;
 	}
 
@@ -192,9 +192,9 @@ This performs:
 	d_plan->nf2 = nf2;
 	d_plan->nf3 = nf3;
 	d_plan->fft_direction_ = fft_direction;
-	d_plan->ntransf = ntransf;
+	d_plan->num_transforms_ = num_transforms;
 	if (maxbatchsize==0)                    // implies: use a heuristic.
-	   maxbatchsize = min(ntransf, 8);      // heuristic from test codes
+	   maxbatchsize = min(num_transforms, 8);      // heuristic from test codes
 	d_plan->maxbatchsize = maxbatchsize;
 	d_plan->type_ = type;
 
@@ -205,7 +205,7 @@ This performs:
 	// this may move to gpu
 	cufinufft::CNTime timer; timer.start();
 	FLT *fwkerhalf1, *fwkerhalf2, *fwkerhalf3;
-	if (!d_plan->options.spread_interp_only) { // no need to do this if spread/interp only
+	if (!d_plan->options_.spread_interp_only) { // no need to do this if spread/interp only
 		
 		fwkerhalf1 = (FLT*)malloc(sizeof(FLT)*(nf1/2+1));
 		onedim_fseries_kernel(nf1, fwkerhalf1, d_plan->spopts);
@@ -250,7 +250,7 @@ This performs:
 	printf("[time  ] \tAllocate GPU memory plan %.3g s\n", milliseconds/1000);
 #endif
 	cudaEventRecord(start);
-	if (!d_plan->options.spread_interp_only)
+	if (!d_plan->options_.spread_interp_only)
 	{
 		checkCudaErrors(cudaMemcpy(d_plan->fwkerhalf1,fwkerhalf1,(nf1/2+1)*
 			sizeof(FLT),cudaMemcpyHostToDevice));
@@ -269,7 +269,7 @@ This performs:
 #endif
 
 	cudaEventRecord(start);
-	if (!d_plan->options.spread_interp_only) {
+	if (!d_plan->options_.spread_interp_only) {
 		cufftHandle fftplan;
 		switch(d_plan->rank_)
 		{
@@ -319,7 +319,7 @@ This performs:
 	cudaEventElapsedTime(&milliseconds, start, stop);
 	printf("[time  ] \tCUFFT Plan\t\t %.3g s\n", milliseconds/1000);
 #endif
-	if (!d_plan->options.spread_interp_only) {
+	if (!d_plan->options_.spread_interp_only) {
 		free(fwkerhalf1);
 		if (rank > 1)
 			free(fwkerhalf2);
@@ -375,7 +375,7 @@ Notes: the type FLT means either single or double, matching the
         // Mult-GPU support: set the CUDA Device ID:
         int orig_gpu_device_id;
         cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(d_plan->options.gpu_device_id);
+        cudaSetDevice(d_plan->options_.gpu_device_id);
 
 
 	int nf1 = d_plan->nf1;
@@ -387,7 +387,7 @@ Notes: the type FLT means either single or double, matching the
 #ifdef INFO
 	printf("[info  ] 2d1: (ms,mt)=(%d,%d) (nf1, nf2, nf3)=(%d,%d,%d) nj=%d, ntransform = %d\n",
 		d_plan->ms, d_plan->mt, d_plan->nf1, d_plan->nf2, nf3, d_plan->M,
-		d_plan->ntransf);
+		d_plan->num_transforms_);
 #endif
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
@@ -437,11 +437,11 @@ Notes: the type FLT means either single or double, matching the
 		break;
 		case 2:
 		{
-			if (d_plan->options.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
+			if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
 				ier = CUSPREAD2D_NUPTSDRIVEN_PROP(nf1,nf2,M,d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread2d_nupts_prop, method(%d)\n",
-						  d_plan->options.gpu_spread_method);
+						  d_plan->options_.gpu_spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -449,11 +449,11 @@ Notes: the type FLT means either single or double, matching the
 					return 1;
 				}
 			}
-			if (d_plan->options.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
+			if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
 				ier = CUSPREAD2D_SUBPROB_PROP(nf1,nf2,M,d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread2d_subprob_prop, method(%d)\n",
-					       d_plan->options.gpu_spread_method);
+					       d_plan->options_.gpu_spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -461,11 +461,11 @@ Notes: the type FLT means either single or double, matching the
 					return 1;
 				}
 			}
-			if (d_plan->options.gpu_spread_method == GpuSpreadMethod::PAUL) {
+			if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::PAUL) {
 				int ier = CUSPREAD2D_PAUL_PROP(nf1,nf2,M,d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread2d_paul_prop, method(%d)\n",
-						d_plan->options.gpu_spread_method);
+						d_plan->options_.gpu_spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -477,11 +477,11 @@ Notes: the type FLT means either single or double, matching the
 		break;
 		case 3:
 		{
-			if (d_plan->options.gpu_spread_method == GpuSpreadMethod::BLOCK_GATHER) {
+			if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::BLOCK_GATHER) {
 				int ier = CUSPREAD3D_BLOCKGATHER_PROP(nf1,nf2,nf3,M,d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread3d_blockgather_prop, method(%d)\n",
-						d_plan->options.gpu_spread_method);
+						d_plan->options_.gpu_spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -489,11 +489,11 @@ Notes: the type FLT means either single or double, matching the
 					return ier;
 				}
 			}
-			if (d_plan->options.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
+			if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
 				ier = CUSPREAD3D_NUPTSDRIVEN_PROP(nf1,nf2,nf3,M,d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread3d_nuptsdriven_prop, method(%d)\n",
-						d_plan->options.gpu_spread_method);
+						d_plan->options_.gpu_spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -501,11 +501,11 @@ Notes: the type FLT means either single or double, matching the
 					return ier;
 				}
 			}
-			if (d_plan->options.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
+			if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
 				int ier = CUSPREAD3D_SUBPROB_PROP(nf1,nf2,nf3,M,d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread3d_subprob_prop, method(%d)\n",
-						d_plan->options.gpu_spread_method);
+						d_plan->options_.gpu_spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -556,7 +556,7 @@ int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
         // Mult-GPU support: set the CUDA Device ID:
         int orig_gpu_device_id;
         cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(d_plan->options.gpu_device_id);
+        cudaSetDevice(d_plan->options_.gpu_device_id);
 
 	int ier;
 	switch(d_plan->rank_)
@@ -604,7 +604,7 @@ int CUFINUFFT_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	// Mult-GPU support: set the CUDA Device ID:
 	int orig_gpu_device_id;
 	cudaGetDevice(& orig_gpu_device_id);
-	cudaSetDevice(d_plan->options.gpu_device_id);
+	cudaSetDevice(d_plan->options_.gpu_device_id);
 
 	int ier;
 
@@ -633,7 +633,7 @@ int CUFINUFFT_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	// Mult-GPU support: set the CUDA Device ID:
 	int orig_gpu_device_id;
 	cudaGetDevice(& orig_gpu_device_id);
-	cudaSetDevice(d_plan->options.gpu_device_id);
+	cudaSetDevice(d_plan->options_.gpu_device_id);
 
 	int ier;
 
@@ -671,7 +671,7 @@ int CUFINUFFT_DESTROY(Plan<GPUDevice, FLT>* d_plan)
         // Mult-GPU support: set the CUDA Device ID:
         int orig_gpu_device_id;
         cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(d_plan->options.gpu_device_id);
+        cudaSetDevice(d_plan->options_.gpu_device_id);
 
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);

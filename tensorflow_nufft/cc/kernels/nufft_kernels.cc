@@ -40,20 +40,30 @@ namespace nufft {
 
 template<>
 int makeplan<CPUDevice, float>(
-    TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, float eps,
+    OpKernelContext* context, TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, float eps,
     Plan<CPUDevice, float>** plan,
     const Options& options) {
-  return finufftf_makeplan(
-    type, rank, nmodes, fft_direction, ntr, eps, plan, options);
+  gtl::InlinedVector<int, 4> num_modes(rank);
+  for (int i = 0; i < rank; ++i) {
+    num_modes[i] = nmodes[i];
+  }
+
+  *plan = new Plan<CPUDevice, float>(
+      context, type, rank, num_modes, fft_direction, ntr, eps, options);
 };
 
 template<>
 int makeplan<CPUDevice, double>(
-    TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, double eps,
+    OpKernelContext* context, TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, double eps,
     Plan<CPUDevice, double>** plan,
     const Options& options) {
-  return finufft_makeplan(
-    type, rank, nmodes, fft_direction, ntr, eps, plan, options);
+  gtl::InlinedVector<int, 4> num_modes(rank);
+  for (int i = 0; i < rank; ++i) {
+    num_modes[i] = nmodes[i];
+  }
+
+  *plan = new Plan<CPUDevice, double>(
+      context, type, rank, num_modes, fft_direction, ntr, eps, options);
 };
 
 template<>
@@ -136,7 +146,7 @@ struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
                     TransformType type,
                     int rank,
                     FftDirection fft_direction,
-                    int ntrans,
+                    int num_transforms,
                     T tol,
                     OpType optype,
                     int64_t nbdims,
@@ -148,7 +158,7 @@ struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
                     std::complex<T>* source,
                     std::complex<T>* target) {
     return this->compute(
-      ctx, type, rank, fft_direction, ntrans, tol, optype,
+      ctx, type, rank, fft_direction, num_transforms, tol, optype,
       nbdims, source_bdims, points_bdims,
       nmodes, npts, points, source, target);
   }

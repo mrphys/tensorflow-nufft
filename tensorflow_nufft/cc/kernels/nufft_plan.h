@@ -37,13 +37,14 @@ limitations under the License.
 #endif // GOOGLE_CUDA
 
 #include <cstdint>
-#include <fftw3.h>
 
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #if GOOGLE_CUDA
 #include "third_party/gpus/cuda/include/cuComplex.h"
 #include "third_party/gpus/cuda/include/cufft.h"
 #endif
+#include "tensorflow/core/framework/op_kernel.h"
+#include "tensorflow_nufft/cc/kernels/fftw_api.h"
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 
@@ -161,16 +162,46 @@ struct SpreadOptions {  // see spreadinterp:setup_spreader for defaults.
 template<typename Device, typename FloatType>
 class PlanBase {
 
+ public:
+  
+  // PlanBase(OpKernelContext* context,
+  //          TransformType type,
+  //          int rank,
+  //          gtl::InlinedVector<int, 4> num_modes,
+  //          FftDirection fft_direction,
+  //          int num_transforms,
+  //          FloatType tol,
+  //          const Options& options);
+
  public: // TODO: make protected
+
+  // The type of the transform. See enum above.
+  TransformType type_;
 
   // The rank of the transform (number of dimensions). Must be 1, 2 or 3.
   int rank_;
 
-  // The type of the transform. See enum above.
-  TransformType type_;  
+  // The number of modes in each dimension.
+  gtl::InlinedVector<int, 4> num_modes_;
 
   // Direction of the FFT. See enum above.
   FftDirection fft_direction_;
+
+  // How many transforms to compute in one go.
+  int num_transforms_;
+
+  // Advanced NUFFT options.
+  Options options_;
+
+  // Size of the fine grid.
+  gtl::InlinedVector<int, 4> grid_sizes_;
+
+  // Total number of modes. The product of the elements of num_modes_.
+  int64_t num_modes_total_;
+
+  // Total number of points in the fine grid. The product of the elements of
+  // grid_sizes_.
+  int64_t num_grid_points_;
 };
 
 template<typename Device, typename FloatType>
@@ -181,40 +212,33 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
  public:
 
-  // Plan(int rank,
-  //      int64_t* num_modes,
-  //      TransformType type,
-  //      FftDirection fft_direction,
-  //      int num_transforms,
-  //      FloatType tolerance,
-  //      const Options& options);
+  Plan(OpKernelContext* context,
+       TransformType type,
+       int rank,
+       gtl::InlinedVector<int, 4> num_modes,
+       FftDirection fft_direction,
+       int num_transforms,
+       FloatType tol,
+       const Options& options);
 
  public: // TODO: make protected.
 
-  // // How many transforms to compute.
-  // unsigned int num_transforms;
+  // Number of computations in one batch.
+  int batch_size_;
 
-  // // Number of non-uniform points.
-  // unsigned int num_points;
+  // Number of batches in one execution (includes all the transforms in
+  // num_transforms_).
+  int num_batches_;
 
-  // // Relative tolerance.
-  // FloatType tolerance;
+  // Relative user tol.
+  FloatType tol_;
 
-  int ntrans;      // how many transforms to do at once (vector or "many" mode)
   int nj;          // number of NU pts in type 1,2 (for type 3, num input x pts)
   int nk;          // number of NU freq pts (type 3 only)
-  FloatType tol;         // relative user tolerance
-  int batchSize;   // # strength vectors to group together for FFTW, etc
-  int nbatch;      // how many batches done to cover all ntrans vectors
-  
-  int64_t ms;       // number of modes in x (1) dir (historical CMCL name) = N1
-  int64_t mt;       // number of modes in y (2) direction = N2
-  int64_t mu;       // number of modes in z (3) direction = N3
-  int64_t N;        // total # modes (prod of above three)
 
-  int64_t nf1;      // size of internal fine grid in x (1) direction
-  int64_t nf2;      // " y
-  int64_t nf3;      // " z
+  // int64_t nf1;      // size of internal fine grid in x (1) direction
+  // int64_t nf2;      // " y
+  // int64_t nf3;      // " z
   int64_t nf;       // total # fine grid points (product of the above three)
   
   FloatType* phiHat1;    // FT of kernel in t1,2, on x-axis mode grid
@@ -239,14 +263,17 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // TYPE3PARAMS t3P; // groups together type 3 shift, scale, phase, parameters
   
   // The FFTW plan for FFTs.
-  typename FftPlanType<CPUDevice, FloatType>::Type fft_plan;
+  typename fftw::PlanType<FloatType>::Type fft_plan_;
   SpreadOptions<FloatType> spopts;
-  Options options;
 };
 
 #if GOOGLE_CUDA
 template<typename FloatType>
 class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
+
+ public:
+
+  Plan();
 
  public:
 
@@ -257,7 +284,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 	int ms;
 	int mt;
 	int mu;
-	int ntransf;
+	int num_transforms;
 	int maxbatchsize;
 
 	int totalnumsubprob;
@@ -294,7 +321,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 	cudaStream_t *streams;
 
   SpreadOptions<FloatType> spopts;
-  Options options;
 };
 #endif // GOOGLE_CUDA
 

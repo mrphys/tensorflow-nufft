@@ -32,7 +32,7 @@ namespace nufft {
 
 template<>
 int makeplan<GPUDevice, float>(
-    TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, float eps,
+    OpKernelContext* context, TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, float eps,
     Plan<GPUDevice, float>** plan,
     const Options& options) {
 
@@ -49,7 +49,7 @@ int makeplan<GPUDevice, float>(
 
 template<>
 int makeplan<GPUDevice, double>(
-    TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, double eps,
+    OpKernelContext* context, TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, double eps,
     Plan<GPUDevice, double>** plan,
     const Options& options) {
 
@@ -162,7 +162,7 @@ struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
                     TransformType type,
                     int rank,
                     FftDirection fft_direction,
-                    int ntrans,
+                    int num_transforms,
                     T tol,
                     OpType optype,
                     int64_t nbdims,
@@ -174,7 +174,7 @@ struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
                     std::complex<T>* source,
                     std::complex<T>* target) {
     return this->compute(
-      ctx, type, rank, fft_direction, ntrans, tol, optype,
+      ctx, type, rank, fft_direction, num_transforms, tol, optype,
       nbdims, source_bdims, points_bdims,
       nmodes, npts, points, source, target);
   }

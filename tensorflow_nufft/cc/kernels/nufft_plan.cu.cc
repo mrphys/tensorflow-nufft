@@ -36,6 +36,13 @@ limitations under the License.
 namespace tensorflow {
 namespace nufft {
 
+// Creates a new NUFFT plan. Allocates memory for internal working arrays,
+// evaluates spreading kernel coefficients, and instantiates the FFT plan.
+template<typename FloatType>
+Plan<GPUDevice, FloatType>::Plan() {
+  
+}
+
 template class Plan<GPUDevice, float>;
 template class Plan<GPUDevice, double>;
 

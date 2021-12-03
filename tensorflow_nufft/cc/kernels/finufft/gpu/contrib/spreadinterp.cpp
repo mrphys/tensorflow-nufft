@@ -33,7 +33,7 @@ FLT calculate_scale_factor(SpreadOptions<FLT> &opts, int rank, FLT dummy = 0.0) 
 
 int setup_spreader(SpreadOptions<FLT> &opts,FLT eps, FLT upsampling_factor,
                    KernelEvaluationMethod kernel_evaluation_method, int rank)
-// Initializes spreader kernel parameters given desired NUFFT tolerance eps,
+// Initializes spreader kernel parameters given desired NUFFT tol eps,
 // upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), and ker eval meth
 // (etiher 0:exp(sqrt()), 1: Horner ppval).
 // Also sets all default options in SpreadOptions<FLT>. See cnufftspread.h for opts.

@@ -231,9 +231,12 @@ limitations under the License.
 #ifdef __cplusplus
 extern "C" {
 #endif
-int CUFINUFFT_MAKEPLAN(tensorflow::nufft::TransformType type, int rank, int *n_modes, tensorflow::nufft::FftDirection fft_direction,
-		       int ntransf, FLT tol, int maxbatchsize,
-		       tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* *d_plan_ptr,
+int CUFINUFFT_MAKEPLAN(
+			   tensorflow::nufft::TransformType type,
+			   int rank, int *n_modes,
+			   tensorflow::nufft::FftDirection fft_direction,
+		       int num_transforms, FLT tol, int maxbatchsize,
+		       tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>** d_plan_ptr,
 			   const tensorflow::nufft::Options& options);
 int CUFINUFFT_SETPTS(int M, FLT* h_kx, FLT* h_ky, FLT* h_kz, int N, FLT *h_s,
 	FLT *h_t, FLT *h_u, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);

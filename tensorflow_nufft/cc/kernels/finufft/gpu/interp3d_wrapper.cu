@@ -57,19 +57,19 @@ int CUFINUFFT_INTERP3D(int nf1, int nf2, int nf3, CUCPX* d_fw, int M, FLT *d_kx,
 	ier = ALLOCGPUMEM3D_PLAN(d_plan);
 	ier = ALLOCGPUMEM3D_NUPTS(d_plan);
 
-	if (d_plan->options.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
+	if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
 		ier = CUSPREAD3D_NUPTSDRIVEN_PROP(nf1,nf2,nf3,M,d_plan);
 		if (ier != 0 ) {
 			printf("error: cuinterp3d_nuptsdriven_prop, method(%d)\n", 
-				d_plan->options.gpu_spread_method);
+				d_plan->options_.gpu_spread_method);
 			return ier;
 		}
 	}
-	if (d_plan->options.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
+	if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
 		ier = CUSPREAD3D_SUBPROB_PROP(nf1,nf2,nf3,M,d_plan);
 		if (ier != 0 ) {
 			printf("error: cuspread3d_subprob_prop, method(%d)\n", 
-													  d_plan->options.gpu_spread_method);
+													  d_plan->options_.gpu_spread_method);
 			return ier;
 		}
 	}
@@ -78,7 +78,7 @@ int CUFINUFFT_INTERP3D(int nf1, int nf2, int nf3, CUCPX* d_fw, int M, FLT *d_kx,
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("[time  ] Obtain Interp Prop\t %.3g ms\n", d_plan->options.gpu_spread_method, 
+	printf("[time  ] Obtain Interp Prop\t %.3g ms\n", d_plan->options_.gpu_spread_method, 
 		milliseconds);
 #endif
 
@@ -88,7 +88,7 @@ int CUFINUFFT_INTERP3D(int nf1, int nf2, int nf3, CUCPX* d_fw, int M, FLT *d_kx,
 	cudaEventRecord(stop);
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("[time  ] Interp (%d)\t\t %.3g ms\n", d_plan->options.gpu_spread_method, milliseconds);
+	printf("[time  ] Interp (%d)\t\t %.3g ms\n", d_plan->options_.gpu_spread_method, milliseconds);
 #endif
 	cudaEventRecord(start);
 	FREEGPUMEMORY3D(d_plan);
@@ -123,7 +123,7 @@ int CUINTERP3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 	cudaEventCreate(&stop);
 
 	int ier;
-	switch(d_plan->options.gpu_spread_method)
+	switch(d_plan->options_.gpu_spread_method)
 	{
 		case GpuSpreadMethod::NUPTS_DRIVEN:
 			{
@@ -196,7 +196,7 @@ int CUINTERP3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT
 	blocks.y = 1;
 
 	cudaEventRecord(start);
-	if (d_plan->options.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+	if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
 		for (int t=0; t<blksize; t++) {
 			Interp_3d_NUptsdriven_Horner<<<blocks, threadsPerBlock, 0, 
 				0>>>(d_kx, d_ky, d_kz, d_c+t*M, 
@@ -216,7 +216,7 @@ int CUINTERP3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&milliseconds, start, stop);
 	printf("[time  ] \tKernel Interp_3d_NUptsdriven (%d) \t%.3g ms\n", 
-		milliseconds, d_plan->options.kernel_evaluation_method);
+		milliseconds, d_plan->options_.kernel_evaluation_method);
 #endif
 	return 0;
 }
@@ -229,19 +229,19 @@ int CUINTERP3D_SUBPROB(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d
 	cudaEventCreate(&stop);
 
 	int ns=d_plan->spopts.nspread;   // psi's support in terms of number of cells
-	int maxsubprobsize=d_plan->options.gpu_max_subproblem_size;
+	int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
 
 	// assume that bin_size_x > ns/2;
-	int bin_size_x=d_plan->options.gpu_bin_size.x;
-	int bin_size_y=d_plan->options.gpu_bin_size.y;
-	int bin_size_z=d_plan->options.gpu_bin_size.z;
+	int bin_size_x=d_plan->options_.gpu_bin_size.x;
+	int bin_size_y=d_plan->options_.gpu_bin_size.y;
+	int bin_size_z=d_plan->options_.gpu_bin_size.z;
 	int numbins[3];
 	numbins[0] = ceil((FLT) nf1/bin_size_x);
 	numbins[1] = ceil((FLT) nf2/bin_size_y);
 	numbins[2] = ceil((FLT) nf3/bin_size_z);
 #ifdef INFO
 	cout<<"[info  ] Dividing the uniform grids to bin size["
-		<<d_plan->options.gpu_bin_size.x<<"x"<<d_plan->options.gpu_bin_size.y<<"x"<<d_plan->options.gpu_bin_size.z<<"]"<<endl;
+		<<d_plan->options_.gpu_bin_size.x<<"x"<<d_plan->options_.gpu_bin_size.y<<"x"<<d_plan->options_.gpu_bin_size.z<<"]"<<endl;
 	cout<<"[info  ] numbins = ["<<numbins[0]<<"x"<<numbins[1]<<"x"<<numbins[2]
 	<<"]"<<endl;
 #endif
@@ -273,7 +273,7 @@ int CUINTERP3D_SUBPROB(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d
 	}
 
 	for (int t=0; t<blksize; t++) {
-		if (d_plan->options.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+		if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
 			Interp_3d_Subprob_Horner<<<totalnumsubprob, 256,
 				sharedplanorysize>>>(d_kx, d_ky, d_kz, d_c+t*M, d_fw+t*nf1*nf2*nf3, 
 				M, ns, nf1, nf2, nf3, sigma, d_binstartpts, d_binsize, bin_size_x,
@@ -295,7 +295,7 @@ int CUINTERP3D_SUBPROB(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d
 	cudaEventSynchronize(stop);
 	cudaEventElapsedTime(&milliseconds, start, stop);
 	printf("[time  ] \tKernel Interp_3d_Subprob (%d) \t%.3g ms\n", milliseconds,
-	d_plan->options.kernel_evaluation_method);
+	d_plan->options_.kernel_evaluation_method);
 #endif
 	return 0;
 }

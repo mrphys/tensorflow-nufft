@@ -32,7 +32,6 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
 // clear the macros so we can define w/o warnings...
-#undef FINUFFT_MAKEPLAN
 #undef FINUFFT_SETPTS
 #undef FINUFFT_EXECUTE
 #undef FINUFFT_INTERP
@@ -40,14 +39,12 @@ limitations under the License.
 #undef FINUFFT_DESTROY
 // precision-switching macros for interfaces FINUFFT provides to outside world
 #ifdef SINGLE
-#define FINUFFT_MAKEPLAN finufftf_makeplan
 #define FINUFFT_SETPTS finufftf_setpts
 #define FINUFFT_EXECUTE finufftf_execute
 #define FINUFFT_INTERP finufftf_interp
 #define FINUFFT_SPREAD finufftf_spread
 #define FINUFFT_DESTROY finufftf_destroy
 #else
-#define FINUFFT_MAKEPLAN finufft_makeplan
 #define FINUFFT_SETPTS finufft_setpts
 #define FINUFFT_EXECUTE finufft_execute
 #define FINUFFT_INTERP finufft_interp
@@ -66,7 +63,6 @@ extern "C"
 // ------------------ the guru interface ------------------------------------
 // (sources in finufft.cpp)
   
-int FINUFFT_MAKEPLAN(tensorflow::nufft::TransformType type, int rank, BIGINT* n_modes, tensorflow::nufft::FftDirection fft_direction, int n_transf, FLT tol, tensorflow::nufft::Plan<tensorflow::CPUDevice, FLT>** plan, const tensorflow::nufft::Options& options);
 int FINUFFT_SETPTS(tensorflow::nufft::Plan<tensorflow::CPUDevice, FLT>* plan , BIGINT M, FLT *xj, FLT *yj, FLT *zj, BIGINT N, FLT *s, FLT *t, FLT *u); 
 int FINUFFT_EXECUTE(tensorflow::nufft::Plan<tensorflow::CPUDevice, FLT>* plan, CPX* weights, CPX* result);
 int FINUFFT_INTERP(tensorflow::nufft::Plan<tensorflow::CPUDevice, FLT>* plan, CPX* weights, CPX* result);

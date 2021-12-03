@@ -65,15 +65,17 @@ NVARCH ?= \
 	-gencode=arch=compute_86,code=sm_86 \
 	-gencode=arch=compute_86,code=compute_86
 
+CUDAFE = --diag_suppress=174 --diag_suppress=611 --diag_suppress=20012 --display_error_number
+
 CUFLAGS = $(NVARCH) -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-constexpr
 CUFLAGS += -I$(ROOT_DIR)
-CUFLAGS += -Xcudafe --diag_suppress=20012
+CUFLAGS += -Xcudafe "$(CUDAFE)"
 
 CUFINUFFT_CUFLAGS ?= -std=c++14 -ccbin=$(CXX) -O3 $(NVARCH) \
 	-Wno-deprecated-gpu-targets --default-stream per-thread \
 	-Xcompiler "$(CXXFLAGS)" --expt-relaxed-constexpr
 CUFINUFFT_CUFLAGS += -I$(CUFINUFFT_ROOT)
-CUFINUFFT_CUFLAGS += -Xcudafe "--diag_suppress=20012 --display_error_number"
+CUFINUFFT_CUFLAGS += -Xcudafe "$(CUDAFE)"
 
 
 # ==============================================================================
@@ -116,7 +118,7 @@ OBJS = $(SOBJS) $(FINUFFT_ROOT)/finufft.o
 # their single-prec versions
 OBJSF = $(OBJS:%.o=%_32.o)
 # precision-dependent library object files (compiled & linked only once)...
-OBJS_PI = $(SOBJS_PI) $(FINUFFT_ROOT)/contrib/legendre_rule_fast.o
+OBJS_PI = $(SOBJS_PI)
 # all lib dual-precision objs
 OBJSD = $(OBJS) $(OBJSF) $(OBJS_PI)
 

@@ -34,6 +34,8 @@ limitations under the License.
 
 #include "tensorflow_nufft/third_party/cuda_samples/helper_cuda.h"
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
+#include "tensorflow_nufft/cc/kernels/omp_api.h"
+
 
 namespace tensorflow {
 namespace nufft {
@@ -96,9 +98,9 @@ Plan<GPUDevice, FloatType>::Plan(
   OP_REQUIRES(context, rank == num_modes.size(),
               errors::InvalidArgument("num_modes must have size equal to rank"));
 
-	// TODO: check options.
-	//  - If mode_order == FFT, raise unimplemented error.
-	//  - If check_bounds == true, raise unimplemented error.
+  // TODO: check options.
+  //  - If mode_order == FFT, raise unimplemented error.
+  //  - If check_bounds == true, raise unimplemented error.
 
         // Mult-GPU support: set the CUDA Device ID:
         int orig_gpu_device_id;
@@ -144,18 +146,24 @@ Plan<GPUDevice, FloatType>::Plan(
   this->subprob_to_nupts = nullptr;
   this->streams = nullptr;
 
-	// Copy options.
-	this->options_ = options;
+  // Copy options.
+  this->options_ = options;
 
   // Select kernel evaluation method.
   if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::AUTO) {
-	  this->options_.kernel_evaluation_method = KernelEvaluationMethod::DIRECT;
-	}
+    this->options_.kernel_evaluation_method = KernelEvaluationMethod::DIRECT;
+  }
 
-	// Select upsampling factor. Currently always defaults to 2.
-	if (this->options_.upsampling_factor == 0.0) {
-	  this->options_.upsampling_factor = 2.0;
-	}
+  // Select upsampling factor. Currently always defaults to 2.
+  if (this->options_.upsampling_factor == 0.0) {
+    this->options_.upsampling_factor = 2.0;
+  }
+
+  // Configure threading (irrelevant for GPU computation, but is used for some
+  // CPU computations).
+  if (this->options_.num_threads == 0) {
+    this->options_.num_threads = OMP_GET_MAX_THREADS();
+  }
 
   // Select spreading method.
   if (this->options_.gpu_spread_method == GpuSpreadMethod::AUTO) {
@@ -169,108 +177,108 @@ Plan<GPUDevice, FloatType>::Plan(
       this->options_.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
   }
 
-	// This must be set before calling setup_spreader_for_nufft.
-	this->spopts.spread_interp_only = this->options_.spread_interp_only;
+  // This must be set before calling setup_spreader_for_nufft.
+  this->spopts.spread_interp_only = this->options_.spread_interp_only;
 
-	// Setup spreading options.
+  // Setup spreading options.
   OP_REQUIRES_OK(context,
                  setup_spreader_for_nufft(
                     rank, tol, this->options_, this->spopts));
 
-	this->rank_ = rank;
-	this->ms = num_modes[0];
+  this->rank_ = rank;
+  this->ms = num_modes[0];
   if (rank > 1)
-	  this->mt = num_modes[1];
+    this->mt = num_modes[1];
   if (rank > 2)
-	  this->mu = num_modes[2];
+    this->mu = num_modes[2];
 
   // Set the bin sizes.
-	set_bin_sizes(type, rank, this->options_);
+  set_bin_sizes(type, rank, this->options_);
 
   // Set the grid sizes.
-	int nf1 = 1, nf2 = 1, nf3 = 1;
-	OP_REQUIRES_OK(context,
+  int nf1 = 1, nf2 = 1, nf3 = 1;
+  OP_REQUIRES_OK(context,
                  set_grid_size(this->ms, this->options_.gpu_obin_size.x,
                                this->options_, this->spopts, &nf1));
-	if (rank > 1) {
+  if (rank > 1) {
     OP_REQUIRES_OK(context,
                    set_grid_size(this->mt, this->options_.gpu_obin_size.y,
                                  this->options_, this->spopts, &nf2));
-	}
-	if (rank > 2) {
+  }
+  if (rank > 2) {
     OP_REQUIRES_OK(context,
                    set_grid_size(this->mu, this->options_.gpu_obin_size.z,
                                  this->options_, this->spopts, &nf3));
-	}
+  }
 
-	this->nf1 = nf1;
-	this->nf2 = nf2;
-	this->nf3 = nf3;
-	this->fft_direction_ = fft_direction;
-	this->num_transforms_ = num_transforms;
-	this->type_ = type;
+  this->nf1 = nf1;
+  this->nf2 = nf2;
+  this->nf3 = nf3;
+  this->fft_direction_ = fft_direction;
+  this->num_transforms_ = num_transforms;
+  this->type_ = type;
 
   // Select maximum batch size.
   if (this->options_.max_batch_size == 0)
     // Heuristic from test codes.
     this->options_.max_batch_size = min(num_transforms, 8); 
 
-	if (this->type_ == TransformType::TYPE_1)
-		this->spopts.spread_direction = SpreadDirection::SPREAD;
-	if (this->type_ == TransformType::TYPE_2)
-		this->spopts.spread_direction = SpreadDirection::INTERP;
+  if (this->type_ == TransformType::TYPE_1)
+    this->spopts.spread_direction = SpreadDirection::SPREAD;
+  if (this->type_ == TransformType::TYPE_2)
+    this->spopts.spread_direction = SpreadDirection::INTERP;
 
-	// This may move to GPU.
-	FloatType *fwkerhalf1, *fwkerhalf2, *fwkerhalf3;
-	if (!this->options_.spread_interp_only) { // no need to do this if spread/interp only
-		
-		fwkerhalf1 = (FloatType*)malloc(sizeof(FloatType)*(nf1/2+1));
-		kernel_fseries_1d(nf1, this->spopts, fwkerhalf1);
-		if (rank > 1) {
-			fwkerhalf2 = (FloatType*)malloc(sizeof(FloatType)*(nf2/2+1));
-			kernel_fseries_1d(nf2, this->spopts, fwkerhalf2);
-		}
-		if (rank > 2) {
-			fwkerhalf3 = (FloatType*)malloc(sizeof(FloatType)*(nf3/2+1));
-			kernel_fseries_1d(nf3, this->spopts, fwkerhalf3);
-		}
-	}
-
-	switch(this->rank_)
-	{
-		case 2: {
-			OP_REQUIRES_OK(context, allocate_gpu_memory_2d(this));
-      break;
-		}
-		case 3: {
-			OP_REQUIRES_OK(context, allocate_gpu_memory_3d(this));
-		  break;
+  // This may move to GPU.
+  FloatType *fwkerhalf1, *fwkerhalf2, *fwkerhalf3;
+  if (!this->options_.spread_interp_only) { // no need to do this if spread/interp only
+    
+    fwkerhalf1 = (FloatType*)malloc(sizeof(FloatType)*(nf1/2+1));
+    kernel_fseries_1d(nf1, this->spopts, fwkerhalf1);
+    if (rank > 1) {
+      fwkerhalf2 = (FloatType*)malloc(sizeof(FloatType)*(nf2/2+1));
+      kernel_fseries_1d(nf2, this->spopts, fwkerhalf2);
     }
-	}
+    if (rank > 2) {
+      fwkerhalf3 = (FloatType*)malloc(sizeof(FloatType)*(nf3/2+1));
+      kernel_fseries_1d(nf3, this->spopts, fwkerhalf3);
+    }
+  }
 
-	if (!this->options_.spread_interp_only)
-	{
-		checkCudaErrors(cudaMemcpy(this->fwkerhalf1, fwkerhalf1, (nf1 / 2 + 1) *
-			sizeof(FloatType),cudaMemcpyHostToDevice));
-		if (rank > 1)
-			checkCudaErrors(cudaMemcpy(this->fwkerhalf2, fwkerhalf2, (nf2 / 2 + 1) *
-				sizeof(FloatType),cudaMemcpyHostToDevice));
-		if (rank > 2)
-			checkCudaErrors(cudaMemcpy(this->fwkerhalf3, fwkerhalf3,(nf3 / 2 + 1)*
-				sizeof(FloatType),cudaMemcpyHostToDevice));
-	}
+  switch(this->rank_)
+  {
+    case 2: {
+      OP_REQUIRES_OK(context, allocate_gpu_memory_2d(this));
+      break;
+    }
+    case 3: {
+      OP_REQUIRES_OK(context, allocate_gpu_memory_3d(this));
+      break;
+    }
+  }
 
-	if (!this->options_.spread_interp_only) {
+  if (!this->options_.spread_interp_only)
+  {
+    checkCudaErrors(cudaMemcpy(this->fwkerhalf1, fwkerhalf1, (nf1 / 2 + 1) *
+      sizeof(FloatType),cudaMemcpyHostToDevice));
+    if (rank > 1)
+      checkCudaErrors(cudaMemcpy(this->fwkerhalf2, fwkerhalf2, (nf2 / 2 + 1) *
+        sizeof(FloatType),cudaMemcpyHostToDevice));
+    if (rank > 2)
+      checkCudaErrors(cudaMemcpy(this->fwkerhalf3, fwkerhalf3,(nf3 / 2 + 1)*
+        sizeof(FloatType),cudaMemcpyHostToDevice));
+  }
 
-		cufftHandle fftplan;
-		switch(this->rank_)
-		{
-			case 2:
-			{
-				int n[] = {nf2, nf1};
-				int inembed[] = {nf2, nf1};
+  if (!this->options_.spread_interp_only) {
 
-				cufftResult result = cufftPlanMany(
+    cufftHandle fftplan;
+    switch(this->rank_)
+    {
+      case 2:
+      {
+        int n[] = {nf2, nf1};
+        int inembed[] = {nf2, nf1};
+
+        cufftResult result = cufftPlanMany(
             &fftplan, rank, n, inembed, 1, inembed[0] * inembed[1],
             inembed, 1, inembed[0] * inembed[1],
             kCufftType<FloatType>, this->options_.max_batch_size);
@@ -278,35 +286,35 @@ Plan<GPUDevice, FloatType>::Plan(
         OP_REQUIRES(context, result == CUFFT_SUCCESS,
                     errors::Internal(
                         "cufftPlanMany failed with code: ", result));
-			}
-			break;
-			case 3:
-			{
-				int rank = 3;
-				int n[] = {nf3, nf2, nf1};
-				int inembed[] = {nf3, nf2, nf1};
-				int istride = 1;
-				cufftResult result = cufftPlanMany(
+      }
+      break;
+      case 3:
+      {
+        int rank = 3;
+        int n[] = {nf3, nf2, nf1};
+        int inembed[] = {nf3, nf2, nf1};
+        int istride = 1;
+        cufftResult result = cufftPlanMany(
             &fftplan,rank,n,inembed,istride,inembed[0]*inembed[1]*
             inembed[2],inembed,istride,inembed[0]*inembed[1]*inembed[2],
             kCufftType<FloatType>, this->options_.max_batch_size);
 
-				OP_REQUIRES(context, result == CUFFT_SUCCESS,
+        OP_REQUIRES(context, result == CUFFT_SUCCESS,
                     errors::Internal(
                         "cufftPlanMany failed with code: ", result));
-			}
-			break;
-		}
-		this->fftplan = fftplan;
-	}
+      }
+      break;
+    }
+    this->fftplan = fftplan;
+  }
 
-	if (!this->options_.spread_interp_only) {
-		free(fwkerhalf1);
-		if (rank > 1)
-			free(fwkerhalf2);
-		if (rank > 2)
-			free(fwkerhalf3);
-	}
+  if (!this->options_.spread_interp_only) {
+    free(fwkerhalf1);
+    if (rank > 1)
+      free(fwkerhalf2);
+    if (rank > 2)
+      free(fwkerhalf3);
+  }
 
   // Multi-GPU support: reset the device ID
   cudaSetDevice(orig_gpu_device_id);
@@ -389,45 +397,46 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
       options.kernel_evaluation_method, spopts));
 
   spopts.pirange = 1;
+  spopts.num_threads = options.num_threads;
 
   return Status::OK();
 }
 
 void set_bin_sizes(TransformType type, int rank, Options& options)
 {
-	switch(rank)
-	{
-		case 2:
-		{
-			options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 32 :
-				  options.gpu_bin_size.x;
+  switch(rank)
+  {
+    case 2:
+    {
+      options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 32 :
+          options.gpu_bin_size.x;
       options.gpu_bin_size.y = (options.gpu_bin_size.y == 0) ? 32 :
-				  options.gpu_bin_size.y;
-			options.gpu_bin_size.z = 1;
-		}
-		break;
-		case 3:
-		{
-			switch(options.gpu_spread_method)
-			{
-				case GpuSpreadMethod::NUPTS_DRIVEN:
-				case GpuSpreadMethod::SUBPROBLEM:
-				{
-					options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 16 :
-						  options.gpu_bin_size.x;
-					options.gpu_bin_size.y = (options.gpu_bin_size.y == 0) ? 16 :
-						  options.gpu_bin_size.y;
-					options.gpu_bin_size.z = (options.gpu_bin_size.z == 0) ? 2 :
-						  options.gpu_bin_size.z;
-				}
-				break;
-				case GpuSpreadMethod::BLOCK_GATHER:
-				{
-					options.gpu_obin_size.x = (options.gpu_obin_size.x == 0) ? 8 :
-						  options.gpu_obin_size.x;
-					options.gpu_obin_size.y = (options.gpu_obin_size.y == 0) ? 8 :
-						  options.gpu_obin_size.y;
-					options.gpu_obin_size.z = (options.gpu_obin_size.z == 0) ? 8 :
+          options.gpu_bin_size.y;
+      options.gpu_bin_size.z = 1;
+    }
+    break;
+    case 3:
+    {
+      switch(options.gpu_spread_method)
+      {
+        case GpuSpreadMethod::NUPTS_DRIVEN:
+        case GpuSpreadMethod::SUBPROBLEM:
+        {
+          options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 16 :
+              options.gpu_bin_size.x;
+          options.gpu_bin_size.y = (options.gpu_bin_size.y == 0) ? 16 :
+              options.gpu_bin_size.y;
+          options.gpu_bin_size.z = (options.gpu_bin_size.z == 0) ? 2 :
+              options.gpu_bin_size.z;
+        }
+        break;
+        case GpuSpreadMethod::BLOCK_GATHER:
+        {
+          options.gpu_obin_size.x = (options.gpu_obin_size.x == 0) ? 8 :
+              options.gpu_obin_size.x;
+          options.gpu_obin_size.y = (options.gpu_obin_size.y == 0) ? 8 :
+              options.gpu_obin_size.y;
+          options.gpu_obin_size.z = (options.gpu_obin_size.z == 0) ? 8 :
               options.gpu_obin_size.z;
           options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 4 :
               options.gpu_bin_size.x;
@@ -435,12 +444,12 @@ void set_bin_sizes(TransformType type, int rank, Options& options)
               options.gpu_bin_size.y;
           options.gpu_bin_size.z = (options.gpu_bin_size.z == 0) ? 4 :
               options.gpu_bin_size.z;
-				}
-				break;
-			}
-		}
-		break;
-	}
+        }
+        break;
+      }
+    }
+    break;
+  }
 }
 
 template<typename FloatType>
@@ -491,89 +500,89 @@ Status allocate_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan) {
   cudaGetDevice(& orig_gpu_device_id);
   cudaSetDevice(d_plan->options_.gpu_device_id);
 
-	int nf1 = d_plan->nf1;
-	int nf2 = d_plan->nf2;
+  int nf1 = d_plan->nf1;
+  int nf2 = d_plan->nf2;
 
-	d_plan->byte_now=0;
-	// No extra memory is needed in nuptsdriven method (case 1)
-	switch (d_plan->options_.gpu_spread_method)
-	{
-		case GpuSpreadMethod::NUPTS_DRIVEN:
-			{
-				if (d_plan->options_.gpu_sort_points) {
-					int numbins[2];
-					numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
-					numbins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_bin_size.y);
-					checkCudaErrors(cudaMalloc(&d_plan->binsize,numbins[0]*
-						numbins[1]*sizeof(int)));
-					checkCudaErrors(cudaMalloc(&d_plan->binstartpts,numbins[0]*
-						numbins[1]*sizeof(int)));
-				}
-			}
-			break;
-		case GpuSpreadMethod::SUBPROBLEM:
-			{
-				int numbins[2];
-				numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
-				numbins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_bin_size.y);
-				checkCudaErrors(cudaMalloc(&d_plan->numsubprob,numbins[0]*
-						numbins[1]*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->binsize,numbins[0]*
-						numbins[1]*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->binstartpts,numbins[0]*
-						numbins[1]*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->subprobstartpts,
-						(numbins[0]*numbins[1]+1)*sizeof(int)));
-			}
-			break;
-		case GpuSpreadMethod::PAUL:
-			{
-				int numbins[2];
-				numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
-				numbins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_bin_size.y);
-				checkCudaErrors(cudaMalloc(&d_plan->finegridsize,nf1*nf2*
-						sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->fgstartpts,nf1*nf2*
-						sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->numsubprob,numbins[0]*
-						numbins[1]*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->binsize,numbins[0]*
-						numbins[1]*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->binstartpts,numbins[0]*
-						numbins[1]*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->subprobstartpts,
-						(numbins[0]*numbins[1]+1)*sizeof(int)));
-			}
-			break;
-		default:
-			return errors::Internal("Invalid GPU spread method");
-	}
+  d_plan->byte_now=0;
+  // No extra memory is needed in nuptsdriven method (case 1)
+  switch (d_plan->options_.gpu_spread_method)
+  {
+    case GpuSpreadMethod::NUPTS_DRIVEN:
+      {
+        if (d_plan->options_.gpu_sort_points) {
+          int numbins[2];
+          numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
+          numbins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_bin_size.y);
+          checkCudaErrors(cudaMalloc(&d_plan->binsize,numbins[0]*
+            numbins[1]*sizeof(int)));
+          checkCudaErrors(cudaMalloc(&d_plan->binstartpts,numbins[0]*
+            numbins[1]*sizeof(int)));
+        }
+      }
+      break;
+    case GpuSpreadMethod::SUBPROBLEM:
+      {
+        int numbins[2];
+        numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
+        numbins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_bin_size.y);
+        checkCudaErrors(cudaMalloc(&d_plan->numsubprob,numbins[0]*
+            numbins[1]*sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->binsize,numbins[0]*
+            numbins[1]*sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->binstartpts,numbins[0]*
+            numbins[1]*sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->subprobstartpts,
+            (numbins[0]*numbins[1]+1)*sizeof(int)));
+      }
+      break;
+    case GpuSpreadMethod::PAUL:
+      {
+        int numbins[2];
+        numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
+        numbins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_bin_size.y);
+        checkCudaErrors(cudaMalloc(&d_plan->finegridsize,nf1*nf2*
+            sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->fgstartpts,nf1*nf2*
+            sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->numsubprob,numbins[0]*
+            numbins[1]*sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->binsize,numbins[0]*
+            numbins[1]*sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->binstartpts,numbins[0]*
+            numbins[1]*sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->subprobstartpts,
+            (numbins[0]*numbins[1]+1)*sizeof(int)));
+      }
+      break;
+    default:
+      return errors::Internal("Invalid GPU spread method");
+  }
 
-	if (!d_plan->options_.spread_interp_only) {
+  if (!d_plan->options_.spread_interp_only) {
     checkCudaErrors(cudaMalloc(&d_plan->fw, d_plan->options_.max_batch_size * nf1 * nf2 *
-				                       sizeof(typename ComplexType<GPUDevice, FloatType>::Type)));
-		checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf1,(nf1/2+1)*sizeof(FloatType)));
-		checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf2,(nf2/2+1)*sizeof(FloatType)));
-	}
+                               sizeof(typename ComplexType<GPUDevice, FloatType>::Type)));
+    checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf1,(nf1/2+1)*sizeof(FloatType)));
+    checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf2,(nf2/2+1)*sizeof(FloatType)));
+  }
 
-	cudaStream_t* streams = (cudaStream_t*) malloc(d_plan->options_.gpu_num_streams*
-		sizeof(cudaStream_t));
-	for (int i = 0; i < d_plan->options_.gpu_num_streams; i++)
-		checkCudaErrors(cudaStreamCreate(&streams[i]));
-	d_plan->streams = streams;
+  cudaStream_t* streams = (cudaStream_t*) malloc(d_plan->options_.gpu_num_streams*
+    sizeof(cudaStream_t));
+  for (int i = 0; i < d_plan->options_.gpu_num_streams; i++)
+    checkCudaErrors(cudaStreamCreate(&streams[i]));
+  d_plan->streams = streams;
 
   // Multi-GPU support: reset the device ID
   cudaSetDevice(orig_gpu_device_id);
-	
+  
   return Status::OK();
 }
 
 template<typename FloatType>
 Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan)
 /*
-	wrapper for gpu memory allocation in "plan" stage.
+  wrapper for gpu memory allocation in "plan" stage.
 
-	Melody Shih 07/25/19
+  Melody Shih 07/25/19
 */
 {
         // Mult-GPU support: set the CUDA Device ID:
@@ -581,89 +590,89 @@ Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan)
         cudaGetDevice(& orig_gpu_device_id);
         cudaSetDevice(d_plan->options_.gpu_device_id);
 
-	int nf1 = d_plan->nf1;
-	int nf2 = d_plan->nf2;
-	int nf3 = d_plan->nf3;
+  int nf1 = d_plan->nf1;
+  int nf2 = d_plan->nf2;
+  int nf3 = d_plan->nf3;
 
-	d_plan->byte_now=0;
+  d_plan->byte_now=0;
 
-	switch(d_plan->options_.gpu_spread_method)
-	{
-		case GpuSpreadMethod::NUPTS_DRIVEN:
-			{
-				if (d_plan->options_.gpu_sort_points) {
-					int numbins[3];
-					numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
-					numbins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_bin_size.y);
-					numbins[2] = ceil((FloatType) nf3/d_plan->options_.gpu_bin_size.z);
-					checkCudaErrors(cudaMalloc(&d_plan->binsize,numbins[0]*
-						numbins[1]*numbins[2]*sizeof(int)));
-					checkCudaErrors(cudaMalloc(&d_plan->binstartpts,numbins[0]*
-						numbins[1]*numbins[2]*sizeof(int)));
-				}
-			}
-			break;
-		case GpuSpreadMethod::SUBPROBLEM:
-			{
-				int numbins[3];
-				numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
-				numbins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_bin_size.y);
-				numbins[2] = ceil((FloatType) nf3/d_plan->options_.gpu_bin_size.z);
-				checkCudaErrors(cudaMalloc(&d_plan->numsubprob,numbins[0]*
-					numbins[1]*numbins[2]*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->binsize,numbins[0]*
-					numbins[1]*numbins[2]*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->binstartpts,numbins[0]*
-					numbins[1]*numbins[2]*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->subprobstartpts,
-					(numbins[0]*numbins[1]*numbins[2]+1)*sizeof(int)));
-			}
-			break;
-		case GpuSpreadMethod::BLOCK_GATHER:
-			{
-				int numobins[3], numbins[3];
-				int binsperobins[3];
-				numobins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_obin_size.x);
-				numobins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_obin_size.y);
-				numobins[2] = ceil((FloatType) nf3/d_plan->options_.gpu_obin_size.z);
+  switch(d_plan->options_.gpu_spread_method)
+  {
+    case GpuSpreadMethod::NUPTS_DRIVEN:
+      {
+        if (d_plan->options_.gpu_sort_points) {
+          int numbins[3];
+          numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
+          numbins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_bin_size.y);
+          numbins[2] = ceil((FloatType) nf3/d_plan->options_.gpu_bin_size.z);
+          checkCudaErrors(cudaMalloc(&d_plan->binsize,numbins[0]*
+            numbins[1]*numbins[2]*sizeof(int)));
+          checkCudaErrors(cudaMalloc(&d_plan->binstartpts,numbins[0]*
+            numbins[1]*numbins[2]*sizeof(int)));
+        }
+      }
+      break;
+    case GpuSpreadMethod::SUBPROBLEM:
+      {
+        int numbins[3];
+        numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
+        numbins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_bin_size.y);
+        numbins[2] = ceil((FloatType) nf3/d_plan->options_.gpu_bin_size.z);
+        checkCudaErrors(cudaMalloc(&d_plan->numsubprob,numbins[0]*
+          numbins[1]*numbins[2]*sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->binsize,numbins[0]*
+          numbins[1]*numbins[2]*sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->binstartpts,numbins[0]*
+          numbins[1]*numbins[2]*sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->subprobstartpts,
+          (numbins[0]*numbins[1]*numbins[2]+1)*sizeof(int)));
+      }
+      break;
+    case GpuSpreadMethod::BLOCK_GATHER:
+      {
+        int numobins[3], numbins[3];
+        int binsperobins[3];
+        numobins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_obin_size.x);
+        numobins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_obin_size.y);
+        numobins[2] = ceil((FloatType) nf3/d_plan->options_.gpu_obin_size.z);
 
-				binsperobins[0] = d_plan->options_.gpu_obin_size.x/
-					d_plan->options_.gpu_bin_size.x;
-				binsperobins[1] = d_plan->options_.gpu_obin_size.y/
-					d_plan->options_.gpu_bin_size.y;
-				binsperobins[2] = d_plan->options_.gpu_obin_size.z/
-					d_plan->options_.gpu_bin_size.z;
+        binsperobins[0] = d_plan->options_.gpu_obin_size.x/
+          d_plan->options_.gpu_bin_size.x;
+        binsperobins[1] = d_plan->options_.gpu_obin_size.y/
+          d_plan->options_.gpu_bin_size.y;
+        binsperobins[2] = d_plan->options_.gpu_obin_size.z/
+          d_plan->options_.gpu_bin_size.z;
 
-				numbins[0] = numobins[0]*(binsperobins[0]+2);
-				numbins[1] = numobins[1]*(binsperobins[1]+2);
-				numbins[2] = numobins[2]*(binsperobins[2]+2);
+        numbins[0] = numobins[0]*(binsperobins[0]+2);
+        numbins[1] = numobins[1]*(binsperobins[1]+2);
+        numbins[2] = numobins[2]*(binsperobins[2]+2);
 
-				checkCudaErrors(cudaMalloc(&d_plan->numsubprob,
-					numobins[0]*numobins[1]*numobins[2]*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->binsize,
-					numbins[0]*numbins[1]*numbins[2]*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->binstartpts,
-					(numbins[0]*numbins[1]*numbins[2]+1)*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->subprobstartpts,(numobins[0]
-					*numobins[1]*numobins[2]+1)*sizeof(int)));
-			}
-			break;
-		default:
-			return errors::Internal("Invalid GPU spread method");
-	}
+        checkCudaErrors(cudaMalloc(&d_plan->numsubprob,
+          numobins[0]*numobins[1]*numobins[2]*sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->binsize,
+          numbins[0]*numbins[1]*numbins[2]*sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->binstartpts,
+          (numbins[0]*numbins[1]*numbins[2]+1)*sizeof(int)));
+        checkCudaErrors(cudaMalloc(&d_plan->subprobstartpts,(numobins[0]
+          *numobins[1]*numobins[2]+1)*sizeof(int)));
+      }
+      break;
+    default:
+      return errors::Internal("Invalid GPU spread method");
+  }
 
-	if (!d_plan->options_.spread_interp_only) {
-		checkCudaErrors(cudaMalloc(&d_plan->fw, d_plan->options_.max_batch_size*nf1*nf2*nf3*
-			  sizeof(typename ComplexType<GPUDevice, FloatType>::Type)));
-		checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf1,(nf1/2+1)*sizeof(FloatType)));
-		checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf2,(nf2/2+1)*sizeof(FloatType)));
-		checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf3,(nf3/2+1)*sizeof(FloatType)));
-	}
+  if (!d_plan->options_.spread_interp_only) {
+    checkCudaErrors(cudaMalloc(&d_plan->fw, d_plan->options_.max_batch_size*nf1*nf2*nf3*
+        sizeof(typename ComplexType<GPUDevice, FloatType>::Type)));
+    checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf1,(nf1/2+1)*sizeof(FloatType)));
+    checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf2,(nf2/2+1)*sizeof(FloatType)));
+    checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf3,(nf3/2+1)*sizeof(FloatType)));
+  }
 
   // Multi-GPU support: reset the device ID
   cudaSetDevice(orig_gpu_device_id);
 
-	return Status::OK();
+  return Status::OK();
 }
 
 } // namespace

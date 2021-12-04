@@ -417,11 +417,6 @@ int CUFINUFFT_DESTROY(Plan<GPUDevice, FLT>* d_plan)
 	printf("[time  ] \tFree gpu memory\t\t %.3g s\n", milliseconds/1000);
 #endif
 
-	/* free/destruct the plan */
-	delete d_plan;
-	/* set pointer to NULL now that we've hopefully free'd the memory. */
-	d_plan = NULL;
-
         // Multi-GPU support: reset the device ID
         cudaSetDevice(orig_gpu_device_id);
 	return 0;

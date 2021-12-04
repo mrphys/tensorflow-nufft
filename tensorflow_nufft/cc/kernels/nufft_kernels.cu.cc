@@ -31,40 +31,6 @@ typedef Eigen::GpuDevice GPUDevice;
 namespace nufft {
 
 template<>
-int makeplan<GPUDevice, float>(
-    OpKernelContext* context, TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, float eps,
-    Plan<GPUDevice, float>** plan,
-    const Options& options) {
-
-  gtl::InlinedVector<int, 4> num_modes(rank);
-  for (int i = 0; i < rank; ++i) {
-    num_modes[i] = nmodes[i];
-  }
-
-  *plan = new Plan<GPUDevice, float>(
-      context, type, rank, num_modes, fft_direction, ntr, eps, options);
-
-  return 0;
-};
-
-template<>
-int makeplan<GPUDevice, double>(
-    OpKernelContext* context, TransformType type, int rank, int64_t* nmodes, FftDirection fft_direction, int ntr, double eps,
-    Plan<GPUDevice, double>** plan,
-    const Options& options) {
-
-  gtl::InlinedVector<int, 4> num_modes(rank);
-  for (int i = 0; i < rank; ++i) {
-    num_modes[i] = nmodes[i];
-  }
-
-  *plan = new Plan<GPUDevice, double>(
-      context, type, rank, num_modes, fft_direction, ntr, eps, options);
-
-  return 0;
-};
-
-template<>
 int setpts<GPUDevice, float>(
     Plan<GPUDevice, float>* plan,
     int64_t M, float* x, float* y, float* z,

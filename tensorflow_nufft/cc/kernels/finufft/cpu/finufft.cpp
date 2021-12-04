@@ -515,6 +515,5 @@ int FINUFFT_DESTROY(Plan<CPUDevice, FLT>* p)
     // free(p->prephase);
     // free(p->deconv);
   }
-  free(p);
   return 0;              // success
 }

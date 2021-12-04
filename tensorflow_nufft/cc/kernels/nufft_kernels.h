@@ -30,13 +30,6 @@ namespace tensorflow {
 namespace nufft {
 
 template<typename Device, typename T>
-int makeplan(
-    OpKernelContext* context, TransformType type, int rank, int64_t* nmodes,
-    FftDirection fft_direction, int ntr, T eps,
-    Plan<Device, T>** plan,
-    const Options& options);
-
-template<typename Device, typename T>
 int setpts(
     Plan<Device, T>* plan,
     int64_t M, T* x, T* y, T* z,
@@ -148,15 +141,19 @@ struct DoNUFFTBase {
         *ctx->device()->tensorflow_cpu_worker_threads();
     options.num_threads = worker_threads.num_threads;
 
-    // Make the NUFFT plan.
-    nufft::Plan<Device, T>* plan;
-    int err;
-    err = nufft::makeplan<Device, T>(ctx, type, rank, nmodes, fft_direction,
-                                     num_transforms, tol, &plan, options);
-
-    if (err > 0) {
-      return errors::Internal("Failed during `nufft::makeplan`: ", err);
+    // Make inlined vector from pointer to number of modes. TODO: use inlined
+    // vector for all of num_modes.
+    gtl::InlinedVector<int, 4> num_modes(rank);
+    for (int i = 0; i < rank; ++i) {
+      num_modes[i] = nmodes[i];
     }
+
+    // Make the NUFFT plan.
+    auto plan = std::make_unique<nufft::Plan<Device, T>>(
+        ctx, type, rank, num_modes, fft_direction,
+        num_transforms, tol, options);
+
+    int err;
 
     // Pointers to a certain batch.
     std::complex<T>* bstrengths = NULL;
@@ -190,9 +187,9 @@ struct DoNUFFTBase {
       
       // Set the point coordinates.
       err = nufft::setpts<Device, T>(
-        plan,
-        npts, points_x, points_y, points_z,
-        0, NULL, NULL, NULL);
+          plan.get(),
+          npts, points_x, points_y, points_z,
+          0, NULL, NULL, NULL);
         
       if (err > 0) {
         return errors::Internal("Failed during `nufft::setpts`: ", err);
@@ -218,19 +215,19 @@ struct DoNUFFTBase {
       switch (optype)
       {
       case OpType::NUFFT:
-        err = nufft::execute<Device, T>(plan, bstrengths, bcoeffs);
+        err = nufft::execute<Device, T>(plan.get(), bstrengths, bcoeffs);
         if (err > 0) {
           return errors::Internal("Failed during `nufft::execute`: ", err);
         }
         break;
       case OpType::INTERP:
-        err = nufft::interp<Device, T>(plan, bstrengths, bcoeffs);
+        err = nufft::interp<Device, T>(plan.get(), bstrengths, bcoeffs);
         if (err > 0) {
           return errors::Internal("Failed during `nufft::interp`: ", err);
         }
         break;
       case OpType::SPREAD:
-        err = nufft::spread<Device, T>(plan, bstrengths, bcoeffs);
+        err = nufft::spread<Device, T>(plan.get(), bstrengths, bcoeffs);
         if (err > 0) {
           return errors::Internal("Failed during `nufft::spread`: ", err);
         }
@@ -239,7 +236,7 @@ struct DoNUFFTBase {
     }
 
     // Clean up the plan.
-    err = nufft::destroy<Device, T>(plan);
+    err = nufft::destroy<Device, T>(plan.get());
     if (err > 0) {
       return errors::Internal("Failed during `nufft::destroy`: ", err);
     }

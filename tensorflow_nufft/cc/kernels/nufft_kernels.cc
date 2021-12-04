@@ -99,13 +99,13 @@ int spread<CPUDevice, double>(
 template<>
 int destroy<CPUDevice, float>(
     Plan<CPUDevice, float>* plan) {
-  return finufftf_destroy(plan);
+  return 0;
 };
 
 template<>
 int destroy<CPUDevice, double>(
     Plan<CPUDevice, double>* plan) {
-  return finufft_destroy(plan);
+  return 0;
 };
 
 }   // namespace nufft

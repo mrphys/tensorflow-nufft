@@ -26,16 +26,12 @@ limitations under the License.
 #ifdef SINGLE
   typedef fftwf_complex FFTW_CPX;           //  single-prec has fftwf_*
   #define FFTW_EXECUTE fftwf_execute
-  #define FFTW_DESTROY_PLAN fftwf_destroy_plan
-  #define FFTW_FREE fftwf_free
   #define FFTW_FORGET_WISDOM fftwf_forget_wisdom
   #define FFTW_CLEANUP fftwf_cleanup
   #define FFTW_CLEANUP_THREADS fftwf_cleanup_threads
 #else
   typedef fftw_complex FFTW_CPX;           // double-prec has fftw_*
   #define FFTW_EXECUTE fftw_execute
-  #define FFTW_DESTROY_PLAN fftw_destroy_plan
-  #define FFTW_FREE fftw_free
   #define FFTW_FORGET_WISDOM fftw_forget_wisdom
   #define FFTW_CLEANUP fftw_cleanup
   #define FFTW_CLEANUP_THREADS fftw_cleanup_threads

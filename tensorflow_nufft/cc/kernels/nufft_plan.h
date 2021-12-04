@@ -108,12 +108,12 @@ struct ComplexType;
 
 template<>
 struct ComplexType<CPUDevice, float> {
-  using Type = fftwf_complex;
+  using Type = std::complex<float>;
 };
 
 template<>
 struct ComplexType<CPUDevice, double> {
-  using Type = fftw_complex;
+  using Type = std::complex<double>;
 };
 
 #ifdef GOOGLE_CUDA
@@ -145,17 +145,6 @@ enum class FftDirection {
 
 template<typename Device, typename FloatType>
 class PlanBase {
-
- public:
-  
-  // PlanBase(OpKernelContext* context,
-  //          TransformType type,
-  //          int rank,
-  //          gtl::InlinedVector<int, 4> num_modes,
-  //          FftDirection fft_direction,
-  //          int num_transforms,
-  //          FloatType tol,
-  //          const Options& options);
 
  public: // TODO: make protected
 
@@ -196,6 +185,15 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
  public:
 
+  // The main data type this plan operates with; either complex float or double.
+  using DType = typename ComplexType<CPUDevice, FloatType>::Type;
+
+  // The corresponding FFTW type.
+  using FftwType = typename fftw::ComplexType<FloatType>::Type;
+
+  // Creates a new NUFFT plan for the CPU. Allocates memory for internal working
+  // arrays, evaluates spreading kernel coefficients, and instantiates the FFT
+  // plan.
   Plan(OpKernelContext* context,
        TransformType type,
        int rank,
@@ -205,6 +203,11 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
        FloatType tol,
        const Options& options);
 
+  // Frees any dynamically allocated memory not handled by the op kernel
+  // context, destroys the FFT plan and cleans up persistent FFTW data such as
+  // accumulated wisdom.
+  ~Plan();
+
  public: // TODO: make protected.
 
   // Number of computations in one batch.
@@ -213,6 +216,13 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // Number of batches in one execution (includes all the transforms in
   // num_transforms_).
   int num_batches_;
+
+  // Batch of fine grids for FFTW to plan and execute. This is usually the
+  // largest array allocated by NUFFT.
+  Tensor fine_grid_;
+
+  // A pointer to the above tensor's data.
+  FftwType* fine_grid_ptr_;
 
   // Relative user tol.
   FloatType tol_;
@@ -228,9 +238,8 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   FloatType* phiHat1;    // FT of kernel in t1,2, on x-axis mode grid
   FloatType* phiHat2;    // " y-axis.
   FloatType* phiHat3;    // " z-axis.
+
   
-  typename ComplexType<CPUDevice, FloatType>::Type* fwBatch;    // (batches of) fine grid(s) for FFTW to plan & act on.
-                        // Usually the largest working array
   
   int64_t *sortIndices;  // precomputed NU pt permutation, speeds spread/interp
   bool didSort;         // whether binsorting used (false: identity perm used)

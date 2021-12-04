@@ -100,7 +100,20 @@ inline typename ComplexType<double>::Type* alloc_complex<double>(size_t n) {
   return fftw_alloc_complex(n);
 }
 
-template <typename FloatType>
+template<typename FloatType>
+inline void free(void* p);
+
+template<>
+inline void free<float>(void* p) {
+  fftwf_free(p);
+}
+
+template<>
+inline void free<double>(void* p) {
+  fftw_free(p);
+}
+
+template<typename FloatType>
 struct PlanType;
 
 template<>
@@ -150,6 +163,19 @@ inline typename PlanType<double>::Type plan_many_dft<double>(
       in, inembed, istride, idist,
       out, onembed, ostride, odist,
       sign, flags);
+}
+
+template<typename FloatType>
+inline void destroy_plan(typename PlanType<FloatType>::Type& plan);
+
+template<>
+inline void destroy_plan<float>(typename PlanType<float>::Type& plan) {
+  fftwf_destroy_plan(plan);
+}
+
+template<>
+inline void destroy_plan<double>(typename PlanType<double>::Type& plan) {
+  fftw_destroy_plan(plan);
 }
 
 } // namespace fftw

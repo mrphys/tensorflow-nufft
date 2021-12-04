@@ -62,8 +62,6 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
 
 } // namespace
 
-// Creates a new NUFFT plan. Allocates memory for internal working arrays,
-// evaluates spreading kernel coefficients, and instantiates the FFT plan.
 template<typename FloatType>
 Plan<CPUDevice, FloatType>::Plan(
     OpKernelContext* context,
@@ -149,9 +147,9 @@ Plan<CPUDevice, FloatType>::Plan(
                     rank, tol, this->options_, this->spopts));
 
   // set others as defaults (or unallocated for arrays)...
-  this->X = NULL; this->Y = NULL; this->Z = NULL;
-  this->phiHat1 = NULL; this->phiHat2 = NULL; this->phiHat3 = NULL;
-  this->sortIndices = NULL;               // used in all three types
+  this->X = nullptr; this->Y = nullptr; this->Z = nullptr;
+  this->phiHat1 = nullptr; this->phiHat2 = nullptr; this->phiHat3 = nullptr;
+  this->sortIndices = nullptr;               // used in all three types
   
   // FFTW initialization must be done single-threaded.
   #pragma omp critical
@@ -219,11 +217,15 @@ Plan<CPUDevice, FloatType>::Plan(
                   this->num_grid_points_ * this->batch_size_, " > ",
                   kMaxArraySize));
 
-  // Allocate the working fine grid.
-  this->fwBatch = fftw::alloc_complex<FloatType>(
-      this->num_grid_points_ * this->batch_size_);
-  OP_REQUIRES(context, this->fwBatch != nullptr,
-              errors::ResourceExhausted("Failed to allocate fine grid."));
+  // Allocate the working fine grid through the op kernel context. We allocate a
+  // flat array, since we'll only use this tensor through a raw pointer anyway.
+  TensorShape fine_grid_shape({this->num_grid_points_ * this->batch_size_});
+  OP_REQUIRES_OK(context,
+                 context->allocate_temp(
+                    DataTypeToEnum<DType>::value,
+                    fine_grid_shape, &this->fine_grid_));
+  this->fine_grid_ptr_ = reinterpret_cast<FftwType*>(
+      this->fine_grid_.flat<DType>().data());
 
   gtl::InlinedVector<int, 4> fft_dims;
   OP_REQUIRES_OK(context, reverse_vector(this->grid_sizes_, fft_dims));
@@ -233,15 +235,28 @@ Plan<CPUDevice, FloatType>::Plan(
     this->fft_plan_ = fftw::plan_many_dft<FloatType>(
         /* int rank */ rank, /* const int *n */ fft_dims.data(),
         /* int howmany */ this->batch_size_,
-        /* fftw_complex *in */ this->fwBatch, /* const int *inembed */ NULL,
+        /* fftw_complex *in */ this->fine_grid_ptr_,
+        /* const int *inembed */ nullptr,
         /* int istride */ 1, /* int idist */ this->num_grid_points_,
-        /* fftw_complex *out */ this->fwBatch, /* const int *onembed */ NULL,
+        /* fftw_complex *out */ this->fine_grid_ptr_,
+        /* const int *onembed */ nullptr,
         /* int ostride */ 1, /* int odist */ this->num_grid_points_,
         /* int sign */ static_cast<int>(this->fft_direction_),
         /* unsigned flags */ this->options_.fftw_flags);
   }
 }
 
+template<typename FloatType>
+Plan<CPUDevice, FloatType>::~Plan() {
+
+  // Destroy the FFTW plan.
+  fftw::destroy_plan<FloatType>(this->fft_plan_);
+
+  free(this->sortIndices);
+  free(this->phiHat1);
+  free(this->phiHat2);
+  free(this->phiHat3);
+}
 
 namespace {
 

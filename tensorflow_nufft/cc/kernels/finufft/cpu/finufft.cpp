@@ -244,13 +244,13 @@ void deconvolveshuffle3d(SpreadDirection dir,FLT prefac,FLT *ker1, FLT *ker2,
 int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch, CPX* fBatch=NULL)
 /*
   Spreads (or interpolates) a batch of batch_size strength vectors in cBatch
-  to (or from) the batch of fine working grids p->fwBatch, using the same set of
+  to (or from) the batch of fine working grids p->fine_grid_ptr_, using the same set of
   (index-sorted) NU points p->X,Y,Z for each vector in the batch.
   The direction (spread vs interpolate) is set by p->spopts.spread_direction.
   Returns 0 (no error reporting for now).
   Notes:
   1) cBatch is already assumed to have the correct offset, ie here we
-     read from the start of cBatch (unlike Malleo). fwBatch also has zero offset
+     read from the start of cBatch (unlike Malleo). fine_grid_ptr_ also has zero offset
   2) this routine is a batched version of spreadinterpSorted in spreadinterp.cpp
   Barnett 5/19/20, based on Malleo 2019.
   3) the 4th parameter is used when doing interp/spread only. When received,
@@ -264,7 +264,7 @@ int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch
   int nthr_outer = p->options_.spread_threading == SpreadThreading::SEQUENTIAL_MULTI_THREADED ? 1 : batch_size;
 
   if (fBatch == NULL) {
-    fBatch = (CPX*) p->fwBatch;
+    fBatch = (CPX*) p->fine_grid_ptr_;
   }
 
   BIGINT grid_size_0 = p->grid_sizes_[0];
@@ -286,10 +286,10 @@ int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch
 
 int deconvolveBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* fkBatch)
 /*
-  Type 1: deconvolves (amplifies) from each interior fw array in p->fwBatch
+  Type 1: deconvolves (amplifies) from each interior fw array in p->fine_grid_ptr_
   into each output array fk in fkBatch.
   Type 2: deconvolves from user-supplied input fk to 0-padded interior fw,
-  again looping over fk in fkBatch and fw in p->fwBatch.
+  again looping over fk in fkBatch and fw in p->fine_grid_ptr_.
   The direction (spread vs interpolate) is set by p->spopts.spread_direction.
   This is mostly a loop calling deconvolveshuffle?d for the needed rank batch_size
   times.
@@ -299,7 +299,7 @@ int deconvolveBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* fkBatch)
   // since deconvolveshuffle?d are single-thread, omp par seems to help here...
 #pragma omp parallel for num_threads(batch_size)
   for (int i=0; i<batch_size; i++) {
-    FFTW_CPX *fwi = p->fwBatch + i*p->num_grid_points_;  // start of i'th fw array in wkspace
+    FFTW_CPX *fwi = p->fine_grid_ptr_ + i*p->num_grid_points_;  // start of i'th fw array in wkspace
     CPX *fki = fkBatch + i*p->num_modes_total_;           // start of i'th fk array in fkBatch
     
     if (p->rank_ == 1)
@@ -491,29 +491,3 @@ int FINUFFT_EXECUTE(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk){
 }
 
 
-// DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
-int FINUFFT_DESTROY(Plan<CPUDevice, FLT>* p)
-// Free everything we allocated inside of finufft_plan pointed to by p.
-// Also must not crash if called immediately after finufft_makeplan.
-// Thus either each thing free'd here is guaranteed to be NULL or correctly
-// allocated.
-{
-  if (!p)                // NULL ptr, so not a ptr to a plan, report error
-    return 1;
-  FFTW_FREE(p->fwBatch);   // free the big FFTW (or t3 spread) working array
-  free(p->sortIndices);
-  if (p->type_ == TransformType::TYPE_1 || p->type_ == TransformType::TYPE_2) {
-    FFTW_DESTROY_PLAN(p->fft_plan_);
-    free(p->phiHat1);
-    free(p->phiHat2);
-    free(p->phiHat3);
-  } else {               // free the stuff alloc for type 3 only
-    // FINUFFT_DESTROY(p->innerT2plan);   // if NULL, ignore its error code
-    // free(p->CpBatch);
-    // free(p->Sp); free(p->Tp); free(p->Up);
-    // free(p->X); free(p->Y); free(p->Z);
-    // free(p->prephase);
-    // free(p->deconv);
-  }
-  return 0;              // success
-}

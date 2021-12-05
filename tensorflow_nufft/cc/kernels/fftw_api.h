@@ -36,6 +36,19 @@ inline int init_threads<double>() {
 }
 
 template<typename FloatType>
+inline void cleanup_threads();
+
+template<>
+inline void cleanup_threads<float>() {
+  return fftwf_cleanup_threads();
+}
+
+template<>
+inline void cleanup_threads<double>() {
+  return fftw_cleanup_threads();
+}
+
+template<typename FloatType>
 inline void plan_with_nthreads(int nthreads);
 
 template<>

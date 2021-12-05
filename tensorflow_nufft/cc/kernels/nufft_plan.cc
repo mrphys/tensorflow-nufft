@@ -163,8 +163,6 @@ Plan<CPUDevice, FloatType>::Plan(
       fftw::init_threads<FloatType>();
       // Let FFTW use all threads.
       fftw::plan_with_nthreads<FloatType>(num_threads);
-      // Ensure that FFTW planner is thread-safe.
-      fftw::make_planner_thread_safe<FloatType>();
       #endif
       is_fftw_initialized = true;
     }
@@ -249,8 +247,25 @@ Plan<CPUDevice, FloatType>::Plan(
 template<typename FloatType>
 Plan<CPUDevice, FloatType>::~Plan() {
 
-  // Destroy the FFTW plan.
-  fftw::destroy_plan<FloatType>(this->fft_plan_);
+  // Destroy the FFTW plan. This must be done single-threaded.
+  #pragma omp critical
+  {
+    fftw::destroy_plan<FloatType>(this->fft_plan_);
+  }
+  
+  // Wait until all threads are done using FFTW, then clean up the FFTW state,
+  // which only needs to be done once.
+  #ifdef _OPENMP
+  #pragma omp barrier
+  #pragma omp critical
+  {
+    static bool is_fftw_finalized = false;
+    if (!is_fftw_finalized) {
+      fftw::cleanup_threads<FloatType>();
+      is_fftw_finalized = true;
+    }
+  }
+  #endif
 
   free(this->sortIndices);
   free(this->phiHat1);

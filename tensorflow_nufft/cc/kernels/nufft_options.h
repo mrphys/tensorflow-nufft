@@ -155,9 +155,6 @@ struct Options {
   // Maximum subproblem size.
   int gpu_max_subproblem_size = 1024;
 
-  // Number of CUDA streams.
-  int gpu_num_streams = 0;
-
   // Used for 3D subproblem method. 0 means automatic selection.
   dim3 gpu_bin_size = {0, 0, 0};
 

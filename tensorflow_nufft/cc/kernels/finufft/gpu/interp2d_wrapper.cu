@@ -108,7 +108,7 @@ int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
 	FLT* d_kx = d_plan->kx;
 	FLT* d_ky = d_plan->ky;
 	CUCPX* d_c = d_plan->c;
-	CUCPX* d_fw = d_plan->fw;
+	CUCPX* d_fw = d_plan->fine_grid_data_;
 
 	threadsPerBlock.x = 32;
 	threadsPerBlock.y = 1;
@@ -167,7 +167,7 @@ int CUINTERP2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 	FLT* d_kx = d_plan->kx;
 	FLT* d_ky = d_plan->ky;
 	CUCPX* d_c = d_plan->c;
-	CUCPX* d_fw = d_plan->fw;
+	CUCPX* d_fw = d_plan->fine_grid_data_;
 
 	int *d_binsize = d_plan->binsize;
 	int *d_binstartpts = d_plan->binstartpts;

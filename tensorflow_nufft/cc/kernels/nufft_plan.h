@@ -222,7 +222,7 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   Tensor fine_grid_;
 
   // A convenience pointer to the fine grid array for FFTW calls.
-  FftwType* fine_grid_ptr_;
+  FftwType* fine_grid_data_;
 
   // Relative user tol.
   FloatType tol_;
@@ -260,6 +260,9 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
  public:
 
+  // The main data type this plan operates with; either complex float or double.
+  using DType = typename ComplexType<GPUDevice, FloatType>::Type;
+
   Plan(OpKernelContext* context,
        TransformType type,
        int rank,
@@ -285,15 +288,25 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
 	int totalnumsubprob;
 	int byte_now;
-	FloatType *fwkerhalf1;
-	FloatType *fwkerhalf2;
-	FloatType *fwkerhalf3;
+	
+  // Batch of fine grids for cuFFT to plan and execute. This is usually the
+  // largest array allocated by NUFFT.
+  Tensor fine_grid_;
+
+  // A convenience pointer to the fine grid array.
+  DType* fine_grid_data_;
+
+  // Tensors in device memory. Used for deconvolution. Empty in spread/interp
+  // mode.
+  Tensor kernel_fseries_[3];
+
+  // Convenience raw pointers to above tensors. These are device pointers.
+  FloatType* kernel_fseries_data_[3];
 
 	FloatType *kx;
 	FloatType *ky;
 	FloatType *kz;
 	typename ComplexType<GPUDevice, FloatType>::Type* c;
-	typename ComplexType<GPUDevice, FloatType>::Type* fw;
 	typename ComplexType<GPUDevice, FloatType>::Type* fk;
 
 	// Arrays that used in subprob method
@@ -314,7 +327,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 	int *subprob_to_nupts;
 
 	typename FftPlanType<GPUDevice, FloatType>::Type fftplan;
-	cudaStream_t *streams;
 
   SpreadOptions<FloatType> spopts;
 };

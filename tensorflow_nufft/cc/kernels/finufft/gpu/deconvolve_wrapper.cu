@@ -131,20 +131,20 @@ int CUDECONVOLVE2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 	if (d_plan->spopts.spread_direction == SpreadDirection::SPREAD) {
 		for (int t=0; t<blksize; t++) {
 			Deconvolve_2d<<<(nmodes+256-1)/256, 256>>>(ms, mt, nf1, nf2, 
-				d_plan->fw+t*nf1*nf2,d_plan->fk+t*nmodes,d_plan->fwkerhalf1, 
-				d_plan->fwkerhalf2);
+				d_plan->fine_grid_data_+t*nf1*nf2,d_plan->fk+t*nmodes,d_plan->kernel_fseries_data_[0], 
+				d_plan->kernel_fseries_data_[1]);
 		}
 	}else{
-		checkCudaErrors(cudaMemset(d_plan->fw,0,max_batch_size*nf1*nf2*
+		checkCudaErrors(cudaMemset(d_plan->fine_grid_data_,0,max_batch_size*nf1*nf2*
 			sizeof(CUCPX)));
 		for (int t=0; t<blksize; t++) {
 			Amplify_2d<<<(nmodes+256-1)/256, 256>>>(ms, 
-				mt, nf1, nf2, d_plan->fw+t*nf1*nf2, d_plan->fk+t*nmodes,
-				d_plan->fwkerhalf1, d_plan->fwkerhalf2);
+				mt, nf1, nf2, d_plan->fine_grid_data_+t*nf1*nf2, d_plan->fk+t*nmodes,
+				d_plan->kernel_fseries_data_[0], d_plan->kernel_fseries_data_[1]);
 #ifdef DEBUG
 			CPX* h_fw;
 			h_fw = (CPX*) malloc(nf1*nf2*sizeof(CPX));
-			checkCudaErrors(cudaMemcpy2D(h_fw,nf1*sizeof(CUCPX),d_plan->fw,
+			checkCudaErrors(cudaMemcpy2D(h_fw,nf1*sizeof(CUCPX),d_plan->fine_grid_data_,
 				nf1*sizeof(CUCPX),nf1*sizeof(CUCPX),nf2,
 				cudaMemcpyDeviceToHost));
 			for (int j=0; j<nf2; j++) {
@@ -178,20 +178,20 @@ int CUDECONVOLVE3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 	if (d_plan->spopts.spread_direction == SpreadDirection::SPREAD) {
 		for (int t=0; t<blksize; t++) {
 			Deconvolve_3d<<<(nmodes+256-1)/256, 256>>>(ms, mt, mu, nf1, nf2, 
-				nf3, d_plan->fw+t*nf1*nf2*nf3, d_plan->fk+t*nmodes, 
-				d_plan->fwkerhalf1, d_plan->fwkerhalf2, d_plan->fwkerhalf3);
+				nf3, d_plan->fine_grid_data_+t*nf1*nf2*nf3, d_plan->fk+t*nmodes, 
+				d_plan->kernel_fseries_data_[0], d_plan->kernel_fseries_data_[1], d_plan->kernel_fseries_data_[2]);
 		}
 	}else{
-		checkCudaErrors(cudaMemset(d_plan->fw,0,max_batch_size*nf1*nf2*nf3*
+		checkCudaErrors(cudaMemset(d_plan->fine_grid_data_,0,max_batch_size*nf1*nf2*nf3*
 			sizeof(CUCPX)));
 		for (int t=0; t<blksize; t++) {
 			Amplify_3d<<<(nmodes+256-1)/256, 256>>>(ms, mt, mu, nf1, nf2, nf3,
-				d_plan->fw+t*nf1*nf2*nf3, d_plan->fk+t*nmodes, 
-				d_plan->fwkerhalf1, d_plan->fwkerhalf2, d_plan->fwkerhalf3);
+				d_plan->fine_grid_data_+t*nf1*nf2*nf3, d_plan->fk+t*nmodes, 
+				d_plan->kernel_fseries_data_[0], d_plan->kernel_fseries_data_[1], d_plan->kernel_fseries_data_[2]);
 #ifdef DEBUG
 			CPX* h_fw;
 			h_fw = (CPX*) malloc(nf1*nf2*nf3*sizeof(CPX));
-			checkCudaErrors(cudaMemcpy(h_fw,d_plan->fw,nf1*nf2*nf3*sizeof(CUCPX),
+			checkCudaErrors(cudaMemcpy(h_fw,d_plan->fine_grid_data_,nf1*nf2*nf3*sizeof(CUCPX),
 				cudaMemcpyDeviceToHost));
 			for (int k=0; k<nf3; k++) {
 				for (int j=0; j<nf2; j++) {

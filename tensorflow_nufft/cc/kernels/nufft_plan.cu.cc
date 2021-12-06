@@ -32,6 +32,8 @@ limitations under the License.
 
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
+#include "tensorflow/core/platform/stream_executor.h"
+
 #include "tensorflow_nufft/third_party/cuda_samples/helper_cuda.h"
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
 #include "tensorflow_nufft/cc/kernels/omp_api.h"
@@ -75,10 +77,7 @@ template<typename FloatType>
 Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan);
 
 template<typename FloatType>
-void free_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan);
-
-template<typename FloatType>
-void free_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan);
+void free_gpu_memory(Plan<GPUDevice, FloatType>* d_plan);
 
 } // namespace
 
@@ -104,6 +103,17 @@ Plan<GPUDevice, FloatType>::Plan(
   OP_REQUIRES(context, rank == num_modes.size(),
               errors::InvalidArgument("num_modes must have size equal to rank"));
 
+  // auto* stream = context->op_device_context()->stream();
+  // OP_REQUIRES(context, stream, errors::Internal("No GPU stream available."));
+
+  // int device_id = stream->parent()->device_ordinal();
+
+  GPUDevice device = context->eigen_device<GPUDevice>();
+
+  // std::cout << "device_id = " << device_id << std::endl;
+  // cudaSetDevice(0);
+
+  
   // TODO: check options.
   //  - If mode_order == FFT, raise unimplemented error.
   //  - If check_bounds == true, raise unimplemented error.
@@ -130,14 +140,10 @@ Plan<GPUDevice, FloatType>::Plan(
   this->mu = 0;
   this->totalnumsubprob = 0;
   this->byte_now = 0;
-  this->fwkerhalf1 = nullptr;
-  this->fwkerhalf2 = nullptr;
-  this->fwkerhalf3 = nullptr;
   this->kx = nullptr;
   this->ky = nullptr;
   this->kz = nullptr;
   this->c = nullptr;
-  this->fw = nullptr;
   this->fk = nullptr;
   this->idxnupts = nullptr;
   this->sortidx = nullptr;
@@ -150,7 +156,6 @@ Plan<GPUDevice, FloatType>::Plan(
   this->fgstartpts = nullptr;
   this->numnupts = nullptr;
   this->subprob_to_nupts = nullptr;
-  this->streams = nullptr;
 
   // Copy options.
   this->options_ = options;
@@ -234,22 +239,6 @@ Plan<GPUDevice, FloatType>::Plan(
   if (this->type_ == TransformType::TYPE_2)
     this->spopts.spread_direction = SpreadDirection::INTERP;
 
-  // This may move to GPU.
-  FloatType *fwkerhalf1, *fwkerhalf2, *fwkerhalf3;
-  if (!this->options_.spread_interp_only) { // no need to do this if spread/interp only
-    
-    fwkerhalf1 = (FloatType*)malloc(sizeof(FloatType)*(nf1/2+1));
-    kernel_fseries_1d(nf1, this->spopts, fwkerhalf1);
-    if (rank > 1) {
-      fwkerhalf2 = (FloatType*)malloc(sizeof(FloatType)*(nf2/2+1));
-      kernel_fseries_1d(nf2, this->spopts, fwkerhalf2);
-    }
-    if (rank > 2) {
-      fwkerhalf3 = (FloatType*)malloc(sizeof(FloatType)*(nf3/2+1));
-      kernel_fseries_1d(nf3, this->spopts, fwkerhalf3);
-    }
-  }
-
   switch(this->rank_)
   {
     case 2: {
@@ -261,17 +250,89 @@ Plan<GPUDevice, FloatType>::Plan(
       break;
     }
   }
+  
+  // Perform some actions not needed in spread/interp only mode.
+  if (!this->options_.spread_interp_only) {
 
+    // Allocate fine grid and set convenience pointer.
+    int num_grid_elements = this->nf1 * this->nf2 * this->nf3;
+    OP_REQUIRES_OK(context, context->allocate_temp(
+        DataTypeToEnum<std::complex<FloatType>>::value,
+        TensorShape({num_grid_elements * this->options_.max_batch_size}),
+        &this->fine_grid_));
+    this->fine_grid_data_ = reinterpret_cast<DType*>(
+        this->fine_grid_.flat<std::complex<FloatType>>().data());
+
+    // // Compute kernel Fourier series (currently done using the CPU).
+    // // This is only needed for deconvolution, so can be skipped in
+    // // spread/interp mode.
+    // AllocatorAttributes attr;
+    // attr.set_on_host(true);
+    // int grid_sizes[3] = {nf1, nf2, nf3};
+    // Tensor kernel_fseries_host[3];
+    // FloatType* kernel_fseries_host_data[3];
+
+    // for (int i = 0; i < rank; i++) {
+    //   // First, calculate the Fourier series on the CPU.
+    //   OP_REQUIRES_OK(context, context->allocate_temp(
+    //                               DataTypeToEnum<FloatType>::value,
+    //                               TensorShape({grid_sizes[i] / 2 + 1}),
+    //                               &kernel_fseries_host[i], attr));
+    //   kernel_fseries_host_data[i] = reinterpret_cast<FloatType*>(
+    //       kernel_fseries_host[i].flat<FloatType>().data());
+    //   kernel_fseries_1d(grid_sizes[i], this->spopts,
+    //                     kernel_fseries_host_data[i]);
+
+    //   // Now copy to device.
+    //   size_t num_bytes = sizeof(FloatType) * (grid_sizes[i] / 2 + 1);
+    //   device.memcpyHostToDevice(
+    //       this->kernel_fseries_[i].flat<FloatType>().data(),
+    //       reinterpret_cast<void*>(kernel_fseries_host_data[i]),
+    //       num_bytes);
+
+    //   // Save convenience accessors.
+    //   this->kernel_fseries_data_[i] = reinterpret_cast<FloatType*>(
+    //       this->kernel_fseries_[i].flat<FloatType>().data());
+    // }
+  }
+
+  FloatType *fwkerhalf1, *fwkerhalf2, *fwkerhalf3;
   if (!this->options_.spread_interp_only)
   {
-    checkCudaErrors(cudaMemcpy(this->fwkerhalf1, fwkerhalf1, (nf1 / 2 + 1) *
+    fwkerhalf1 = (FloatType*)malloc(sizeof(FloatType)*(nf1/2+1));
+    kernel_fseries_1d(nf1, this->spopts, fwkerhalf1);
+    if (rank > 1) {
+      fwkerhalf2 = (FloatType*)malloc(sizeof(FloatType)*(nf2/2+1));
+      kernel_fseries_1d(nf2, this->spopts, fwkerhalf2);
+    }
+    if (rank > 2) {
+      fwkerhalf3 = (FloatType*)malloc(sizeof(FloatType)*(nf3/2+1));
+      kernel_fseries_1d(nf3, this->spopts, fwkerhalf3);
+    }
+
+    checkCudaErrors(cudaMalloc(&this->kernel_fseries_data_[0],
+                               (nf1/2+1)*sizeof(FloatType)));
+    if (rank > 1)
+      checkCudaErrors(cudaMalloc(&this->kernel_fseries_data_[1],
+                                 (nf2/2+1)*sizeof(FloatType)));
+    if (rank > 2)
+      checkCudaErrors(cudaMalloc(&this->kernel_fseries_data_[2],
+                                 (nf3/2+1)*sizeof(FloatType)));
+
+    checkCudaErrors(cudaMemcpy(this->kernel_fseries_data_[0], fwkerhalf1, (nf1 / 2 + 1) *
       sizeof(FloatType),cudaMemcpyHostToDevice));
     if (rank > 1)
-      checkCudaErrors(cudaMemcpy(this->fwkerhalf2, fwkerhalf2, (nf2 / 2 + 1) *
+      checkCudaErrors(cudaMemcpy(this->kernel_fseries_data_[1], fwkerhalf2, (nf2 / 2 + 1) *
         sizeof(FloatType),cudaMemcpyHostToDevice));
     if (rank > 2)
-      checkCudaErrors(cudaMemcpy(this->fwkerhalf3, fwkerhalf3,(nf3 / 2 + 1)*
+      checkCudaErrors(cudaMemcpy(this->kernel_fseries_data_[2], fwkerhalf3,(nf3 / 2 + 1)*
         sizeof(FloatType),cudaMemcpyHostToDevice));
+
+    free(fwkerhalf1);
+    if (rank > 1)
+      free(fwkerhalf2);
+    if (rank > 2)
+      free(fwkerhalf3);
   }
 
   if (!this->options_.spread_interp_only) {
@@ -314,14 +375,6 @@ Plan<GPUDevice, FloatType>::Plan(
     this->fftplan = fftplan;
   }
 
-  if (!this->options_.spread_interp_only) {
-    free(fwkerhalf1);
-    if (rank > 1)
-      free(fwkerhalf2);
-    if (rank > 2)
-      free(fwkerhalf3);
-  }
-
   // Multi-GPU support: reset the device ID
   cudaSetDevice(orig_gpu_device_id);
 }
@@ -336,17 +389,15 @@ Plan<GPUDevice, FloatType>::~Plan() {
 	if (this->fftplan)
 		cufftDestroy(this->fftplan);
 
-	switch(this->rank_)
-	{
-		case 2: {
-			free_gpu_memory_2d(this);
-      break;
-		}
-		case 3: {
-			free_gpu_memory_3d(this);
-      break;
-		}
+  if (!this->options_.spread_interp_only) {
+    checkCudaErrors(cudaFree(this->kernel_fseries_data_[0]));
+    if (this->rank_ > 1)
+      checkCudaErrors(cudaFree(this->kernel_fseries_data_[1]));
+    if (this->rank_ > 2)
+      checkCudaErrors(cudaFree(this->kernel_fseries_data_[2]));
 	}
+
+  free_gpu_memory(this);
 
         // Multi-GPU support: reset the device ID
         cudaSetDevice(orig_gpu_device_id);
@@ -589,19 +640,6 @@ Status allocate_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan) {
       return errors::Internal("Invalid GPU spread method");
   }
 
-  if (!d_plan->options_.spread_interp_only) {
-    checkCudaErrors(cudaMalloc(&d_plan->fw, d_plan->options_.max_batch_size * nf1 * nf2 *
-                               sizeof(typename ComplexType<GPUDevice, FloatType>::Type)));
-    checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf1,(nf1/2+1)*sizeof(FloatType)));
-    checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf2,(nf2/2+1)*sizeof(FloatType)));
-  }
-
-  cudaStream_t* streams = (cudaStream_t*) malloc(d_plan->options_.gpu_num_streams*
-    sizeof(cudaStream_t));
-  for (int i = 0; i < d_plan->options_.gpu_num_streams; i++)
-    checkCudaErrors(cudaStreamCreate(&streams[i]));
-  d_plan->streams = streams;
-
   // Multi-GPU support: reset the device ID
   cudaSetDevice(orig_gpu_device_id);
   
@@ -687,14 +725,6 @@ Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan) {
       return errors::Internal("Invalid GPU spread method");
   }
 
-  if (!d_plan->options_.spread_interp_only) {
-    checkCudaErrors(cudaMalloc(&d_plan->fw, d_plan->options_.max_batch_size*nf1*nf2*nf3*
-        sizeof(typename ComplexType<GPUDevice, FloatType>::Type)));
-    checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf1,(nf1/2+1)*sizeof(FloatType)));
-    checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf2,(nf2/2+1)*sizeof(FloatType)));
-    checkCudaErrors(cudaMalloc(&d_plan->fwkerhalf3,(nf3/2+1)*sizeof(FloatType)));
-  }
-
   // Multi-GPU support: reset the device ID
   cudaSetDevice(orig_gpu_device_id);
 
@@ -702,36 +732,36 @@ Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan) {
 }
 
 template<typename FloatType>
-void free_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan) {
+void free_gpu_memory(Plan<GPUDevice, FloatType>* d_plan) {
 
-        // Mult-GPU support: set the CUDA Device ID:
-        int orig_gpu_device_id;
-        cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(d_plan->options_.gpu_device_id);
+      // Mult-GPU support: set the CUDA Device ID:
+      int orig_gpu_device_id;
+      cudaGetDevice(& orig_gpu_device_id);
+      cudaSetDevice(d_plan->options_.gpu_device_id);
 
-	if (!d_plan->options_.spread_interp_only) {
-		checkCudaErrors(cudaFree(d_plan->fw));
-		checkCudaErrors(cudaFree(d_plan->fwkerhalf1));
-		checkCudaErrors(cudaFree(d_plan->fwkerhalf2));
-	}
 	switch(d_plan->options_.gpu_spread_method)
 	{
 		case GpuSpreadMethod::NUPTS_DRIVEN:
 			{
 				if (d_plan->options_.gpu_sort_points) {
-					checkCudaErrors(cudaFree(d_plan->idxnupts));
-					checkCudaErrors(cudaFree(d_plan->sortidx));
+          if (d_plan->idxnupts)
+					  checkCudaErrors(cudaFree(d_plan->idxnupts));
+          if (d_plan->sortidx)
+					  checkCudaErrors(cudaFree(d_plan->sortidx));
 					checkCudaErrors(cudaFree(d_plan->binsize));
 					checkCudaErrors(cudaFree(d_plan->binstartpts));
 				}else{
-					checkCudaErrors(cudaFree(d_plan->idxnupts));
+          if (d_plan->idxnupts)
+					  checkCudaErrors(cudaFree(d_plan->idxnupts));
 				}
 			}
 			break;
 		case GpuSpreadMethod::SUBPROBLEM:
 			{
-				checkCudaErrors(cudaFree(d_plan->idxnupts));
-				checkCudaErrors(cudaFree(d_plan->sortidx));
+        if (d_plan->idxnupts)
+				  checkCudaErrors(cudaFree(d_plan->idxnupts));
+        if (d_plan->sortidx)
+				  checkCudaErrors(cudaFree(d_plan->sortidx));
 				checkCudaErrors(cudaFree(d_plan->numsubprob));
 				checkCudaErrors(cudaFree(d_plan->binsize));
 				checkCudaErrors(cudaFree(d_plan->binstartpts));
@@ -741,8 +771,10 @@ void free_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan) {
 			break;
 		case GpuSpreadMethod::PAUL:
 			{
-				checkCudaErrors(cudaFree(d_plan->idxnupts));
-				checkCudaErrors(cudaFree(d_plan->sortidx));
+        if (d_plan->idxnupts)
+				  checkCudaErrors(cudaFree(d_plan->idxnupts));
+        if (d_plan->sortidx)
+				  checkCudaErrors(cudaFree(d_plan->sortidx));
 				checkCudaErrors(cudaFree(d_plan->numsubprob));
 				checkCudaErrors(cudaFree(d_plan->binsize));
 				checkCudaErrors(cudaFree(d_plan->finegridsize));
@@ -751,59 +783,12 @@ void free_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan) {
 				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
 			}
 			break;
-	}
-
-	for (int i = 0; i < d_plan->options_.gpu_num_streams; i++)
-		checkCudaErrors(cudaStreamDestroy(d_plan->streams[i]));
-
-        // Multi-GPU support: reset the device ID
-        cudaSetDevice(orig_gpu_device_id);
-}
-
-template<typename FloatType>
-void free_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan) {
-        // Mult-GPU support: set the CUDA Device ID:
-        int orig_gpu_device_id;
-        cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(d_plan->options_.gpu_device_id);
-
-
-	if (!d_plan->options_.spread_interp_only) {
-		cudaFree(d_plan->fw);
-		cudaFree(d_plan->fwkerhalf1);
-		cudaFree(d_plan->fwkerhalf2);
-		cudaFree(d_plan->fwkerhalf3);
-	}
-
-	switch (d_plan->options_.gpu_spread_method)
-	{
-		case GpuSpreadMethod::NUPTS_DRIVEN:
+    case GpuSpreadMethod::BLOCK_GATHER:
 			{
-				if (d_plan->options_.gpu_sort_points) {
-					checkCudaErrors(cudaFree(d_plan->idxnupts));
-					checkCudaErrors(cudaFree(d_plan->sortidx));
-					checkCudaErrors(cudaFree(d_plan->binsize));
-					checkCudaErrors(cudaFree(d_plan->binstartpts));
-				}else{
-					checkCudaErrors(cudaFree(d_plan->idxnupts));
-				}
-			}
-			break;
-		case GpuSpreadMethod::SUBPROBLEM:
-			{
-				checkCudaErrors(cudaFree(d_plan->idxnupts));
-				checkCudaErrors(cudaFree(d_plan->sortidx));
-				checkCudaErrors(cudaFree(d_plan->numsubprob));
-				checkCudaErrors(cudaFree(d_plan->binsize));
-				checkCudaErrors(cudaFree(d_plan->binstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprobstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
-			}
-			break;
-		case GpuSpreadMethod::BLOCK_GATHER:
-			{
-				checkCudaErrors(cudaFree(d_plan->idxnupts));
-				checkCudaErrors(cudaFree(d_plan->sortidx));
+        if (d_plan->idxnupts)
+				  checkCudaErrors(cudaFree(d_plan->idxnupts));
+        if (d_plan->sortidx)
+				  checkCudaErrors(cudaFree(d_plan->sortidx));
 				checkCudaErrors(cudaFree(d_plan->numsubprob));
 				checkCudaErrors(cudaFree(d_plan->binsize));
 				checkCudaErrors(cudaFree(d_plan->binstartpts));
@@ -812,9 +797,6 @@ void free_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan) {
 			}
 			break;
 	}
-
-	for (int i = 0; i < d_plan->options_.gpu_num_streams; i++)
-		checkCudaErrors(cudaStreamDestroy(d_plan->streams[i]));
 
         // Multi-GPU support: reset the device ID
         cudaSetDevice(orig_gpu_device_id);

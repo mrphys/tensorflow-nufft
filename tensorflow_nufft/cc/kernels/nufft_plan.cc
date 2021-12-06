@@ -222,7 +222,7 @@ Plan<CPUDevice, FloatType>::Plan(
                  context->allocate_temp(
                     DataTypeToEnum<DType>::value,
                     fine_grid_shape, &this->fine_grid_));
-  this->fine_grid_ptr_ = reinterpret_cast<FftwType*>(
+  this->fine_grid_data_ = reinterpret_cast<FftwType*>(
       this->fine_grid_.flat<DType>().data());
 
   gtl::InlinedVector<int, 4> fft_dims;
@@ -233,10 +233,10 @@ Plan<CPUDevice, FloatType>::Plan(
     this->fft_plan_ = fftw::plan_many_dft<FloatType>(
         /* int rank */ rank, /* const int *n */ fft_dims.data(),
         /* int howmany */ this->batch_size_,
-        /* fftw_complex *in */ this->fine_grid_ptr_,
+        /* fftw_complex *in */ this->fine_grid_data_,
         /* const int *inembed */ nullptr,
         /* int istride */ 1, /* int idist */ this->num_grid_points_,
-        /* fftw_complex *out */ this->fine_grid_ptr_,
+        /* fftw_complex *out */ this->fine_grid_data_,
         /* const int *onembed */ nullptr,
         /* int ostride */ 1, /* int odist */ this->num_grid_points_,
         /* int sign */ static_cast<int>(this->fft_direction_),

@@ -67,7 +67,7 @@ int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		d_plan->c = d_cstart;
 		d_plan->fk = d_fkstart;
 
-		checkCudaErrors(cudaMemset(d_plan->fw,0,d_plan->options_.max_batch_size*
+		checkCudaErrors(cudaMemset(d_plan->fine_grid_data_,0,d_plan->options_.max_batch_size*
 					d_plan->nf1*d_plan->nf2*d_plan->nf3*sizeof(CUCPX)));
 #ifdef TIME
 		float milliseconds = 0;
@@ -93,7 +93,7 @@ int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		// Step 2: FFT
 		cudaEventRecord(start);
 		cufftResult result = CUFFT_EX(
-			d_plan->fftplan, d_plan->fw, d_plan->fw, static_cast<int>(d_plan->fft_direction_));
+			d_plan->fftplan, d_plan->fine_grid_data_, d_plan->fine_grid_data_, static_cast<int>(d_plan->fft_direction_));
 		if (result != CUFFT_SUCCESS) {
 			fprintf(stderr,"[%s] CUFFT_EX failed with error code: %d\n",__func__,result);
     		return ERR_CUFFT;
@@ -164,7 +164,7 @@ int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		cudaEventRecord(start);
 		cudaDeviceSynchronize();
 		cufftResult result = CUFFT_EX(
-			d_plan->fftplan, d_plan->fw, d_plan->fw, static_cast<int>(d_plan->fft_direction_));
+			d_plan->fftplan, d_plan->fine_grid_data_, d_plan->fine_grid_data_, static_cast<int>(d_plan->fft_direction_));
 		if (result != CUFFT_SUCCESS) {
 			fprintf(stderr,"[%s] CUFFT_EX failed with error code: %d\n",__func__,result);
     		return ERR_CUFFT;
@@ -217,7 +217,7 @@ int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		d_fkstart = d_fk + i*d_plan->options_.max_batch_size*gridsize;
 
 		d_plan->c = d_cstart;
-		d_plan->fw = d_fkstart;
+		d_plan->fine_grid_data_ = d_fkstart;
 
 		cudaEventRecord(start);
 		ier = CUINTERP3D(d_plan, blksize);
@@ -255,7 +255,7 @@ int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		d_fkstart = d_fk + i*d_plan->options_.max_batch_size*gridsize;
 
 		d_plan->c  = d_cstart;
-		d_plan->fw = d_fkstart;
+		d_plan->fine_grid_data_ = d_fkstart;
 
 		cudaEventRecord(start);
 		ier = CUSPREAD3D(d_plan,blksize);

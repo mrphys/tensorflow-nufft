@@ -68,77 +68,11 @@ int ALLOCGPUMEM2D_NUPTS(Plan<GPUDevice, FLT>* d_plan)
 	return 0;
 }
 
-void FREEGPUMEMORY2D(Plan<GPUDevice, FLT>* d_plan)
-/*
-	wrapper for freeing gpu memory.
-
-	Melody Shih 07/25/19
-*/
-{
-        // Mult-GPU support: set the CUDA Device ID:
-        int orig_gpu_device_id;
-        cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(d_plan->options_.gpu_device_id);
-
-	if (!d_plan->options_.spread_interp_only) {
-		checkCudaErrors(cudaFree(d_plan->fw));
-		checkCudaErrors(cudaFree(d_plan->fwkerhalf1));
-		checkCudaErrors(cudaFree(d_plan->fwkerhalf2));
-	}
-	switch(d_plan->options_.gpu_spread_method)
-	{
-		case GpuSpreadMethod::NUPTS_DRIVEN:
-			{
-				if (d_plan->options_.gpu_sort_points) {
-					checkCudaErrors(cudaFree(d_plan->idxnupts));
-					checkCudaErrors(cudaFree(d_plan->sortidx));
-					checkCudaErrors(cudaFree(d_plan->binsize));
-					checkCudaErrors(cudaFree(d_plan->binstartpts));
-				}else{
-					checkCudaErrors(cudaFree(d_plan->idxnupts));
-				}
-			}
-			break;
-		case GpuSpreadMethod::SUBPROBLEM:
-			{
-				checkCudaErrors(cudaFree(d_plan->idxnupts));
-				checkCudaErrors(cudaFree(d_plan->sortidx));
-				checkCudaErrors(cudaFree(d_plan->numsubprob));
-				checkCudaErrors(cudaFree(d_plan->binsize));
-				checkCudaErrors(cudaFree(d_plan->binstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprobstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
-			}
-			break;
-		case GpuSpreadMethod::PAUL:
-			{
-				checkCudaErrors(cudaFree(d_plan->idxnupts));
-				checkCudaErrors(cudaFree(d_plan->sortidx));
-				checkCudaErrors(cudaFree(d_plan->numsubprob));
-				checkCudaErrors(cudaFree(d_plan->binsize));
-				checkCudaErrors(cudaFree(d_plan->finegridsize));
-				checkCudaErrors(cudaFree(d_plan->binstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprobstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
-			}
-			break;
-	}
-
-	for (int i = 0; i < d_plan->options_.gpu_num_streams; i++)
-		checkCudaErrors(cudaStreamDestroy(d_plan->streams[i]));
-
-        // Multi-GPU support: reset the device ID
-        cudaSetDevice(orig_gpu_device_id);
-}
 
 int ALLOCGPUMEM1D_NUPTS(Plan<GPUDevice, FLT>* d_plan)
 {
 	cerr<<"Not yet implemented"<<endl;
 	return 1;
-}
-void FREEGPUMEMORY1D(Plan<GPUDevice, FLT>* d_plan)
-{
-	cerr<<"Not yet implemented"<<endl;
 }
 
 
@@ -190,67 +124,4 @@ int ALLOCGPUMEM3D_NUPTS(Plan<GPUDevice, FLT>* d_plan)
 
 	return 0;
 }
-void FREEGPUMEMORY3D(Plan<GPUDevice, FLT>* d_plan)
-/*
-	wrapper for freeing gpu memory.
 
-	Melody Shih 07/25/19
-*/
-{
-        // Mult-GPU support: set the CUDA Device ID:
-        int orig_gpu_device_id;
-        cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(d_plan->options_.gpu_device_id);
-
-
-	if (!d_plan->options_.spread_interp_only) {
-		cudaFree(d_plan->fw);
-		cudaFree(d_plan->fwkerhalf1);
-		cudaFree(d_plan->fwkerhalf2);
-		cudaFree(d_plan->fwkerhalf3);
-	}
-
-	switch (d_plan->options_.gpu_spread_method)
-	{
-		case GpuSpreadMethod::NUPTS_DRIVEN:
-			{
-				if (d_plan->options_.gpu_sort_points) {
-					checkCudaErrors(cudaFree(d_plan->idxnupts));
-					checkCudaErrors(cudaFree(d_plan->sortidx));
-					checkCudaErrors(cudaFree(d_plan->binsize));
-					checkCudaErrors(cudaFree(d_plan->binstartpts));
-				}else{
-					checkCudaErrors(cudaFree(d_plan->idxnupts));
-				}
-			}
-			break;
-		case GpuSpreadMethod::SUBPROBLEM:
-			{
-				checkCudaErrors(cudaFree(d_plan->idxnupts));
-				checkCudaErrors(cudaFree(d_plan->sortidx));
-				checkCudaErrors(cudaFree(d_plan->numsubprob));
-				checkCudaErrors(cudaFree(d_plan->binsize));
-				checkCudaErrors(cudaFree(d_plan->binstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprobstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
-			}
-			break;
-		case GpuSpreadMethod::BLOCK_GATHER:
-			{
-				checkCudaErrors(cudaFree(d_plan->idxnupts));
-				checkCudaErrors(cudaFree(d_plan->sortidx));
-				checkCudaErrors(cudaFree(d_plan->numsubprob));
-				checkCudaErrors(cudaFree(d_plan->binsize));
-				checkCudaErrors(cudaFree(d_plan->binstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprobstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
-			}
-			break;
-	}
-
-	for (int i = 0; i < d_plan->options_.gpu_num_streams; i++)
-		checkCudaErrors(cudaStreamDestroy(d_plan->streams[i]));
-
-        // Multi-GPU support: reset the device ID
-        cudaSetDevice(orig_gpu_device_id);
-}

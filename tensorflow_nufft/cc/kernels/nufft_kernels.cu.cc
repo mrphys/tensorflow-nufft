@@ -106,18 +106,6 @@ int spread<GPUDevice, double>(
     plan);
 };
 
-template<>
-int destroy<GPUDevice, float>(
-    Plan<GPUDevice, float>* plan) {
-  return cufinufftf_destroy(plan);
-};
-
-template<>
-int destroy<GPUDevice, double>(
-    Plan<GPUDevice, double>* plan) {
-  return cufinufft_destroy(plan);
-};
-
 }   // namespace nufft
 
 using namespace tensorflow::nufft;

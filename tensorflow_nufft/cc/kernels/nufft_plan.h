@@ -275,6 +275,10 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
        FloatType tol,
        const Options& options);
 
+  // Frees any dynamically allocated memory not handled by the op kernel and
+  // destroys the FFT plan.
+  ~Plan();
+
  public:
 
 	int M;

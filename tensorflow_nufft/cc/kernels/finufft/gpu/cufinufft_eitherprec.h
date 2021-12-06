@@ -48,7 +48,6 @@ limitations under the License.
 #undef CUFINUFFT_EXECUTE
 #undef CUFINUFFT_INTERP
 #undef CUFINUFFT_SPREAD
-#undef CUFINUFFT_DESTROY
 #undef CUFINUFFT2D1_EXEC
 #undef CUFINUFFT2D2_EXEC
 #undef CUFINUFFT3D1_EXEC
@@ -59,11 +58,8 @@ limitations under the License.
 #undef CUFINUFFT3D_SPREAD
 /* memtransfer.h */
 #undef ALLOCGPUMEM1D_NUPTS
-#undef FREEGPUMEMORY1D
 #undef ALLOCGPUMEM2D_NUPTS
-#undef FREEGPUMEMORY2D
 #undef ALLOCGPUMEM3D_NUPTS
-#undef FREEGPUMEMORY3D
 /* spreading 2D */
 #undef CUSPREAD2D
 #undef CUSPREAD2D_NUPTSDRIVEN_PROP
@@ -99,7 +95,6 @@ limitations under the License.
 #define CUFINUFFT_EXECUTE cufinufftf_execute
 #define CUFINUFFT_INTERP cufinufftf_interp
 #define CUFINUFFT_SPREAD cufinufftf_spread
-#define CUFINUFFT_DESTROY cufinufftf_destroy
 #define CUFINUFFT2D1_EXEC cufinufftf2d1_exec
 #define CUFINUFFT2D2_EXEC cufinufftf2d2_exec
 #define CUFINUFFT3D1_EXEC cufinufftf3d1_exec
@@ -107,11 +102,8 @@ limitations under the License.
 #define CUFINUFFT2D_INTERP cufinufftf2d_interp
 /* memtransfer.h */
 #define ALLOCGPUMEM1D_NUPTS allocgpumem1df_nupts
-#define FREEGPUMEMORY1D freegpumemory1df
 #define ALLOCGPUMEM2D_NUPTS allocgpumem2df_nupts
-#define FREEGPUMEMORY2D freegpumemory2df
 #define ALLOCGPUMEM3D_NUPTS allocgpumem3df_nupts
-#define FREEGPUMEMORY3D freegpumemory3df
 /* spreading 2D */
 #define CUSPREAD2D cuspread2df
 #define CUSPREAD2D_NUPTSDRIVEN_PROP cuspread2df_nuptsdriven_prop
@@ -146,7 +138,6 @@ limitations under the License.
 #define CUFINUFFT_EXECUTE cufinufft_execute
 #define CUFINUFFT_INTERP cufinufft_interp
 #define CUFINUFFT_SPREAD cufinufft_spread
-#define CUFINUFFT_DESTROY cufinufft_destroy
 #define CUFINUFFT2D1_EXEC cufinufft2d1_exec
 #define CUFINUFFT2D2_EXEC cufinufft2d2_exec
 #define CUFINUFFT3D1_EXEC cufinufft3d1_exec
@@ -157,11 +148,8 @@ limitations under the License.
 #define CUFINUFFT3D_SPREAD cufinufft3d_spread
 /* memtransfer.h */
 #define ALLOCGPUMEM1D_NUPTS allocgpumem1d_nupts
-#define FREEGPUMEMORY1D freegpumemory1d
 #define ALLOCGPUMEM2D_NUPTS allocgpumem2d_nupts
-#define FREEGPUMEMORY2D freegpumemory2d
 #define ALLOCGPUMEM3D_NUPTS allocgpumem3d_nupts
-#define FREEGPUMEMORY3D freegpumemory3d
 /* spreading 2D */
 #define CUSPREAD2D cuspread2d
 #define CUSPREAD2D_NUPTSDRIVEN_PROP cuspread2d_nuptsdriven_prop
@@ -202,7 +190,6 @@ int CUFINUFFT_SETPTS(int M, FLT* h_kx, FLT* h_ky, FLT* h_kz, int N, FLT *h_s,
 int CUFINUFFT_EXECUTE(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 int CUFINUFFT_INTERP(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 int CUFINUFFT_SPREAD(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUFINUFFT_DESTROY(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 #ifdef __cplusplus
 }
 #endif

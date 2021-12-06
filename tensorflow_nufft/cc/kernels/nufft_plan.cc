@@ -154,7 +154,7 @@ Plan<CPUDevice, FloatType>::Plan(
   // FFTW initialization must be done single-threaded.
   #pragma omp critical
   {
-    static bool is_fftw_initialized = false; // the only global state of FINUFFT
+    static bool is_fftw_initialized = false;
 
     if (!is_fftw_initialized) {
       // Set up global FFTW state. Should be done only once.

@@ -359,69 +359,6 @@ int CUFINUFFT_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	return ier;
 }
 
-int CUFINUFFT_DESTROY(Plan<GPUDevice, FLT>* d_plan)
-/*
-	"destroy" stage (single and double precision versions).
-
-	In this stage, we
-		(1) free all the memories that have been allocated on gpu
-		(2) delete the cuFFT plan
-
-        Also see ../docs/cppdoc.md for main user-facing documentation.
-*/
-{
-        // Mult-GPU support: set the CUDA Device ID:
-        int orig_gpu_device_id;
-        cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(d_plan->options_.gpu_device_id);
-
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-
-	cudaEventRecord(start);
-
-	// Can't destroy a Null pointer.
-	if (!d_plan) {
-                // Multi-GPU support: reset the device ID
-                cudaSetDevice(orig_gpu_device_id);
-		return 1;
-        }
-
-	if (d_plan->fftplan)
-		cufftDestroy(d_plan->fftplan);
-
-	switch(d_plan->rank_)
-	{
-		case 1:
-		{
-			FREEGPUMEMORY1D(d_plan);
-		}
-		break;
-		case 2:
-		{
-			FREEGPUMEMORY2D(d_plan);
-		}
-		break;
-		case 3:
-		{
-			FREEGPUMEMORY3D(d_plan);
-		}
-		break;
-	}
-#ifdef TIME
-	float milliseconds = 0;
-	cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("[time  ] \tFree gpu memory\t\t %.3g s\n", milliseconds/1000);
-#endif
-
-        // Multi-GPU support: reset the device ID
-        cudaSetDevice(orig_gpu_device_id);
-	return 0;
-}
-
 #ifdef __cplusplus
 }
 #endif

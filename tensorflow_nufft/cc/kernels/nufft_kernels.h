@@ -50,9 +50,6 @@ int spread(
     Plan<Device, T>* plan,
     std::complex<T>* c, std::complex<T>* f);
 
-template<typename Device, typename T>
-int destroy(Plan<Device, T>* plan);
-
 }   // namespace nufft
 
 enum class OpType { NUFFT, INTERP, SPREAD };
@@ -233,12 +230,6 @@ struct DoNUFFTBase {
         }
         break;
       }
-    }
-
-    // Clean up the plan.
-    err = nufft::destroy<Device, T>(plan.get());
-    if (err > 0) {
-      return errors::Internal("Failed during `nufft::destroy`: ", err);
     }
 
     return Status::OK();

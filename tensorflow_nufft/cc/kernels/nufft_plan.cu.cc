@@ -74,6 +74,12 @@ Status allocate_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan);
 template<typename FloatType>
 Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan);
 
+template<typename FloatType>
+void free_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan);
+
+template<typename FloatType>
+void free_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan);
+
 } // namespace
 
 
@@ -320,6 +326,31 @@ Plan<GPUDevice, FloatType>::Plan(
   cudaSetDevice(orig_gpu_device_id);
 }
 
+template<typename FloatType>
+Plan<GPUDevice, FloatType>::~Plan() {
+  // Mult-GPU support: set the CUDA Device ID:
+  int orig_gpu_device_id;
+  cudaGetDevice(& orig_gpu_device_id);
+  cudaSetDevice(this->options_.gpu_device_id);
+
+	if (this->fftplan)
+		cufftDestroy(this->fftplan);
+
+	switch(this->rank_)
+	{
+		case 2: {
+			free_gpu_memory_2d(this);
+      break;
+		}
+		case 3: {
+			free_gpu_memory_3d(this);
+      break;
+		}
+	}
+
+        // Multi-GPU support: reset the device ID
+        cudaSetDevice(orig_gpu_device_id);
+}
 
 namespace {
 
@@ -578,13 +609,8 @@ Status allocate_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan) {
 }
 
 template<typename FloatType>
-Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan)
-/*
-  wrapper for gpu memory allocation in "plan" stage.
+Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan) {
 
-  Melody Shih 07/25/19
-*/
-{
         // Mult-GPU support: set the CUDA Device ID:
         int orig_gpu_device_id;
         cudaGetDevice(& orig_gpu_device_id);
@@ -673,6 +699,125 @@ Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan)
   cudaSetDevice(orig_gpu_device_id);
 
   return Status::OK();
+}
+
+template<typename FloatType>
+void free_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan) {
+
+        // Mult-GPU support: set the CUDA Device ID:
+        int orig_gpu_device_id;
+        cudaGetDevice(& orig_gpu_device_id);
+        cudaSetDevice(d_plan->options_.gpu_device_id);
+
+	if (!d_plan->options_.spread_interp_only) {
+		checkCudaErrors(cudaFree(d_plan->fw));
+		checkCudaErrors(cudaFree(d_plan->fwkerhalf1));
+		checkCudaErrors(cudaFree(d_plan->fwkerhalf2));
+	}
+	switch(d_plan->options_.gpu_spread_method)
+	{
+		case GpuSpreadMethod::NUPTS_DRIVEN:
+			{
+				if (d_plan->options_.gpu_sort_points) {
+					checkCudaErrors(cudaFree(d_plan->idxnupts));
+					checkCudaErrors(cudaFree(d_plan->sortidx));
+					checkCudaErrors(cudaFree(d_plan->binsize));
+					checkCudaErrors(cudaFree(d_plan->binstartpts));
+				}else{
+					checkCudaErrors(cudaFree(d_plan->idxnupts));
+				}
+			}
+			break;
+		case GpuSpreadMethod::SUBPROBLEM:
+			{
+				checkCudaErrors(cudaFree(d_plan->idxnupts));
+				checkCudaErrors(cudaFree(d_plan->sortidx));
+				checkCudaErrors(cudaFree(d_plan->numsubprob));
+				checkCudaErrors(cudaFree(d_plan->binsize));
+				checkCudaErrors(cudaFree(d_plan->binstartpts));
+				checkCudaErrors(cudaFree(d_plan->subprobstartpts));
+				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
+			}
+			break;
+		case GpuSpreadMethod::PAUL:
+			{
+				checkCudaErrors(cudaFree(d_plan->idxnupts));
+				checkCudaErrors(cudaFree(d_plan->sortidx));
+				checkCudaErrors(cudaFree(d_plan->numsubprob));
+				checkCudaErrors(cudaFree(d_plan->binsize));
+				checkCudaErrors(cudaFree(d_plan->finegridsize));
+				checkCudaErrors(cudaFree(d_plan->binstartpts));
+				checkCudaErrors(cudaFree(d_plan->subprobstartpts));
+				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
+			}
+			break;
+	}
+
+	for (int i = 0; i < d_plan->options_.gpu_num_streams; i++)
+		checkCudaErrors(cudaStreamDestroy(d_plan->streams[i]));
+
+        // Multi-GPU support: reset the device ID
+        cudaSetDevice(orig_gpu_device_id);
+}
+
+template<typename FloatType>
+void free_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan) {
+        // Mult-GPU support: set the CUDA Device ID:
+        int orig_gpu_device_id;
+        cudaGetDevice(& orig_gpu_device_id);
+        cudaSetDevice(d_plan->options_.gpu_device_id);
+
+
+	if (!d_plan->options_.spread_interp_only) {
+		cudaFree(d_plan->fw);
+		cudaFree(d_plan->fwkerhalf1);
+		cudaFree(d_plan->fwkerhalf2);
+		cudaFree(d_plan->fwkerhalf3);
+	}
+
+	switch (d_plan->options_.gpu_spread_method)
+	{
+		case GpuSpreadMethod::NUPTS_DRIVEN:
+			{
+				if (d_plan->options_.gpu_sort_points) {
+					checkCudaErrors(cudaFree(d_plan->idxnupts));
+					checkCudaErrors(cudaFree(d_plan->sortidx));
+					checkCudaErrors(cudaFree(d_plan->binsize));
+					checkCudaErrors(cudaFree(d_plan->binstartpts));
+				}else{
+					checkCudaErrors(cudaFree(d_plan->idxnupts));
+				}
+			}
+			break;
+		case GpuSpreadMethod::SUBPROBLEM:
+			{
+				checkCudaErrors(cudaFree(d_plan->idxnupts));
+				checkCudaErrors(cudaFree(d_plan->sortidx));
+				checkCudaErrors(cudaFree(d_plan->numsubprob));
+				checkCudaErrors(cudaFree(d_plan->binsize));
+				checkCudaErrors(cudaFree(d_plan->binstartpts));
+				checkCudaErrors(cudaFree(d_plan->subprobstartpts));
+				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
+			}
+			break;
+		case GpuSpreadMethod::BLOCK_GATHER:
+			{
+				checkCudaErrors(cudaFree(d_plan->idxnupts));
+				checkCudaErrors(cudaFree(d_plan->sortidx));
+				checkCudaErrors(cudaFree(d_plan->numsubprob));
+				checkCudaErrors(cudaFree(d_plan->binsize));
+				checkCudaErrors(cudaFree(d_plan->binstartpts));
+				checkCudaErrors(cudaFree(d_plan->subprobstartpts));
+				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
+			}
+			break;
+	}
+
+	for (int i = 0; i < d_plan->options_.gpu_num_streams; i++)
+		checkCudaErrors(cudaStreamDestroy(d_plan->streams[i]));
+
+        // Multi-GPU support: reset the device ID
+        cudaSetDevice(orig_gpu_device_id);
 }
 
 } // namespace

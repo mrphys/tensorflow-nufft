@@ -221,7 +221,7 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // largest array allocated by NUFFT.
   Tensor fine_grid_;
 
-  // A pointer to the above tensor's data.
+  // A convenience pointer to the fine grid array for FFTW calls.
   FftwType* fine_grid_ptr_;
 
   // Relative user tol.
@@ -238,8 +238,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   FloatType* phiHat1;    // FT of kernel in t1,2, on x-axis mode grid
   FloatType* phiHat2;    // " y-axis.
   FloatType* phiHat3;    // " z-axis.
-
-  
   
   int64_t *sortIndices;  // precomputed NU pt permutation, speeds spread/interp
   bool didSort;         // whether binsorting used (false: identity perm used)
@@ -249,11 +247,7 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
   // type 3 specific
   FloatType *S, *T, *U;  // pointers to user's target NU pts arrays (no new allocs)
-  // CPX* prephase;   // pre-phase, for all input NU pts
-  // CPX* deconv;     // reciprocal of kernel FT, phase, all output NU pts
-  // CPX* CpBatch;    // working array of prephased strengths
   FloatType *Sp, *Tp, *Up;  // internal primed targs (s'_k, etc), allocated
-  // TYPE3PARAMS t3P; // groups together type 3 shift, scale, phase, parameters
   
   // The FFTW plan for FFTs.
   typename fftw::PlanType<FloatType>::Type fft_plan_;

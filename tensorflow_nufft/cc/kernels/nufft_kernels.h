@@ -129,7 +129,7 @@ struct DoNUFFTBase {
     nufft::Options options;
 
     if (optype != OpType::NUFFT) {
-      options.spread_interp_only = true;
+      options.spread_only = true;
       options.upsampling_factor = 2.0;
     }
 

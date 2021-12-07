@@ -40,13 +40,13 @@ namespace nufft {
 // spreading do not scale the values.
 template<typename FloatType>
 FloatType calculate_scale_factor(int rank,
-                                 const SpreadOptions<FloatType>& opts);
+                                 const SpreadParameters<FloatType>& opts);
 
 // Evaluates the exponential of semi-circle kernel at the specified point.
 // Kernel is related to an asymptotic approximation to the Kaiser-Bessel kernel,
 // itself an approximation to prolate spheroidal wavefunction (PSWF) of order 0.
 template<typename FloatType>
-FloatType evaluate_kernel(FloatType x, const SpreadOptions<FloatType> &opts);
+FloatType evaluate_kernel(FloatType x, const SpreadParameters<FloatType> &opts);
 
 // Approximates exact Fourier series coeffs of cnufftspread's real symmetric
 // kernel, directly via q-node quadrature on Euler-Fourier formula, exploiting
@@ -57,7 +57,7 @@ FloatType evaluate_kernel(FloatType x, const SpreadOptions<FloatType> &opts);
 // arises because the quadrature weights are scaled for grid units not x units.
 template<typename FloatType>
 void kernel_fseries_1d(int grid_size,     
-                       const SpreadOptions<FloatType>& spopts,
+                       const SpreadParameters<FloatType>& spread_params,
                        FloatType* fseries_coeffs);
 
 // Finds even integer not less than n, with prime factors no larger than 5

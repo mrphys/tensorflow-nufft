@@ -151,7 +151,7 @@ int CUSPREAD3D_NUPTSDRIVEN_PROP(int nf1, int nf2, int nf3, int M,
 		int *d_sortidx = d_plan->sortidx;
 		int *d_idxnupts = d_plan->idxnupts;
 
-		int pirange = d_plan->spopts.pirange;
+		int pirange = d_plan->spread_params_.pirange;
 
 		// Synchronize device before we start. This is essential! Otherwise the
 		// next kernel could read the wrong (kx, ky, kz) values.
@@ -285,11 +285,11 @@ int CUSPREAD3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M,
 	dim3 threadsPerBlock;
 	dim3 blocks;
 
-	int ns=d_plan->spopts.nspread;   // psi's support in terms of number of cells
-	FLT sigma=d_plan->spopts.upsampling_factor;
-	FLT es_c=d_plan->spopts.ES_c;
-	FLT es_beta=d_plan->spopts.ES_beta;
-	int pirange=d_plan->spopts.pirange;
+	int ns=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
+	FLT sigma=d_plan->spread_params_.upsampling_factor;
+	FLT es_c=d_plan->spread_params_.ES_c;
+	FLT es_beta=d_plan->spread_params_.ES_beta;
+	int pirange=d_plan->spread_params_.pirange;
 
 	int* d_idxnupts = d_plan->idxnupts;
 	FLT* d_kx = d_plan->kx;
@@ -337,7 +337,7 @@ int CUSPREAD3D_BLOCKGATHER_PROP(int nf1, int nf2, int nf3, int M,
 	dim3 threadsPerBlock;
 	dim3 blocks;
 
-	int pirange = d_plan->spopts.pirange;
+	int pirange = d_plan->spread_params_.pirange;
 
 	int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
 	int o_bin_size_x = d_plan->options_.gpu_obin_size.x;
@@ -743,11 +743,11 @@ int CUSPREAD3D_BLOCKGATHER(int nf1, int nf2, int nf3, int M,
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 
-	int ns=d_plan->spopts.nspread; 
-	FLT es_c=d_plan->spopts.ES_c;
-	FLT es_beta=d_plan->spopts.ES_beta;
-	FLT sigma=d_plan->spopts.upsampling_factor;
-	int pirange=d_plan->spopts.pirange;
+	int ns=d_plan->spread_params_.nspread; 
+	FLT es_c=d_plan->spread_params_.ES_c;
+	FLT es_beta=d_plan->spread_params_.ES_beta;
+	FLT sigma=d_plan->spread_params_.upsampling_factor;
+	int pirange=d_plan->spread_params_.pirange;
 	int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
 
 	int obin_size_x=d_plan->options_.gpu_obin_size.x;
@@ -888,7 +888,7 @@ int CUSPREAD3D_SUBPROB_PROP(int nf1, int nf2, int nf3, int M,
 
 	int *d_subprob_to_bin = NULL;
 	void *d_temp_storage = NULL;
-	int pirange = d_plan->spopts.pirange;
+	int pirange = d_plan->spread_params_.pirange;
 
 	// Synchronize device before we start. This is essential! Otherwise the
 	// next kernel could read the wrong (kx, ky, kz) values.
@@ -1085,7 +1085,7 @@ int CUSPREAD3D_SUBPROB(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 
-	int ns=d_plan->spopts.nspread;   // psi's support in terms of number of cells
+	int ns=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
 	int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
 
 	// assume that bin_size_x > ns/2;
@@ -1118,10 +1118,10 @@ int CUSPREAD3D_SUBPROB(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d
 	int totalnumsubprob=d_plan->totalnumsubprob;
 	int *d_subprob_to_bin = d_plan->subprob_to_bin;
 
-	FLT sigma=d_plan->spopts.upsampling_factor;
-	FLT es_c=d_plan->spopts.ES_c;
-	FLT es_beta=d_plan->spopts.ES_beta;
-	int pirange=d_plan->spopts.pirange;
+	FLT sigma=d_plan->spread_params_.upsampling_factor;
+	FLT es_c=d_plan->spread_params_.ES_c;
+	FLT es_beta=d_plan->spread_params_.ES_beta;
+	int pirange=d_plan->spread_params_.pirange;
 	cudaEventRecord(start);
 	size_t sharedplanorysize = (bin_size_x+2*ceil(ns/2.0))*(bin_size_y+2*
 			ceil(ns/2.0))*(bin_size_z+2*ceil(ns/2.0))*sizeof(CUCPX);

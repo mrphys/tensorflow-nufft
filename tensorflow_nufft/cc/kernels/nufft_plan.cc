@@ -43,7 +43,7 @@ namespace {
 template<typename FloatType>
 Status set_grid_size(int ms,
                      const Options& options,
-                     SpreadOptions<FloatType> spopts,
+                     SpreadParameters<FloatType> spread_params,
                      int* grid_size);
 
 template<typename T>
@@ -53,12 +53,12 @@ Status reverse_vector(const gtl::InlinedVector<T, 4>& vec,
 template<typename FloatType>
 Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
                       int kerevalmeth, bool show_warnings,
-                      SpreadOptions<FloatType> &spopts);
+                      SpreadParameters<FloatType> &spread_params);
 
 template<typename FloatType>
 Status setup_spreader_for_nufft(int rank, FloatType eps,
                                 const Options& options,
-                                SpreadOptions<FloatType> &spopts);
+                                SpreadParameters<FloatType> &spread_params);
 
 } // namespace
 
@@ -144,7 +144,7 @@ Plan<CPUDevice, FloatType>::Plan(
   // Populate the spreader options.
   OP_REQUIRES_OK(context,
                  setup_spreader_for_nufft(
-                    rank, tol, this->options_, this->spopts));
+                    rank, tol, this->options_, this->spread_params_));
 
   // set others as defaults (or unallocated for arrays)...
   this->X = nullptr; this->Y = nullptr; this->Z = nullptr;
@@ -169,37 +169,37 @@ Plan<CPUDevice, FloatType>::Plan(
   }
 
   if (type == TransformType::TYPE_1)
-    this->spopts.spread_direction = SpreadDirection::SPREAD;
+    this->spread_params_.spread_direction = SpreadDirection::SPREAD;
   else // if (type == TransformType::TYPE_2)
-    this->spopts.spread_direction = SpreadDirection::INTERP;
+    this->spread_params_.spread_direction = SpreadDirection::INTERP;
   
   // Determine fine grid sizes.
   this->grid_sizes_.resize(rank);
   OP_REQUIRES_OK(
       context, set_grid_size(
-          this->num_modes_[0], this->options_, this->spopts, &this->grid_sizes_[0]));
+          this->num_modes_[0], this->options_, this->spread_params_, &this->grid_sizes_[0]));
   if (rank > 1) {
     OP_REQUIRES_OK(
         context, set_grid_size(
-            this->num_modes_[1], this->options_, this->spopts, &this->grid_sizes_[1]));
+            this->num_modes_[1], this->options_, this->spread_params_, &this->grid_sizes_[1]));
   }
   if (rank > 2) {
     OP_REQUIRES_OK(
         context, set_grid_size(
-            this->num_modes_[2], this->options_, this->spopts, &this->grid_sizes_[2]));
+            this->num_modes_[2], this->options_, this->spread_params_, &this->grid_sizes_[2]));
   }
 
   // Get Fourier coefficients of spreading kernel along each fine grid
   // dimension.
   this->phiHat1 = (FloatType*) malloc(sizeof(FloatType) * (this->grid_sizes_[0] / 2 + 1));
-  kernel_fseries_1d(this->grid_sizes_[0], this->spopts, this->phiHat1);
+  kernel_fseries_1d(this->grid_sizes_[0], this->spread_params_, this->phiHat1);
   if (rank > 1) {
     this->phiHat2 = (FloatType*) malloc(sizeof(FloatType) * (this->grid_sizes_[1] / 2 + 1));
-    kernel_fseries_1d(this->grid_sizes_[1], this->spopts, this->phiHat2);
+    kernel_fseries_1d(this->grid_sizes_[1], this->spread_params_, this->phiHat2);
   }
   if (rank > 2) {
     this->phiHat3 = (FloatType*) malloc(sizeof(FloatType) * (this->grid_sizes_[2] / 2 + 1));
-    kernel_fseries_1d(this->grid_sizes_[2], this->spopts, this->phiHat3);
+    kernel_fseries_1d(this->grid_sizes_[2], this->spread_params_, this->phiHat3);
   }
 
   // Total number of points in the fine grid.
@@ -280,18 +280,18 @@ namespace {
 template<typename FloatType>
 Status set_grid_size(int ms,
                      const Options& options,
-                     SpreadOptions<FloatType> spopts,
+                     SpreadParameters<FloatType> spread_params,
                      int* grid_size) {
   // for spread/interp only, we do not apply oversampling (Montalt 6/8/2021).
-  if (options.spread_interp_only) {
+  if (options.spread_only) {
     *grid_size = ms;
   } else {
     *grid_size = static_cast<int>(options.upsampling_factor * ms);
   }
 
   // This is required to avoid errors.
-  if (*grid_size < 2 * spopts.nspread)
-    *grid_size = 2 * spopts.nspread;
+  if (*grid_size < 2 * spread_params.nspread)
+    *grid_size = 2 * spread_params.nspread;
 
   // Check if array size is too big.
   if (*grid_size > kMaxArraySize) {
@@ -303,10 +303,10 @@ Status set_grid_size(int ms,
   *grid_size = next_smooth_int(*grid_size);
 
   // For spread/interp only mode, make sure that the grid size is valid.
-  if (options.spread_interp_only && *grid_size != ms) {
+  if (options.spread_only && *grid_size != ms) {
     return errors::Internal(
         "Invalid grid size: ", ms, ". Value should be even, "
-        "larger than the kernel (", 2 * spopts.nspread, ") and have no prime "
+        "larger than the kernel (", 2 * spread_params.nspread, ") and have no prime "
         "factors larger than 5.");
   }
 
@@ -342,11 +342,11 @@ Status reverse_vector(const gtl::InlinedVector<T, 4>& vec,
 template<typename FloatType>
 Status setup_spreader(
     int rank, FloatType eps, double upsampling_factor,
-    int kerevalmeth, bool show_warnings, SpreadOptions<FloatType> &spopts)
+    int kerevalmeth, bool show_warnings, SpreadParameters<FloatType> &spread_params)
 /* Initializes spreader kernel parameters given desired NUFFT tol eps,
    upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), ker eval meth
    (either 0:exp(sqrt()), 1: Horner ppval), and some debug-level flags.
-   Also sets all default options in SpreadOptions<FloatType>. See SpreadOptions<FloatType>.h for spopts.
+   Also sets all default options in SpreadParameters<FloatType>. See SpreadParameters<FloatType>.h for spread_params.
    rank is spatial dimension (1,2, or 3).
    See finufft.cpp:finufft_plan() for where upsampling_factor is set.
    Must call this before any kernel evals done, otherwise segfault likely.
@@ -370,23 +370,23 @@ Status setup_spreader(
     }
   }
     
-  // write out default SpreadOptions<FloatType>
-  spopts.pirange = 1;             // user also should always set this
-  spopts.check_bounds = false;
-  spopts.sort = 2;                // 2:auto-choice
-  spopts.pad_kernel = 0;              // affects only evaluate_kernel_vector
-  spopts.kerevalmeth = kerevalmeth;
-  spopts.upsampling_factor = upsampling_factor;
-  spopts.num_threads = 0;            // all avail
-  spopts.sort_threads = 0;        // 0:auto-choice
+  // write out default SpreadParameters<FloatType>
+  spread_params.pirange = 1;             // user also should always set this
+  spread_params.check_bounds = false;
+  spread_params.sort = 2;                // 2:auto-choice
+  spread_params.pad_kernel = 0;              // affects only evaluate_kernel_vector
+  spread_params.kerevalmeth = kerevalmeth;
+  spread_params.upsampling_factor = upsampling_factor;
+  spread_params.num_threads = 0;            // all avail
+  spread_params.sort_threads = 0;        // 0:auto-choice
   // heuristic dir=1 chunking for nthr>>1, typical for intel i7 and skylake...
-  spopts.max_subproblem_size = (rank == 1) ? 10000 : 100000;
-  spopts.flags = 0;               // 0:no timing flags (>0 for experts only)
-  spopts.verbosity = 0;               // 0:no debug output
+  spread_params.max_subproblem_size = (rank == 1) ? 10000 : 100000;
+  spread_params.flags = 0;               // 0:no timing flags (>0 for experts only)
+  spread_params.verbosity = 0;               // 0:no debug output
   // heuristic nthr above which switch OMP critical to atomic (add_wrapped...):
-  spopts.atomic_threshold = 10;   // R Blackwell's value
+  spread_params.atomic_threshold = 10;   // R Blackwell's value
 
-  int ns = 0;  // Set kernel width w (aka ns, nspread) then copy to spopts...
+  int ns = 0;  // Set kernel width w (aka ns, nspread) then copy to spread_params...
   if (eps < kEpsilon<FloatType>) {
     eps = kEpsilon<FloatType>;
   }
@@ -400,12 +400,12 @@ Status setup_spreader(
   if (ns > kMaxKernelWidth) {         // clip to fit allocated arrays, Horner rules
     ns = kMaxKernelWidth;
   }
-  spopts.nspread = ns;
+  spread_params.nspread = ns;
 
   // setup for reference kernel eval (via formula): select beta width param...
   // (even when kerevalmeth=1, this ker eval needed for FTs in onedim_*_kernel)
-  spopts.ES_halfwidth = (FloatType)ns / 2;   // constants to help (see below routines)
-  spopts.ES_c = 4.0 / (FloatType)(ns * ns);
+  spread_params.ES_halfwidth = (FloatType)ns / 2;   // constants to help (see below routines)
+  spread_params.ES_c = 4.0 / (FloatType)(ns * ns);
   FloatType beta_over_ns = 2.30;         // gives decent betas for default sigma=2.0
   if (ns == 2) beta_over_ns = 2.20;  // some small-width tweaks...
   if (ns == 3) beta_over_ns = 2.26;
@@ -414,11 +414,11 @@ Status setup_spreader(
     FloatType gamma = 0.97;              // must match devel/gen_all_horner_C_code.m !
     beta_over_ns = gamma * kPi<FloatType>*(1.0 - 1.0 / (2 * upsampling_factor));  // formula based on cutoff
   }
-  spopts.ES_beta = beta_over_ns * (FloatType)ns;    // set the kernel beta parameter
+  spread_params.ES_beta = beta_over_ns * (FloatType)ns;    // set the kernel beta parameter
 
   // Calculate scaling factor for spread/interp only mode.
-  if (spopts.spread_interp_only)
-    spopts.ES_scale = calculate_scale_factor<FloatType>(rank, spopts);
+  if (spread_params.spread_only)
+    spread_params.ES_scale = calculate_scale_factor<FloatType>(rank, spread_params);
 
   return Status::OK();
 }
@@ -426,28 +426,28 @@ Status setup_spreader(
 template<typename FloatType>
 Status setup_spreader_for_nufft(int rank, FloatType eps,
                                 const Options& options,
-                                SpreadOptions<FloatType> &spopts)
+                                SpreadParameters<FloatType> &spread_params)
 // Set up the spreader parameters given eps, and pass across various nufft
 // options. Return status of setup_spreader. Uses pass-by-ref. Barnett 10/30/17
 {
   // This must be set before calling setup_spreader
-  spopts.spread_interp_only = options.spread_interp_only;
+  spread_params.spread_only = options.spread_only;
 
   TF_RETURN_IF_ERROR(setup_spreader(
       rank, eps, options.upsampling_factor,
       static_cast<int>(options.kernel_evaluation_method) - 1, // We subtract 1 temporarily, as spreader expects values of 0 or 1 instead of 1 and 2.
-      options.show_warnings, spopts));
+      options.show_warnings, spread_params));
 
-  // override various spread spopts from their defaults...
-  spopts.verbosity = options.verbosity;
-  spopts.sort = static_cast<int>(options.sort_points); // could make rank or CPU choices here?
-  spopts.pad_kernel = options.pad_kernel; // (only applies to kerevalmeth=0)
-  spopts.check_bounds = options.check_bounds;
-  spopts.num_threads = options.num_threads;
+  // override various spread spread_params from their defaults...
+  spread_params.verbosity = options.verbosity;
+  spread_params.sort = static_cast<int>(options.sort_points); // could make rank or CPU choices here?
+  spread_params.pad_kernel = options.pad_kernel; // (only applies to kerevalmeth=0)
+  spread_params.check_bounds = options.check_bounds;
+  spread_params.num_threads = options.num_threads;
   if (options.num_threads_for_atomic_spread >= 0) // overrides
-    spopts.atomic_threshold = options.num_threads_for_atomic_spread;
+    spread_params.atomic_threshold = options.num_threads_for_atomic_spread;
   if (options.max_spread_subproblem_size > 0)        // overrides
-    spopts.max_subproblem_size = options.max_spread_subproblem_size;
+    spread_params.max_subproblem_size = options.max_spread_subproblem_size;
 
   return Status::OK();
 }

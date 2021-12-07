@@ -7,7 +7,7 @@ using namespace tensorflow::nufft;
 
 namespace cufinufft {
 
-FLT evaluate_kernel(FLT x, const SpreadOptions<FLT> &opts)
+FLT evaluate_kernel(FLT x, const SpreadParameters<FLT> &opts)
 /* ES ("exp sqrt") kernel evaluation at single real argument:
       phi(x) = exp(beta.sqrt(1 - (2x/n_s)^2)),    for |x| < nspread/2
    related to an asymptotic approximation to the Kaiser--Bessel, itself an

@@ -98,11 +98,11 @@ int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
 	dim3 threadsPerBlock;
 	dim3 blocks;
 
-	int ns=d_plan->spopts.nspread;   // psi's support in terms of number of cells
-	FLT es_c=d_plan->spopts.ES_c;
-	FLT es_beta=d_plan->spopts.ES_beta;
+	int ns=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
+	FLT es_c=d_plan->spread_params_.ES_c;
+	FLT es_beta=d_plan->spread_params_.ES_beta;
 	FLT sigma = d_plan->options_.upsampling_factor;
-	int pirange=d_plan->spopts.pirange;
+	int pirange=d_plan->spread_params_.pirange;
 	int *d_idxnupts=d_plan->idxnupts;
 
 	FLT* d_kx = d_plan->kx;
@@ -147,9 +147,9 @@ int CUINTERP2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 
-	int ns=d_plan->spopts.nspread;   // psi's support in terms of number of cells
-	FLT es_c=d_plan->spopts.ES_c;
-	FLT es_beta=d_plan->spopts.ES_beta;
+	int ns=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
+	FLT es_c=d_plan->spread_params_.ES_c;
+	FLT es_beta=d_plan->spread_params_.ES_beta;
 	int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
 
 	// assume that bin_size_x > ns/2;
@@ -176,7 +176,7 @@ int CUINTERP2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 	int *d_idxnupts = d_plan->idxnupts;
 	int *d_subprob_to_bin = d_plan->subprob_to_bin;
 	int totalnumsubprob=d_plan->totalnumsubprob;
-	int pirange=d_plan->spopts.pirange;
+	int pirange=d_plan->spread_params_.pirange;
 
 	FLT sigma=d_plan->options_.upsampling_factor;
 	cudaEventRecord(start);

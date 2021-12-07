@@ -141,7 +141,7 @@ struct Options {
   int max_spread_subproblem_size = 0;
 
   // Do only spreading and/or interpolation (no FFT or deconvolution).
-  bool spread_interp_only = false;
+  bool spread_only = false;
 
   #if GOOGLE_CUDA
 
@@ -168,7 +168,7 @@ struct Options {
 };
 
 template<typename FloatType>
-struct SpreadOptions {
+struct SpreadParameters {
 
   // The spread direction (U->NU or NU->U). See enum above.
   SpreadDirection spread_direction;
@@ -192,7 +192,7 @@ struct SpreadOptions {
   int verbosity;          // 0: silent, 1: small text output, 2: verbose
   int atomic_threshold;   // num threads before switching spreadSorted to using atomic ops
   double upsampling_factor;       // sigma, upsampling factor
-  bool spread_interp_only;   // 0: NUFFT, 1: spread or interpolation only
+  bool spread_only;   // 0: NUFFT, 1: spread or interpolation only
   // ES kernel specific consts used in fast eval, depend on precision FLT...
   FloatType ES_beta;
   FloatType ES_halfwidth;

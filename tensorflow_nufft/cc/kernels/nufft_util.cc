@@ -42,7 +42,7 @@ namespace nufft {
 
 template<typename FloatType>
 FloatType calculate_scale_factor(
-    int rank, const SpreadOptions<FloatType> &opts) {
+    int rank, const SpreadParameters<FloatType> &opts) {
 
   int n = 100;
   FloatType h = 2.0 / n;
@@ -62,7 +62,7 @@ FloatType calculate_scale_factor(
 }
 
 template<typename FloatType>
-FloatType evaluate_kernel(FloatType x, const SpreadOptions<FloatType> &opts) {
+FloatType evaluate_kernel(FloatType x, const SpreadParameters<FloatType> &opts) {
   if (abs(x) >= opts.ES_halfwidth)
     return 0.0;
   return exp(opts.ES_beta * sqrt(1.0 - opts.ES_c * x * x));
@@ -70,10 +70,10 @@ FloatType evaluate_kernel(FloatType x, const SpreadOptions<FloatType> &opts) {
 
 template<typename FloatType>
 void kernel_fseries_1d(int grid_size,     
-                       const SpreadOptions<FloatType>& spopts,
+                       const SpreadParameters<FloatType>& spread_params,
                        FloatType* fseries_coeffs) {
 
-  FloatType kernel_half_width = spopts.nspread / 2.0;
+  FloatType kernel_half_width = spread_params.nspread / 2.0;
 
   // Number of quadrature nodes in z (from 0 to J/2, reflections will be added).
   int q = static_cast<int>(2 + 3.0 * kernel_half_width);
@@ -88,11 +88,11 @@ void kernel_fseries_1d(int grid_size,
   std::complex<FloatType> a[kMaxQuadNodes];
   for (int n=0; n < q; ++n) {
     z[n] *= kernel_half_width;                         // rescale nodes
-    f[n] = kernel_half_width * (FloatType)w[n] * evaluate_kernel((FloatType)z[n], spopts); // vals & quadr wei
+    f[n] = kernel_half_width * (FloatType)w[n] * evaluate_kernel((FloatType)z[n], spread_params); // vals & quadr wei
     a[n] = exp(2 * kPi<FloatType> * kImaginaryUnit<FloatType> * (FloatType)(grid_size / 2 - z[n]) / (FloatType)grid_size);  // phase winding rates
   }
   int nout = grid_size / 2 + 1;                   // how many values we're writing to
-  int nt = std::min(nout, (int)spopts.num_threads);         // how many chunks
+  int nt = std::min(nout, (int)spread_params.num_threads);         // how many chunks
   std::vector<int> brk(nt + 1);        // start indices for each thread
   for (int t = 0; t <= nt; ++t)             // split nout mode indices btw threads
     brk[t] = (int)(0.5 + nout * t / (double)nt);
@@ -133,14 +133,14 @@ IntType next_smooth_int(IntType n, IntType b) {
 }
 
 template float calculate_scale_factor<float>(
-    int, const SpreadOptions<float>&);
+    int, const SpreadParameters<float>&);
 template double calculate_scale_factor<double>(
-    int, const SpreadOptions<double>&);
+    int, const SpreadParameters<double>&);
 
 template void kernel_fseries_1d<float>(
-    int, const SpreadOptions<float>&, float*);
+    int, const SpreadParameters<float>&, float*);
 template void kernel_fseries_1d<double>(
-    int, const SpreadOptions<double>&, double*);
+    int, const SpreadParameters<double>&, double*);
 
 template int next_smooth_int<int>(int, int);
 template int64_t next_smooth_int<int64_t>(int64_t, int64_t);

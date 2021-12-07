@@ -24,7 +24,7 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
-/* Bitwise debugging timing flag (TF) definitions; see SpreadOptions<FLT>.flags.
+/* Bitwise debugging timing flag (TF) definitions; see SpreadParameters<FLT>.flags.
     This is an unobtrusive way to determine the time contributions of the
     different components of spreading/interp by selectively leaving them out.
     For example, running the following two tests shows the effect of the exp()
@@ -32,7 +32,7 @@ limitations under the License.
     > perftest/spreadtestnd 3 8e6 8e6 1e-6 1 0 0 1 0
     > perftest/spreadtestnd 3 8e6 8e6 1e-6 1 4 0 1 0
     NOTE: non-zero values are for experts only, since
-    NUMERICAL OUTPUT MAY BE INCORRECT UNLESS SpreadOptions<FLT>.flags=0 !
+    NUMERICAL OUTPUT MAY BE INCORRECT UNLESS SpreadParameters<FLT>.flags=0 !
 */
 #define TF_OMIT_WRITE_TO_GRID        1 // don't add subgrids to out grid (dir=1)
 #define TF_OMIT_EVALUATE_KERNEL      2 // don't evaluate the kernel at all
@@ -42,19 +42,19 @@ limitations under the License.
 // things external (spreadinterp) interface needs...
 int spreadinterp(BIGINT N1, BIGINT N2, BIGINT N3, FLT *data_uniform,
 		       BIGINT M, FLT *kx, FLT *ky, FLT *kz,
-		       FLT *data_nonuniform, tensorflow::nufft::SpreadOptions<FLT> opts);
+		       FLT *data_nonuniform, tensorflow::nufft::SpreadParameters<FLT> opts);
 int spreadcheck(BIGINT N1, BIGINT N2, BIGINT N3,
-                BIGINT M, FLT *kx, FLT *ky, FLT *kz, tensorflow::nufft::SpreadOptions<FLT> opts);
+                BIGINT M, FLT *kx, FLT *ky, FLT *kz, tensorflow::nufft::SpreadParameters<FLT> opts);
 int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M, 
-               FLT *kx, FLT *ky, FLT *kz, tensorflow::nufft::SpreadOptions<FLT> opts);
+               FLT *kx, FLT *ky, FLT *kz, tensorflow::nufft::SpreadParameters<FLT> opts);
 int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3, 
 		       FLT *data_uniform,BIGINT M, FLT *kx, FLT *ky, FLT *kz,
-		       FLT *data_nonuniform, tensorflow::nufft::SpreadOptions<FLT> opts, int did_sort);
+		       FLT *data_nonuniform, tensorflow::nufft::SpreadParameters<FLT> opts, int did_sort);
 int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3, 
 		       FLT *data_uniform,BIGINT M, FLT *kx, FLT *ky, FLT *kz,
-                 FLT *data_nonuniform, tensorflow::nufft::SpreadOptions<FLT> opts, int did_sort);
+                 FLT *data_nonuniform, tensorflow::nufft::SpreadParameters<FLT> opts, int did_sort);
 int spreadinterpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3, 
 		             FLT *data_uniform,BIGINT M, FLT *kx, FLT *ky, FLT *kz,
-		             FLT *data_nonuniform, tensorflow::nufft::SpreadOptions<FLT> opts, int did_sort);
+		             FLT *data_nonuniform, tensorflow::nufft::SpreadParameters<FLT> opts, int did_sort);
 
 #endif  // SPREADINTERP_H

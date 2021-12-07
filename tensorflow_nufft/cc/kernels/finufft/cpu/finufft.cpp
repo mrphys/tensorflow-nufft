@@ -246,7 +246,7 @@ int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch
   Spreads (or interpolates) a batch of batch_size strength vectors in cBatch
   to (or from) the batch of fine working grids p->fine_grid_data_, using the same set of
   (index-sorted) NU points p->X,Y,Z for each vector in the batch.
-  The direction (spread vs interpolate) is set by p->spopts.spread_direction.
+  The direction (spread vs interpolate) is set by p->spread_params_.spread_direction.
   Returns 0 (no error reporting for now).
   Notes:
   1) cBatch is already assumed to have the correct offset, ie here we
@@ -279,7 +279,7 @@ int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch
     CPX *ci = cBatch + i*p->nj;            // start of i'th c array in cBatch
     spreadinterpSorted(p->sortIndices, grid_size_0, grid_size_1, grid_size_2,
                        (FLT*)fwi, p->nj, p->X, p->Y, p->Z,
-                       (FLT*)ci, p->spopts, p->didSort);
+                       (FLT*)ci, p->spread_params_, p->didSort);
   }
   return 0;
 }
@@ -290,7 +290,7 @@ int deconvolveBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* fkBatch)
   into each output array fk in fkBatch.
   Type 2: deconvolves from user-supplied input fk to 0-padded interior fw,
   again looping over fk in fkBatch and fw in p->fine_grid_data_.
-  The direction (spread vs interpolate) is set by p->spopts.spread_direction.
+  The direction (spread vs interpolate) is set by p->spread_params_.spread_direction.
   This is mostly a loop calling deconvolveshuffle?d for the needed rank batch_size
   times.
   Barnett 5/21/20, simplified from Malleo 2019 (eg t3 logic won't be in here)
@@ -303,15 +303,15 @@ int deconvolveBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* fkBatch)
     CPX *fki = fkBatch + i*p->num_modes_total_;           // start of i'th fk array in fkBatch
     
     if (p->rank_ == 1)
-      deconvolveshuffle1d(p->spopts.spread_direction, 1.0, p->phiHat1,
+      deconvolveshuffle1d(p->spread_params_.spread_direction, 1.0, p->phiHat1,
                           p->num_modes_[0], (FLT *)fki,
                           p->grid_sizes_[0], fwi, p->options_.mode_order);
     else if (p->rank_ == 2)
-      deconvolveshuffle2d(p->spopts.spread_direction,1.0, p->phiHat1,
+      deconvolveshuffle2d(p->spread_params_.spread_direction,1.0, p->phiHat1,
                           p->phiHat2, p->num_modes_[0], p->num_modes_[1], (FLT *)fki,
                           p->grid_sizes_[0], p->grid_sizes_[1], fwi, p->options_.mode_order);
     else
-      deconvolveshuffle3d(p->spopts.spread_direction, 1.0, p->phiHat1,
+      deconvolveshuffle3d(p->spread_params_.spread_direction, 1.0, p->phiHat1,
                           p->phiHat2, p->phiHat3, p->num_modes_[0], p->num_modes_[1], p->num_modes_[2],
                           (FLT *)fki, p->grid_sizes_[0], p->grid_sizes_[1], p->grid_sizes_[2],
                           fwi, p->options_.mode_order);
@@ -354,8 +354,8 @@ int FINUFFT_SETPTS(Plan<CPUDevice, FLT>* p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj
     p->X = xj;       // plan must keep pointers to user's fixed NU pts
     p->Y = yj;
     p->Z = zj;
-    int ier = spreadcheck(grid_size_0, grid_size_1, grid_size_2, p->nj, xj, yj, zj, p->spopts);
-    if (p->options_.verbosity>1) printf("[%s] spreadcheck (%d):\t%.3g s\n", __func__, p->spopts.check_bounds, timer.elapsedsec());
+    int ier = spreadcheck(grid_size_0, grid_size_1, grid_size_2, p->nj, xj, yj, zj, p->spread_params_);
+    if (p->options_.verbosity>1) printf("[%s] spreadcheck (%d):\t%.3g s\n", __func__, p->spread_params_.check_bounds, timer.elapsedsec());
     if (ier)         // no warnings allowed here
       return ier;    
     timer.restart();
@@ -364,7 +364,7 @@ int FINUFFT_SETPTS(Plan<CPUDevice, FLT>* p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj
       fprintf(stderr,"[%s] failed to allocate sortIndices!\n",__func__);
       return ERR_SPREAD_ALLOC;
     }
-    p->didSort = indexSort(p->sortIndices, grid_size_0, grid_size_1, grid_size_2, p->nj, xj, yj, zj, p->spopts);
+    p->didSort = indexSort(p->sortIndices, grid_size_0, grid_size_1, grid_size_2, p->nj, xj, yj, zj, p->spread_params_);
     if (p->options_.verbosity) printf("[%s] sort (didSort=%d):\t\t%.3g s\n", __func__,p->didSort, timer.elapsedsec());
 
     

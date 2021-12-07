@@ -37,7 +37,7 @@ int CUSPREAD2D_PAUL_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan)
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 
-	int ns=d_plan->spopts.nspread;
+	int ns=d_plan->spread_params_.nspread;
 	int bin_size_x=d_plan->options_.gpu_bin_size.x;
 	int bin_size_y=d_plan->options_.gpu_bin_size.y;
 	int numbins[2];
@@ -71,7 +71,7 @@ int CUSPREAD2D_PAUL_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan)
 	int *d_idxnupts        = d_plan->idxnupts;
 	int *d_numsubprob      = d_plan->numsubprob;
 
-	int pirange=d_plan->spopts.pirange;
+	int pirange=d_plan->spread_params_.pirange;
 
 	// Synchronize device before we start. This is essential! Otherwise the
 	// next kernel could read the wrong (kx, ky, kz) values.
@@ -311,9 +311,9 @@ int CUSPREAD2D_PAUL(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan, int b
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 
-	int ns=d_plan->spopts.nspread;   // psi's support in terms of number of cells
-	FLT es_c=d_plan->spopts.ES_c;
-	FLT es_beta=d_plan->spopts.ES_beta;
+	int ns=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
+	FLT es_c=d_plan->spread_params_.ES_c;
+	FLT es_beta=d_plan->spread_params_.ES_beta;
 	int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
 
 	// assume that bin_size_x > ns/2;
@@ -344,7 +344,7 @@ int CUSPREAD2D_PAUL(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan, int b
 	int totalnumsubprob=d_plan->totalnumsubprob;
 	int *d_subprob_to_bin = d_plan->subprob_to_bin;
 
-	int pirange=d_plan->spopts.pirange;
+	int pirange=d_plan->spread_params_.pirange;
 	FLT sigma=d_plan->options_.upsampling_factor;
 	cudaEventRecord(start);
 	size_t sharedplanorysize = (bin_size_x+2*ceil(ns/2.0))*(bin_size_y+

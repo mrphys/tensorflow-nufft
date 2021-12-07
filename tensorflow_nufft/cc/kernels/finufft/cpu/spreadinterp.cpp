@@ -30,22 +30,22 @@ using namespace tensorflow::nufft;
 
 
 // declarations of purely internal functions...
-static inline void set_kernel_args(FLT *args, FLT x, const SpreadOptions<FLT>& opts);
-static inline void evaluate_kernel_vector(FLT *ker, FLT *args, const SpreadOptions<FLT>& opts, const int N);
-static inline void eval_kernel_vec_Horner(FLT *ker, const FLT z, const int w, const SpreadOptions<FLT> &opts);
+static inline void set_kernel_args(FLT *args, FLT x, const SpreadParameters<FLT>& opts);
+static inline void evaluate_kernel_vector(FLT *ker, FLT *args, const SpreadParameters<FLT>& opts, const int N);
+static inline void eval_kernel_vec_Horner(FLT *ker, const FLT z, const int w, const SpreadParameters<FLT> &opts);
 void interp_line(FLT *out,FLT *du, FLT *ker,BIGINT i1,BIGINT N1,int ns);
 void interp_square(FLT *out,FLT *du, FLT *ker1, FLT *ker2, BIGINT i1,BIGINT i2,BIGINT N1,BIGINT N2,int ns);
 void interp_cube(FLT *out,FLT *du, FLT *ker1, FLT *ker2, FLT *ker3,
 		 BIGINT i1,BIGINT i2,BIGINT i3,BIGINT N1,BIGINT N2,BIGINT N3,int ns);
 void spread_subproblem_1d(BIGINT off1, BIGINT size1,FLT *du0,BIGINT M0,FLT *kx0,
-                          FLT *dd0,const SpreadOptions<FLT>& opts);
+                          FLT *dd0,const SpreadParameters<FLT>& opts);
 void spread_subproblem_2d(BIGINT off1, BIGINT off2, BIGINT size1,BIGINT size2,
                           FLT *du0,BIGINT M0,
-			  FLT *kx0,FLT *ky0,FLT *dd0,const SpreadOptions<FLT>& opts);
+			  FLT *kx0,FLT *ky0,FLT *dd0,const SpreadParameters<FLT>& opts);
 void spread_subproblem_3d(BIGINT off1,BIGINT off2, BIGINT off3, BIGINT size1,
                           BIGINT size2,BIGINT size3,FLT *du0,BIGINT M0,
 			  FLT *kx0,FLT *ky0,FLT *kz0,FLT *dd0,
-			  const SpreadOptions<FLT>& opts);
+			  const SpreadParameters<FLT>& opts);
 void add_wrapped_subgrid(BIGINT offset1,BIGINT offset2,BIGINT offset3,
 			 BIGINT size1,BIGINT size2,BIGINT size3,BIGINT N1,
 			 BIGINT N2,BIGINT N3,FLT *data_uniform, FLT *du0);
@@ -84,7 +84,7 @@ void get_subgrid(BIGINT &offset1,BIGINT &offset2,BIGINT &offset3,BIGINT &size1,
 int spreadinterp(
         BIGINT N1, BIGINT N2, BIGINT N3, FLT *data_uniform,
         BIGINT M, FLT *kx, FLT *ky, FLT *kz, FLT *data_nonuniform,
-        SpreadOptions<FLT> opts)
+        SpreadParameters<FLT> opts)
 /* ------------Spreader/interpolator for 1, 2, or 3 dimensions --------------
    If opts.spread_direction=1, evaluate, in the 1D case,
 
@@ -115,7 +115,7 @@ int spreadinterp(
    periods in each coordinate (these are folded into the central period).
    If pirange=0, the periodic domain for kx is [0,N1], ky [0,N2], kz [0,N3].
    If pirange=1, the periodic domain is instead [-pi,pi] for each coord.
-   The SpreadOptions<FLT> struct must have been set up already by calling setup_kernel.
+   The SpreadParameters<FLT> struct must have been set up already by calling setup_kernel.
    It is assumed that 2*opts.nspread < min(N1,N2,N3), so that the kernel
    only ever wraps once when falls below 0 or off the top of a uniform grid
    dimension.
@@ -133,7 +133,7 @@ int spreadinterp(
                 outside this domain are also correctly folded back into this
                 domain, but pts beyond this either raise an error (if check_bounds=1)
                 or a crash (if check_bounds=0).
-   opts - spread/interp options struct, documented in ../include/SpreadOptions<FLT>.h
+   opts - spread/interp options struct, documented in ../include/SpreadParameters<FLT>.h
 
    Inputs/Outputs:
    data_uniform - output values on grid (dir=1) OR input grid data (dir=2)
@@ -184,7 +184,7 @@ static int ndims_from_Ns(BIGINT N1, BIGINT N2, BIGINT N3)
 }
 
 int spreadcheck(BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M, FLT *kx, FLT *ky,
-                FLT *kz, SpreadOptions<FLT> opts)
+                FLT *kz, SpreadParameters<FLT> opts)
 /* This does just the input checking and reporting for the spreader.
    See spreadinterp() for input arguments and meaning of returned value.
    Split out by Melody Shih, Jun 2018. Finiteness chk Barnett 7/30/18.
@@ -233,7 +233,7 @@ int spreadcheck(BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M, FLT *kx, FLT *ky,
 
 
 int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M, 
-              FLT *kx, FLT *ky, FLT *kz, SpreadOptions<FLT> opts)
+              FLT *kx, FLT *ky, FLT *kz, SpreadParameters<FLT> opts)
 /* This makes a decision whether or not to sort the NU pts (influenced by
    opts.sort), and if yes, calls either single- or multi-threaded bin sort,
    writing reordered index list to sort_indices. If decided not to sort, the
@@ -250,7 +250,7 @@ int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M,
                These must have been bounds-checked already; see spreadcheck.
     N1,N2,N3 - integer sizes of overall box (set N2=N3=1 for 1D, N3=1 for 2D).
                1 = x (fastest), 2 = y (medium), 3 = z (slowest).
-    opts     - spreading options struct, documented in ../include/SpreadOptions<FLT>.h
+    opts     - spreading options struct, documented in ../include/SpreadParameters<FLT>.h
    Outputs:
     sort_indices - a good permutation of NU points. (User must preallocate
                    to length M.) Ie, kx[sort_indices[j]], j=0,..,M-1, is a good
@@ -302,7 +302,7 @@ int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M,
 
 int spreadinterpSorted(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, 
 		      FLT *data_uniform, BIGINT M, FLT *kx, FLT *ky, FLT *kz,
-		      FLT *data_nonuniform, SpreadOptions<FLT> opts, int did_sort)
+		      FLT *data_nonuniform, SpreadParameters<FLT> opts, int did_sort)
 /* Logic to select the main spreading (dir=1) vs interpolation (dir=2) routine.
    See spreadinterp() above for inputs arguments and definitions.
    Return value should always be 0 (no error reporting).
@@ -321,7 +321,7 @@ int spreadinterpSorted(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3,
 // --------------------------------------------------------------------------
 int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3, 
 		      FLT *data_uniform,BIGINT M, FLT *kx, FLT *ky, FLT *kz,
-		      FLT *data_nonuniform, SpreadOptions<FLT> opts, int did_sort)
+		      FLT *data_nonuniform, SpreadParameters<FLT> opts, int did_sort)
 // Spread NU pts in sorted order to a uniform grid. See spreadinterp() for doc.
 {
   CNTime timer;
@@ -437,7 +437,7 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
     }   // end of choice of which t1 spread type to use
 
     // in spread/interp only mode, apply scaling factor (Montalt 6/8/2021).
-    if (opts.spread_interp_only) {
+    if (opts.spread_only) {
       for (BIGINT i=0; i<2*N; i++)
         data_uniform[i] *= opts.ES_scale;
     }
@@ -449,7 +449,7 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
 // --------------------------------------------------------------------------
 int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3, 
 		      FLT *data_uniform,BIGINT M, FLT *kx, FLT *ky, FLT *kz,
-		      FLT *data_nonuniform, SpreadOptions<FLT> opts, int did_sort)
+		      FLT *data_nonuniform, SpreadParameters<FLT> opts, int did_sort)
 // Interpolate to NU pts in sorted order from a uniform grid.
 // See spreadinterp() for doc.
 {
@@ -543,7 +543,7 @@ int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
 	  }
 
     // in spread/interp only mode, apply scaling factor (Montalt 6/8/2021).
-    if (opts.spread_interp_only) {
+    if (opts.spread_only) {
       target[0] *= opts.ES_scale;
       target[1] *= opts.ES_scale;
     }
@@ -566,7 +566,7 @@ int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
 ///////////////////////////////////////////////////////////////////////////
 
 
-static inline void set_kernel_args(FLT *args, FLT x, const SpreadOptions<FLT>& opts)
+static inline void set_kernel_args(FLT *args, FLT x, const SpreadParameters<FLT>& opts)
 // Fills vector args[] with kernel arguments x, x+1, ..., x+ns-1.
 // needed for the vectorized kernel eval of Ludvig af K.
 {
@@ -575,7 +575,7 @@ static inline void set_kernel_args(FLT *args, FLT x, const SpreadOptions<FLT>& o
     args[i] = x + (FLT) i;
 }
 
-static inline void evaluate_kernel_vector(FLT *ker, FLT *args, const SpreadOptions<FLT>& opts, const int N)
+static inline void evaluate_kernel_vector(FLT *ker, FLT *args, const SpreadParameters<FLT>& opts, const int N)
 /* Evaluate ES kernel for a vector of N arguments; by Ludvig af K.
    If opts.pad_kernel true, args and ker must be allocated for Npad, and args is
    written to (to pad to length Npad), only first N outputs are correct.
@@ -612,7 +612,7 @@ static inline void evaluate_kernel_vector(FLT *ker, FLT *args, const SpreadOptio
 }
 
 static inline void eval_kernel_vec_Horner(FLT *ker, const FLT x, const int w,
-					  const SpreadOptions<FLT> &opts)
+					  const SpreadParameters<FLT> &opts)
 /* Fill ker[] with Horner piecewise poly approx to [-w/2,w/2] ES kernel eval at
    x_j = x + j,  for j=0,..,w-1.  Thus x in [-w/2,-w/2+1].   w is aka ns.
    This is the current evaluation method, since it's faster (except i7 w=16).
@@ -782,7 +782,7 @@ void interp_cube(FLT *target,FLT *du, FLT *ker1, FLT *ker2, FLT *ker3,
 }
 
 void spread_subproblem_1d(BIGINT off1, BIGINT size1,FLT *du,BIGINT M,
-			  FLT *kx,FLT *dd, const SpreadOptions<FLT>& opts)
+			  FLT *kx,FLT *dd, const SpreadParameters<FLT>& opts)
 /* 1D spreader from nonuniform to uniform subproblem grid, without wrapping.
    Inputs:
    off1 - integer offset of left end of du subgrid from that of overall fine
@@ -838,7 +838,7 @@ void spread_subproblem_1d(BIGINT off1, BIGINT size1,FLT *du,BIGINT M,
 
 void spread_subproblem_2d(BIGINT off1,BIGINT off2,BIGINT size1,BIGINT size2,
                           FLT *du,BIGINT M, FLT *kx,FLT *ky,FLT *dd,
-			  const SpreadOptions<FLT>& opts)
+			  const SpreadParameters<FLT>& opts)
 /* spreader from dd (NU) to du (uniform) in 2D without wrapping.
    See above docs/notes for spread_subproblem_2d.
    kx,ky (size M) are NU locations in [off+ns/2,off+size-1-ns/2] in both dims.
@@ -893,7 +893,7 @@ void spread_subproblem_2d(BIGINT off1,BIGINT off2,BIGINT size1,BIGINT size2,
 void spread_subproblem_3d(BIGINT off1,BIGINT off2,BIGINT off3,BIGINT size1,
                           BIGINT size2,BIGINT size3,FLT *du,BIGINT M,
 			  FLT *kx,FLT *ky,FLT *kz,FLT *dd,
-			  const SpreadOptions<FLT>& opts)
+			  const SpreadParameters<FLT>& opts)
 /* spreader from dd (NU) to du (uniform) in 3D without wrapping.
    See above docs/notes for spread_subproblem_2d.
    kx,ky,kz (size M) are NU locations in [off+ns/2,off+size-1-ns/2] in each rank.

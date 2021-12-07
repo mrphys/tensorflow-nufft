@@ -202,6 +202,12 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // Relative user tol.
   FloatType tol_;
 
+  // The FFTW plan for FFTs.
+  typename fftw::PlanType<FloatType>::Type fft_plan_;
+
+  // The parameters for the spreading algorithm/s.
+  SpreadParameters<FloatType> spread_params_;
+
   int nj;          // number of NU pts in type 1,2 (for type 3, num input x pts)
   int nk;          // number of NU freq pts (type 3 only)
 
@@ -223,10 +229,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // type 3 specific
   FloatType *S, *T, *U;  // pointers to user's target NU pts arrays (no new allocs)
   FloatType *Sp, *Tp, *Up;  // internal primed targs (s'_k, etc), allocated
-  
-  // The FFTW plan for FFTs.
-  typename fftw::PlanType<FloatType>::Type fft_plan_;
-  SpreadOptions<FloatType> spopts;
 };
 
 #if GOOGLE_CUDA
@@ -253,17 +255,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
  public:
 
-	int M;
-	int nf1;
-	int nf2;
-	int nf3;
-	int ms;
-	int mt;
-	int mu;
-
-	int totalnumsubprob;
-	int byte_now;
-	
   // Batch of fine grids for cuFFT to plan and execute. This is usually the
   // largest array allocated by NUFFT.
   Tensor fine_grid_;
@@ -279,6 +270,23 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // the first `rank` pointers are valid.
   FloatType* kernel_fseries_data_[3];
 
+  // The cuFFT plan.
+	cufftHandle fft_plan_;
+
+  // The parameters for the spreading algorithm/s.
+  SpreadParameters<FloatType> spread_params_;
+
+	int M;
+	int nf1;
+	int nf2;
+	int nf3;
+	int ms;
+	int mt;
+	int mu;
+
+	int totalnumsubprob;
+	int byte_now;
+	
 	FloatType *kx;
 	FloatType *ky;
 	FloatType *kz;
@@ -301,11 +309,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 	// Arrays for 3d (need to sort out)
 	int *numnupts;
 	int *subprob_to_nupts;
-
-  // The cuFFT plan.
-	cufftHandle fft_plan_;
-
-  SpreadOptions<FloatType> spopts;
+  
 };
 #endif // GOOGLE_CUDA
 

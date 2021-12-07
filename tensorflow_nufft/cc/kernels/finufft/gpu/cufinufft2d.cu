@@ -47,7 +47,7 @@ int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	Melody Shih 07/25/19		
 */
 {
-	assert(d_plan->spopts.spread_direction == SpreadDirection::SPREAD);
+	assert(d_plan->spread_params_.spread_direction == SpreadDirection::SPREAD);
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -130,7 +130,7 @@ int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	Melody Shih 07/25/19
 */
 {
-	assert(d_plan->spopts.spread_direction == SpreadDirection::INTERP);
+	assert(d_plan->spread_params_.spread_direction == SpreadDirection::INTERP);
 
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
@@ -196,7 +196,7 @@ int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 
 int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 {
-	assert(d_plan->spopts.spread_direction == SpreadDirection::INTERP);
+	assert(d_plan->spread_params_.spread_direction == SpreadDirection::INTERP);
 
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
@@ -229,14 +229,14 @@ int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	using namespace thrust::placeholders;
 	thrust::device_ptr<FLT> dev_ptr((FLT*) d_c);
 	thrust::transform(dev_ptr, dev_ptr + 2*d_plan->num_transforms_*d_plan->M,
-					  dev_ptr, _1 * (FLT) d_plan->spopts.ES_scale); 
+					  dev_ptr, _1 * (FLT) d_plan->spread_params_.ES_scale); 
 	
 	return ier;
 }
 
 int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 {
-	assert(d_plan->spopts.spread_direction == SpreadDirection::SPREAD);
+	assert(d_plan->spread_params_.spread_direction == SpreadDirection::SPREAD);
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -268,7 +268,7 @@ int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	using namespace thrust::placeholders;
 	thrust::device_ptr<FLT> dev_ptr((FLT*) d_fk);
 	thrust::transform(dev_ptr, dev_ptr + 2*d_plan->num_transforms_*gridsize,
-					  dev_ptr, _1 * (FLT) d_plan->spopts.ES_scale); 
+					  dev_ptr, _1 * (FLT) d_plan->spread_params_.ES_scale); 
 
 	return ier;
 }

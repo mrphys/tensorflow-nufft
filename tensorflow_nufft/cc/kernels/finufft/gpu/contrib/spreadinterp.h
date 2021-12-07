@@ -28,7 +28,7 @@
 		     (x<0 ? x+N : (x>=N ? x-N : x)))
 // yuk! But this is *so* much faster than slow std::fmod that we stick to it.
 namespace cufinufft {
-FLT evaluate_kernel(FLT x, const tensorflow::nufft::SpreadOptions<FLT> &opts);
+FLT evaluate_kernel(FLT x, const tensorflow::nufft::SpreadParameters<FLT> &opts);
 } // namespace cufinufft
 
 #endif  // SPREADINTERP_H

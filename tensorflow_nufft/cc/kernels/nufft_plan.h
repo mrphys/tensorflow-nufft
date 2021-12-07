@@ -46,6 +46,7 @@ limitations under the License.
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow_nufft/cc/kernels/fftw_api.h"
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_spread.h"
 
 
 namespace tensorflow {
@@ -253,6 +254,15 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // destroys the FFT plan.
   ~Plan();
 
+  // Sets the number and coordinates of the non-uniform points. Allocates GPU
+  // arrays with the required sizes. Rescales the non-uniform points to the
+  // range used by the spreader. Determines the spreader parameters that depend
+  // on the non-uniform points.
+  Status set_points(int num_points,
+                    FloatType* points_x,
+                    FloatType* points_y,
+                    FloatType* points_z);
+
  public:
 
   // Batch of fine grids for cuFFT to plan and execute. This is usually the
@@ -271,44 +281,44 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   FloatType* kernel_fseries_data_[3];
 
   // The cuFFT plan.
-	cufftHandle fft_plan_;
+  cufftHandle fft_plan_;
 
   // The parameters for the spreading algorithm/s.
   SpreadParameters<FloatType> spread_params_;
 
-	int M;
-	int nf1;
-	int nf2;
-	int nf3;
-	int ms;
-	int mt;
-	int mu;
+  int M;
+  int nf1;
+  int nf2;
+  int nf3;
+  int ms;
+  int mt;
+  int mu;
 
-	int totalnumsubprob;
-	int byte_now;
-	
-	FloatType *kx;
-	FloatType *ky;
-	FloatType *kz;
-	typename ComplexType<GPUDevice, FloatType>::Type* c;
-	typename ComplexType<GPUDevice, FloatType>::Type* fk;
+  int totalnumsubprob;
+  int byte_now;
+  
+  FloatType *kx;
+  FloatType *ky;
+  FloatType *kz;
+  typename ComplexType<GPUDevice, FloatType>::Type* c;
+  typename ComplexType<GPUDevice, FloatType>::Type* fk;
 
-	// Arrays that used in subprob method
-	int *idxnupts;//length: #nupts, index of the nupts in the bin-sorted order
-	int *sortidx; //length: #nupts, order inside the bin the nupt belongs to
-	int *numsubprob; //length: #bins,  number of subproblems in each bin
-	int *binsize; //length: #bins, number of nonuniform ponits in each bin
-	int *binstartpts; //length: #bins, exclusive scan of array binsize
-	int *subprob_to_bin;//length: #subproblems, the bin the subproblem works on 
-	int *subprobstartpts;//length: #bins, exclusive scan of array numsubprob
+  // Arrays that used in subprob method
+  int *idxnupts;//length: #nupts, index of the nupts in the bin-sorted order
+  int *sortidx; //length: #nupts, order inside the bin the nupt belongs to
+  int *numsubprob; //length: #bins,  number of subproblems in each bin
+  int *binsize; //length: #bins, number of nonuniform ponits in each bin
+  int *binstartpts; //length: #bins, exclusive scan of array binsize
+  int *subprob_to_bin;//length: #subproblems, the bin the subproblem works on 
+  int *subprobstartpts;//length: #bins, exclusive scan of array numsubprob
 
-	// Extra arrays for Paul's method
-	int *finegridsize;
-	int *fgstartpts;
+  // Extra arrays for Paul's method
+  int *finegridsize;
+  int *fgstartpts;
 
-	// Arrays for 3d (need to sort out)
-	int *numnupts;
-	int *subprob_to_nupts;
+  // Arrays for 3d (need to sort out)
+  int *numnupts;
+  int *subprob_to_nupts;
   
 };
 #endif // GOOGLE_CUDA

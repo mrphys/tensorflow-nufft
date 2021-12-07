@@ -13,6 +13,7 @@ OPS_DIR = tensorflow_nufft/cc/ops
 CUSOURCES = $(wildcard $(KERNELS_DIR)/*.cu.cc)
 CUOBJECTS = $(patsubst %.cu.cc, %.cu.o, $(CUSOURCES))
 CXXSOURCES = $(filter-out $(CUSOURCES), $(wildcard $(KERNELS_DIR)/*.cc)) $(wildcard $(OPS_DIR)/*.cc)
+CXXHEADERS = $(wildcard $(KERNELS_DIR)/*.h) $(wildcard $(OPS_DIR)/*.h) 
 
 TARGET_LIB = tensorflow_nufft/python/ops/_nufft_ops.so
 TARGET_DLINK = tensorflow_nufft/cc/kernels/nufft_kernels.dlink.o
@@ -229,6 +230,9 @@ benchmark: $(wildcard tensorflow_nufft/python/ops/*.py) $(TARGET_LIB)
 
 lint: $(wildcard tensorflow_nufft/python/ops/*.py)
 	pylint --rcfile=pylintrc tensorflow_nufft/python
+
+cpplint:
+	python2.7 cpplint.py $(CXXSOURCES) $(CXXHEADERS)
 
 docs: $(TARGET)
 	ln -sf tensorflow_nufft tfft

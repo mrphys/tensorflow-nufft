@@ -297,10 +297,11 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   DType* fine_grid_data_;
 
   // Tensors in device memory. Used for deconvolution. Empty in spread/interp
-  // mode.
+  // mode. Only the first `rank` tensors are allocated.
   Tensor kernel_fseries_[3];
 
-  // Convenience raw pointers to above tensors. These are device pointers.
+  // Convenience raw pointers to above tensors. These are device pointers. Only
+  // the first `rank` pointers are valid.
   FloatType* kernel_fseries_data_[3];
 
 	FloatType *kx;

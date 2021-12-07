@@ -124,7 +124,7 @@ class NUFFTOpsTest(tf.test.TestCase):
       grad_nufft = tape.gradient(result_nufft, source)
       grad_nudft = tape.gradient(result_nudft, source)
 
-      tol = 1e-3
+      tol = DEFAULT_TOLERANCE
       self.assertAllClose(result_nudft, result_nufft,
                           rtol=tol, atol=tol)
       self.assertAllClose(grad_nufft, grad_nudft,
@@ -314,7 +314,7 @@ class NUFFTOpsTest(tf.test.TestCase):
       grad_nufft = tape.gradient(result_nufft, source)
       grad_nudft = tape.gradient(result_nudft, source)
 
-      tol = 1e-3
+      tol = DEFAULT_TOLERANCE
       self.assertAllClose(result_nudft, result_nufft,
                           rtol=tol, atol=tol)
       self.assertAllClose(grad_nufft, grad_nudft,
@@ -523,6 +523,9 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
         print(tabulate(r, headers=h))
       except ModuleNotFoundError:
         pass
+
+
+DEFAULT_TOLERANCE = 1
 
 
 if __name__ == '__main__':

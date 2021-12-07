@@ -252,8 +252,8 @@ Plan<GPUDevice, FloatType>::Plan(
   }
   
   // Perform some actions not needed in spread/interp only mode.
-  if (!this->options_.spread_interp_only) {
-
+  if (!this->options_.spread_interp_only)
+  {
     // Allocate fine grid and set convenience pointer.
     int num_grid_elements = this->nf1 * this->nf2 * this->nf3;
     OP_REQUIRES_OK(context, context->allocate_temp(
@@ -263,80 +263,48 @@ Plan<GPUDevice, FloatType>::Plan(
     this->fine_grid_data_ = reinterpret_cast<DType*>(
         this->fine_grid_.flat<std::complex<FloatType>>().data());
 
-    // // Compute kernel Fourier series (currently done using the CPU).
-    // // This is only needed for deconvolution, so can be skipped in
-    // // spread/interp mode.
-    // AllocatorAttributes attr;
-    // attr.set_on_host(true);
-    // int grid_sizes[3] = {nf1, nf2, nf3};
-    // Tensor kernel_fseries_host[3];
-    // FloatType* kernel_fseries_host_data[3];
+    // For each dimension, calculate Fourier coefficients of the kernel for
+    // deconvolution. The computation is performed on the CPU before
+    // transferring the results the GPU.
+    int grid_sizes[3] = {this->nf1, this->nf2, this->nf3};
+    Tensor kernel_fseries_host[3];
+    FloatType* kernel_fseries_host_data[3];
+    for (int i = 0; i < this->rank_; i++) {
 
-    // for (int i = 0; i < rank; i++) {
-    //   // First, calculate the Fourier series on the CPU.
-    //   OP_REQUIRES_OK(context, context->allocate_temp(
-    //                               DataTypeToEnum<FloatType>::value,
-    //                               TensorShape({grid_sizes[i] / 2 + 1}),
-    //                               &kernel_fseries_host[i], attr));
-    //   kernel_fseries_host_data[i] = reinterpret_cast<FloatType*>(
-    //       kernel_fseries_host[i].flat<FloatType>().data());
-    //   kernel_fseries_1d(grid_sizes[i], this->spopts,
-    //                     kernel_fseries_host_data[i]);
+      // Number of Fourier coefficients.      
+      int num_coeffs = grid_sizes[i] / 2 + 1;
 
-    //   // Now copy to device.
-    //   size_t num_bytes = sizeof(FloatType) * (grid_sizes[i] / 2 + 1);
-    //   device.memcpyHostToDevice(
-    //       this->kernel_fseries_[i].flat<FloatType>().data(),
-    //       reinterpret_cast<void*>(kernel_fseries_host_data[i]),
-    //       num_bytes);
+      // Allocate host memory and calculate the Fourier series on the CPU.
+      AllocatorAttributes attr;
+      attr.set_on_host(true);
+      OP_REQUIRES_OK(context, context->allocate_temp(
+                                  DataTypeToEnum<FloatType>::value,
+                                  TensorShape({num_coeffs}),
+                                  &kernel_fseries_host[i], attr));
+      kernel_fseries_host_data[i] = reinterpret_cast<FloatType*>(
+          kernel_fseries_host[i].flat<FloatType>().data());
+      kernel_fseries_1d(grid_sizes[i], this->spopts,
+                        kernel_fseries_host_data[i]);
 
-    //   // Save convenience accessors.
-    //   this->kernel_fseries_data_[i] = reinterpret_cast<FloatType*>(
-    //       this->kernel_fseries_[i].flat<FloatType>().data());
-    // }
-  }
+      // Allocate device memory.
+      OP_REQUIRES_OK(context, context->allocate_temp(
+                                  DataTypeToEnum<FloatType>::value,
+                                  TensorShape({num_coeffs}),
+                                  &this->kernel_fseries_[i]));
 
-  FloatType *fwkerhalf1, *fwkerhalf2, *fwkerhalf3;
-  if (!this->options_.spread_interp_only)
-  {
-    fwkerhalf1 = (FloatType*)malloc(sizeof(FloatType)*(nf1/2+1));
-    kernel_fseries_1d(nf1, this->spopts, fwkerhalf1);
-    if (rank > 1) {
-      fwkerhalf2 = (FloatType*)malloc(sizeof(FloatType)*(nf2/2+1));
-      kernel_fseries_1d(nf2, this->spopts, fwkerhalf2);
-    }
-    if (rank > 2) {
-      fwkerhalf3 = (FloatType*)malloc(sizeof(FloatType)*(nf3/2+1));
-      kernel_fseries_1d(nf3, this->spopts, fwkerhalf3);
+      // Save convenience accessors.
+      this->kernel_fseries_data_[i] = reinterpret_cast<FloatType*>(
+          this->kernel_fseries_[i].flat<FloatType>().data());
+
+      // Now copy memory to device.
+      size_t num_bytes = sizeof(FloatType) * num_coeffs;
+      device.memcpyHostToDevice(
+          reinterpret_cast<void*>(this->kernel_fseries_data_[i]),
+          reinterpret_cast<void*>(kernel_fseries_host_data[i]),
+          num_bytes);
     }
 
-    checkCudaErrors(cudaMalloc(&this->kernel_fseries_data_[0],
-                               (nf1/2+1)*sizeof(FloatType)));
-    if (rank > 1)
-      checkCudaErrors(cudaMalloc(&this->kernel_fseries_data_[1],
-                                 (nf2/2+1)*sizeof(FloatType)));
-    if (rank > 2)
-      checkCudaErrors(cudaMalloc(&this->kernel_fseries_data_[2],
-                                 (nf3/2+1)*sizeof(FloatType)));
-
-    checkCudaErrors(cudaMemcpy(this->kernel_fseries_data_[0], fwkerhalf1, (nf1 / 2 + 1) *
-      sizeof(FloatType),cudaMemcpyHostToDevice));
-    if (rank > 1)
-      checkCudaErrors(cudaMemcpy(this->kernel_fseries_data_[1], fwkerhalf2, (nf2 / 2 + 1) *
-        sizeof(FloatType),cudaMemcpyHostToDevice));
-    if (rank > 2)
-      checkCudaErrors(cudaMemcpy(this->kernel_fseries_data_[2], fwkerhalf3,(nf3 / 2 + 1)*
-        sizeof(FloatType),cudaMemcpyHostToDevice));
-
-    free(fwkerhalf1);
-    if (rank > 1)
-      free(fwkerhalf2);
-    if (rank > 2)
-      free(fwkerhalf3);
-  }
-
-  if (!this->options_.spread_interp_only) {
-
+    // Make the cuFFT plan.
     cufftHandle fftplan;
     switch(this->rank_)
     {
@@ -381,6 +349,7 @@ Plan<GPUDevice, FloatType>::Plan(
 
 template<typename FloatType>
 Plan<GPUDevice, FloatType>::~Plan() {
+
   // Mult-GPU support: set the CUDA Device ID:
   int orig_gpu_device_id;
   cudaGetDevice(& orig_gpu_device_id);
@@ -388,14 +357,6 @@ Plan<GPUDevice, FloatType>::~Plan() {
 
 	if (this->fftplan)
 		cufftDestroy(this->fftplan);
-
-  if (!this->options_.spread_interp_only) {
-    checkCudaErrors(cudaFree(this->kernel_fseries_data_[0]));
-    if (this->rank_ > 1)
-      checkCudaErrors(cudaFree(this->kernel_fseries_data_[1]));
-    if (this->rank_ > 2)
-      checkCudaErrors(cudaFree(this->kernel_fseries_data_[2]));
-	}
 
   free_gpu_memory(this);
 

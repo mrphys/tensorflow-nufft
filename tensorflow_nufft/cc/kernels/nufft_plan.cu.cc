@@ -303,32 +303,37 @@ Plan<GPUDevice, FloatType>::Plan(
     }
 
     // Make the cuFFT plan.
-    int n[3];
-    int *inembed = n;
-    int idist = 0;
+    int elem_count[3];
+    int *input_embed = elem_count;
+    int *output_embed = elem_count;
+    int input_distance = 0;
+    int output_distance = 0;
+    int input_stride = 1;
+    int output_stride = 1;
+    int batch_size = this->options_.max_batch_size;
     switch(this->rank_) {
       case 2: {
-        n[0] = this->nf2;
-        n[1] = this->nf1;
-        idist = inembed[0] * inembed[1];
+        elem_count[0] = this->nf2;
+        elem_count[1] = this->nf1;
+        input_distance = input_embed[0] * input_embed[1];
+        output_distance = input_distance;
         break;
       }
       case 3: {
-        n[0] = this->nf3;
-        n[1] = this->nf2;
-        n[2] = this->nf1;
-        idist = inembed[0] * inembed[1] * inembed[2];
+        elem_count[0] = this->nf3;
+        elem_count[1] = this->nf2;
+        elem_count[2] = this->nf1;
+        input_distance = input_embed[0] * input_embed[1] * input_embed[2];
+        output_distance = input_distance;
         break;
       }
     }
 
     cufftResult result = cufftPlanMany(
-        /* cufftHandle *plan */ &this->fft_plan_,
-        /* int rank */ this->rank_, /* int *n */ n,
-        /* int *inembed */ inembed, /* int istride */ 1, /* int idist */ idist,
-        /* int *onembed */ inembed, /* int ostride */ 1, /* int odist */ idist,
-        /* cufftType */ kCufftType<FloatType>,
-        /* int batch */ this->options_.max_batch_size);
+        &this->fft_plan_, this->rank_, elem_count,
+        input_embed, input_stride, input_distance,
+        output_embed, output_stride, output_distance,
+        kCufftType<FloatType>, batch_size);
 
     OP_REQUIRES(context, result == CUFFT_SUCCESS,
                 errors::Internal(

@@ -53,9 +53,9 @@ int CUSPREAD3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 	cudaEventCreate(&stop);
 
 	int ier = 0;
-	switch(d_plan->options_.gpu_spread_method)
+	switch(d_plan->options_.spread_method)
 	{
-		case GpuSpreadMethod::NUPTS_DRIVEN:
+		case SpreadMethod::NUPTS_DRIVEN:
 			{
 				cudaEventRecord(start);
 				ier = CUSPREAD3D_NUPTSDRIVEN(nf1, nf2, nf3, M, d_plan, blksize);
@@ -65,7 +65,7 @@ int CUSPREAD3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 				}
 			}
 			break;
-		case GpuSpreadMethod::SUBPROBLEM:
+		case SpreadMethod::SUBPROBLEM:
 			{
 				cudaEventRecord(start);
 				ier = CUSPREAD3D_SUBPROB(nf1, nf2, nf3, M, d_plan, blksize);
@@ -75,7 +75,7 @@ int CUSPREAD3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 				}
 			}
 			break;
-		case GpuSpreadMethod::BLOCK_GATHER:
+		case SpreadMethod::BLOCK_GATHER:
 			{
 				cudaEventRecord(start);
 				ier = CUSPREAD3D_BLOCKGATHER(nf1, nf2, nf3, M, d_plan, blksize);
@@ -99,7 +99,7 @@ int CUSPREAD3D_NUPTSDRIVEN_PROP(int nf1, int nf2, int nf3, int M,
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 
-	if (d_plan->options_.gpu_sort_points) {
+	if (d_plan->spread_params_.sort_points == SortPoints::YES) {
 		int bin_size_x=d_plan->options_.gpu_bin_size.x;
 		int bin_size_y=d_plan->options_.gpu_bin_size.y;
 		int bin_size_z=d_plan->options_.gpu_bin_size.z;

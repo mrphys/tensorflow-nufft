@@ -51,9 +51,9 @@ int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 	cudaEventCreate(&stop);
 
 	int ier;
-	switch(d_plan->options_.gpu_spread_method)
+	switch(d_plan->options_.spread_method)
 	{
-		case GpuSpreadMethod::NUPTS_DRIVEN:
+		case SpreadMethod::NUPTS_DRIVEN:
 			{
 				cudaEventRecord(start);
 				ier = CUSPREAD2D_NUPTSDRIVEN(nf1, nf2, M, d_plan, blksize);
@@ -63,7 +63,7 @@ int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 				}
 			}
 			break;
-		case GpuSpreadMethod::SUBPROBLEM:
+		case SpreadMethod::SUBPROBLEM:
 			{
 				cudaEventRecord(start);
 				ier = CUSPREAD2D_SUBPROB(nf1, nf2, M, d_plan, blksize);
@@ -73,7 +73,7 @@ int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 				}
 			}
 			break;
-		case GpuSpreadMethod::PAUL:
+		case SpreadMethod::PAUL:
 			{
 				cudaEventRecord(start);
 				ier = CUSPREAD2D_PAUL(nf1, nf2, M, d_plan, blksize);
@@ -103,7 +103,7 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 
-	if (d_plan->options_.gpu_sort_points) {
+	if (d_plan->spread_params_.sort_points == SortPoints::YES) {
 
 		int bin_size_x=d_plan->options_.gpu_bin_size.x;
 		int bin_size_y=d_plan->options_.gpu_bin_size.y;
@@ -166,18 +166,7 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d
 			milliseconds);
 #endif
 #ifdef DEBUG
-		int *h_binsize;// For debug
-		h_binsize     = (int*)malloc(numbins[0]*numbins[1]*sizeof(int));
-		checkCudaErrors(cudaMemcpy(h_binsize,d_binsize,numbins[0]*numbins[1]*
-			sizeof(int),cudaMemcpyDeviceToHost));
-		cout<<"[debug ] bin size:"<<endl;
-		for (int j=0; j<numbins[1]; j++) {
-			cout<<"[debug ] ";
-			for (int i=0; i<numbins[0]; i++) {
-				if (i!=0) cout<<" ";
-				cout <<" bin["<<setw(1)<<i<<","<<setw(1)<<j<<"]="<<
-					h_binsize[i+j*numbins[0]];
-			}
+		int}
 				cout<<endl;
 		}
 		free(h_binsize);

@@ -139,11 +139,11 @@ Notes: the type FLT means either single or double, matching the
 		break;
 		case 2:
 		{
-			if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
+			if (d_plan->options_.spread_method == SpreadMethod::NUPTS_DRIVEN) {
 				ier = CUSPREAD2D_NUPTSDRIVEN_PROP(nf1,nf2,M,d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread2d_nupts_prop, method(%d)\n",
-						  d_plan->options_.gpu_spread_method);
+						  d_plan->options_.spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -151,11 +151,11 @@ Notes: the type FLT means either single or double, matching the
 					return 1;
 				}
 			}
-			if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
+			if (d_plan->options_.spread_method == SpreadMethod::SUBPROBLEM) {
 				ier = CUSPREAD2D_SUBPROB_PROP(nf1,nf2,M,d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread2d_subprob_prop, method(%d)\n",
-					       d_plan->options_.gpu_spread_method);
+					       d_plan->options_.spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -163,11 +163,11 @@ Notes: the type FLT means either single or double, matching the
 					return 1;
 				}
 			}
-			if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::PAUL) {
+			if (d_plan->options_.spread_method == SpreadMethod::PAUL) {
 				int ier = CUSPREAD2D_PAUL_PROP(nf1,nf2,M,d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread2d_paul_prop, method(%d)\n",
-						d_plan->options_.gpu_spread_method);
+						d_plan->options_.spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -179,11 +179,11 @@ Notes: the type FLT means either single or double, matching the
 		break;
 		case 3:
 		{
-			if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::BLOCK_GATHER) {
+			if (d_plan->options_.spread_method == SpreadMethod::BLOCK_GATHER) {
 				int ier = CUSPREAD3D_BLOCKGATHER_PROP(nf1,nf2,nf3,M,d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread3d_blockgather_prop, method(%d)\n",
-						d_plan->options_.gpu_spread_method);
+						d_plan->options_.spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -191,11 +191,11 @@ Notes: the type FLT means either single or double, matching the
 					return ier;
 				}
 			}
-			if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::NUPTS_DRIVEN) {
+			if (d_plan->options_.spread_method == SpreadMethod::NUPTS_DRIVEN) {
 				ier = CUSPREAD3D_NUPTSDRIVEN_PROP(nf1,nf2,nf3,M,d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread3d_nuptsdriven_prop, method(%d)\n",
-						d_plan->options_.gpu_spread_method);
+						d_plan->options_.spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);
@@ -203,11 +203,11 @@ Notes: the type FLT means either single or double, matching the
 					return ier;
 				}
 			}
-			if (d_plan->options_.gpu_spread_method == GpuSpreadMethod::SUBPROBLEM) {
+			if (d_plan->options_.spread_method == SpreadMethod::SUBPROBLEM) {
 				int ier = CUSPREAD3D_SUBPROB_PROP(nf1,nf2,nf3,M,d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread3d_subprob_prop, method(%d)\n",
-						d_plan->options_.gpu_spread_method);
+						d_plan->options_.spread_method);
 
                                         // Multi-GPU support: reset the device ID
                                         cudaSetDevice(orig_gpu_device_id);

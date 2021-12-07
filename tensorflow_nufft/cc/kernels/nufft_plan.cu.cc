@@ -176,16 +176,21 @@ Plan<GPUDevice, FloatType>::Plan(
     this->options_.num_threads = OMP_GET_MAX_THREADS();
   }
 
+  // Select whether or not to sort points.
+  if (this->options_.sort_points == SortPoints::AUTO) {
+    this->options_.sort_points = SortPoints::YES;
+  }
+
   // Select spreading method.
-  if (this->options_.gpu_spread_method == GpuSpreadMethod::AUTO) {
+  if (this->options_.spread_method == SpreadMethod::AUTO) {
     if (rank == 2 && type == TransformType::TYPE_1)
-      this->options_.gpu_spread_method = GpuSpreadMethod::SUBPROBLEM;
+      this->options_.spread_method = SpreadMethod::SUBPROBLEM;
     else if (rank == 2 && type == TransformType::TYPE_2)
-      this->options_.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
+      this->options_.spread_method = SpreadMethod::NUPTS_DRIVEN;
     else if (rank == 3 && type == TransformType::TYPE_1)
-      this->options_.gpu_spread_method = GpuSpreadMethod::SUBPROBLEM;
+      this->options_.spread_method = SpreadMethod::SUBPROBLEM;
     else if (rank == 3 && type == TransformType::TYPE_2)
-      this->options_.gpu_spread_method = GpuSpreadMethod::NUPTS_DRIVEN;
+      this->options_.spread_method = SpreadMethod::NUPTS_DRIVEN;
   }
 
   // This must be set before calling setup_spreader_for_nufft.
@@ -436,6 +441,8 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
       rank, eps, options.upsampling_factor,
       options.kernel_evaluation_method, spread_params));
 
+  spread_params.sort_points = options.sort_points;
+  spread_params.spread_method = options.spread_method;
   spread_params.pirange = 1;
   spread_params.num_threads = options.num_threads;
 
@@ -457,10 +464,10 @@ void set_bin_sizes(TransformType type, int rank, Options& options)
     break;
     case 3:
     {
-      switch(options.gpu_spread_method)
+      switch(options.spread_method)
       {
-        case GpuSpreadMethod::NUPTS_DRIVEN:
-        case GpuSpreadMethod::SUBPROBLEM:
+        case SpreadMethod::NUPTS_DRIVEN:
+        case SpreadMethod::SUBPROBLEM:
         {
           options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 16 :
               options.gpu_bin_size.x;
@@ -470,7 +477,7 @@ void set_bin_sizes(TransformType type, int rank, Options& options)
               options.gpu_bin_size.z;
         }
         break;
-        case GpuSpreadMethod::BLOCK_GATHER:
+        case SpreadMethod::BLOCK_GATHER:
         {
           options.gpu_obin_size.x = (options.gpu_obin_size.x == 0) ? 8 :
               options.gpu_obin_size.x;
@@ -516,7 +523,7 @@ Status set_grid_size(int ms,
   }
 
   // Find the next smooth integer.
-  if (options.gpu_spread_method == GpuSpreadMethod::BLOCK_GATHER)
+  if (options.spread_method == SpreadMethod::BLOCK_GATHER)
     *grid_size = next_smooth_int(*grid_size, bin_size);
   else
     *grid_size = next_smooth_int(*grid_size);
@@ -545,11 +552,11 @@ Status allocate_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan) {
 
   d_plan->byte_now=0;
   // No extra memory is needed in nuptsdriven method (case 1)
-  switch (d_plan->options_.gpu_spread_method)
+  switch (d_plan->options_.spread_method)
   {
-    case GpuSpreadMethod::NUPTS_DRIVEN:
+    case SpreadMethod::NUPTS_DRIVEN:
       {
-        if (d_plan->options_.gpu_sort_points) {
+        if (d_plan->spread_params_.sort_points == SortPoints::YES) {
           int numbins[2];
           numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
           numbins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_bin_size.y);
@@ -560,7 +567,7 @@ Status allocate_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan) {
         }
       }
       break;
-    case GpuSpreadMethod::SUBPROBLEM:
+    case SpreadMethod::SUBPROBLEM:
       {
         int numbins[2];
         numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
@@ -575,7 +582,7 @@ Status allocate_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan) {
             (numbins[0]*numbins[1]+1)*sizeof(int)));
       }
       break;
-    case GpuSpreadMethod::PAUL:
+    case SpreadMethod::PAUL:
       {
         int numbins[2];
         numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
@@ -618,11 +625,11 @@ Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan) {
 
   d_plan->byte_now=0;
 
-  switch(d_plan->options_.gpu_spread_method)
+  switch(d_plan->options_.spread_method)
   {
-    case GpuSpreadMethod::NUPTS_DRIVEN:
+    case SpreadMethod::NUPTS_DRIVEN:
       {
-        if (d_plan->options_.gpu_sort_points) {
+        if (d_plan->spread_params_.sort_points == SortPoints::YES) {
           int numbins[3];
           numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
           numbins[1] = ceil((FloatType) nf2/d_plan->options_.gpu_bin_size.y);
@@ -634,7 +641,7 @@ Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan) {
         }
       }
       break;
-    case GpuSpreadMethod::SUBPROBLEM:
+    case SpreadMethod::SUBPROBLEM:
       {
         int numbins[3];
         numbins[0] = ceil((FloatType) nf1/d_plan->options_.gpu_bin_size.x);
@@ -650,7 +657,7 @@ Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan) {
           (numbins[0]*numbins[1]*numbins[2]+1)*sizeof(int)));
       }
       break;
-    case GpuSpreadMethod::BLOCK_GATHER:
+    case SpreadMethod::BLOCK_GATHER:
       {
         int numobins[3], numbins[3];
         int binsperobins[3];
@@ -697,11 +704,11 @@ void free_gpu_memory(Plan<GPUDevice, FloatType>* d_plan) {
       cudaGetDevice(& orig_gpu_device_id);
       cudaSetDevice(d_plan->options_.gpu_device_id);
 
-	switch(d_plan->options_.gpu_spread_method)
+	switch(d_plan->options_.spread_method)
 	{
-		case GpuSpreadMethod::NUPTS_DRIVEN:
+		case SpreadMethod::NUPTS_DRIVEN:
 			{
-				if (d_plan->options_.gpu_sort_points) {
+				if (d_plan->spread_params_.sort_points == SortPoints::YES) {
           if (d_plan->idxnupts)
 					  checkCudaErrors(cudaFree(d_plan->idxnupts));
           if (d_plan->sortidx)
@@ -714,7 +721,7 @@ void free_gpu_memory(Plan<GPUDevice, FloatType>* d_plan) {
 				}
 			}
 			break;
-		case GpuSpreadMethod::SUBPROBLEM:
+		case SpreadMethod::SUBPROBLEM:
 			{
         if (d_plan->idxnupts)
 				  checkCudaErrors(cudaFree(d_plan->idxnupts));
@@ -727,7 +734,7 @@ void free_gpu_memory(Plan<GPUDevice, FloatType>* d_plan) {
 				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
 			}
 			break;
-		case GpuSpreadMethod::PAUL:
+		case SpreadMethod::PAUL:
 			{
         if (d_plan->idxnupts)
 				  checkCudaErrors(cudaFree(d_plan->idxnupts));
@@ -741,7 +748,7 @@ void free_gpu_memory(Plan<GPUDevice, FloatType>* d_plan) {
 				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
 			}
 			break;
-    case GpuSpreadMethod::BLOCK_GATHER:
+    case SpreadMethod::BLOCK_GATHER:
 			{
         if (d_plan->idxnupts)
 				  checkCudaErrors(cudaFree(d_plan->idxnupts));

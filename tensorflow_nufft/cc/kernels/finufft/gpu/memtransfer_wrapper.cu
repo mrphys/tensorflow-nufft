@@ -42,17 +42,17 @@ int ALLOCGPUMEM2D_NUPTS(Plan<GPUDevice, FLT>* d_plan)
 	if (d_plan->sortidx ) checkCudaErrors(cudaFree(d_plan->sortidx));
 	if (d_plan->idxnupts) checkCudaErrors(cudaFree(d_plan->idxnupts));
 
-	switch(d_plan->options_.gpu_spread_method)
+	switch(d_plan->options_.spread_method)
 	{
-		case GpuSpreadMethod::NUPTS_DRIVEN:
+		case SpreadMethod::NUPTS_DRIVEN:
 			{
-				if (d_plan->options_.gpu_sort_points)
+				if (d_plan->spread_params_.sort_points == SortPoints::YES)
 					checkCudaErrors(cudaMalloc(&d_plan->sortidx, M*sizeof(int)));
 				checkCudaErrors(cudaMalloc(&d_plan->idxnupts,M*sizeof(int)));
 			}
 			break;
-		case GpuSpreadMethod::SUBPROBLEM:
-		case GpuSpreadMethod::PAUL:
+		case SpreadMethod::SUBPROBLEM:
+		case SpreadMethod::PAUL:
 			{
 				checkCudaErrors(cudaMalloc(&d_plan->idxnupts,M*sizeof(int)));
 				checkCudaErrors(cudaMalloc(&d_plan->sortidx, M*sizeof(int)));
@@ -95,22 +95,22 @@ int ALLOCGPUMEM3D_NUPTS(Plan<GPUDevice, FLT>* d_plan)
 	if (d_plan->sortidx ) checkCudaErrors(cudaFree(d_plan->sortidx));
 	if (d_plan->idxnupts) checkCudaErrors(cudaFree(d_plan->idxnupts));
 
-	switch (d_plan->options_.gpu_spread_method)
+	switch (d_plan->options_.spread_method)
 	{
-		case GpuSpreadMethod::NUPTS_DRIVEN:
+		case SpreadMethod::NUPTS_DRIVEN:
 			{
-				if (d_plan->options_.gpu_sort_points)
+				if (d_plan->spread_params_.sort_points == SortPoints::YES)
 					checkCudaErrors(cudaMalloc(&d_plan->sortidx, M*sizeof(int)));
 				checkCudaErrors(cudaMalloc(&d_plan->idxnupts,M*sizeof(int)));
 			}
 			break;
-		case GpuSpreadMethod::SUBPROBLEM:
+		case SpreadMethod::SUBPROBLEM:
 			{
 				checkCudaErrors(cudaMalloc(&d_plan->idxnupts,M*sizeof(int)));
 				checkCudaErrors(cudaMalloc(&d_plan->sortidx, M*sizeof(int)));
 			}
 			break;
-		case GpuSpreadMethod::BLOCK_GATHER:
+		case SpreadMethod::BLOCK_GATHER:
 			{
 				checkCudaErrors(cudaMalloc(&d_plan->sortidx,M*sizeof(int)));
 			}

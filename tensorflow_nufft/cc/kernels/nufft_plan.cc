@@ -373,7 +373,7 @@ Status setup_spreader(
   // write out default SpreadParameters<FloatType>
   spread_params.pirange = 1;             // user also should always set this
   spread_params.check_bounds = false;
-  spread_params.sort = 2;                // 2:auto-choice
+  spread_params.sort_points = SortPoints::AUTO;
   spread_params.pad_kernel = 0;              // affects only evaluate_kernel_vector
   spread_params.kerevalmeth = kerevalmeth;
   spread_params.upsampling_factor = upsampling_factor;
@@ -439,8 +439,9 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
       options.show_warnings, spread_params));
 
   // override various spread spread_params from their defaults...
+  spread_params.sort_points = options.sort_points;
+  spread_params.spread_method = options.spread_method;
   spread_params.verbosity = options.verbosity;
-  spread_params.sort = static_cast<int>(options.sort_points); // could make rank or CPU choices here?
   spread_params.pad_kernel = options.pad_kernel; // (only applies to kerevalmeth=0)
   spread_params.check_bounds = options.check_bounds;
   spread_params.num_threads = options.num_threads;

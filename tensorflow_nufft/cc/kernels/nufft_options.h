@@ -28,8 +28,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_OPTIONS_H_
-#define TENSORFLOW_NUFFT_KERNELS_NUFFT_OPTIONS_H_
+#ifndef TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_OPTIONS_H_
+#define TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_OPTIONS_H_
 
 #include <fftw3.h>
 
@@ -37,18 +37,14 @@ limitations under the License.
 #include "third_party/gpus/cuda/include/vector_types.h"
 #endif // GOOGLE_CUDA
 
+#include "tensorflow_nufft/cc/kernels/nufft_spread.h"
+
 namespace tensorflow {
 namespace nufft {
 
 enum class ModeOrder {
   CMCL = 0, // CMCL-style mode order.
   FFT = 1   // FFT-style mode order.
-};
-
-enum class SortPoints {
-  NO = 0,   // Do not sort non-uniform points.
-  YES = 1,  // Sort non-uniform points.
-  AUTO = 2  // Choose automatically using a heuristic.
 };
 
 enum class KernelEvaluationMethod {
@@ -62,18 +58,6 @@ enum class SpreadThreading {
   SEQUENTIAL_MULTI_THREADED = 1,  // Use sequential multi-threaded spreading.
   PARALLEL_SINGLE_THREADED = 2    // Use parallel single-threaded spreading.
 };
-
-#if GOOGLE_CUDA
-
-enum class GpuSpreadMethod {
-  AUTO = 0,
-  NUPTS_DRIVEN = 1,
-  SUBPROBLEM = 2,
-  PAUL = 3,
-  BLOCK_GATHER = 4
-};
-
-#endif // GOOGLE_CUDA
 
 // Options for the NUFFT operations. This class is used for both the CPU and the
 // GPU implementation, although some options are only used by one or the other.
@@ -101,8 +85,8 @@ struct Options {
   // FFTW flags. Applies only to the CPU kernel.
   int fftw_flags = FFTW_ESTIMATE;
 
-  // Whether to sort the non-uniform points. See enum above. Applies only to the
-  // CPU kernel.
+  // Whether to sort the non-uniform points. See enum above. Used by CPU and GPU
+  // kernels.
   SortPoints sort_points = SortPoints::AUTO;
 
   // The kernel evaluation method. See enum above. Applies to the CPU and the
@@ -137,14 +121,10 @@ struct Options {
   // Do only spreading and/or interpolation (no FFT or deconvolution).
   bool spread_only = false;
 
-  #if GOOGLE_CUDA
-
   // The CUDA interpolation/spreading method.
-  GpuSpreadMethod gpu_spread_method = GpuSpreadMethod::AUTO;
+  SpreadMethod spread_method = SpreadMethod::AUTO;
 
-  // Whether to sort non-uniform points. Only relevant if spread method is
-  // NUPTS_DRIVEN.
-  bool gpu_sort_points = true;
+  #if GOOGLE_CUDA
 
   // Maximum subproblem size.
   int gpu_max_subproblem_size = 1024;
@@ -164,4 +144,4 @@ struct Options {
 } // namespace nufft
 } // namespace tensorflow
 
-#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_OPTIONS_H_
+#endif // TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_OPTIONS_H_

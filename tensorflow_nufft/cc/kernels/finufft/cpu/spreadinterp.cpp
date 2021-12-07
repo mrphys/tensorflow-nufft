@@ -235,7 +235,7 @@ int spreadcheck(BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M, FLT *kx, FLT *ky,
 int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M, 
               FLT *kx, FLT *ky, FLT *kz, SpreadParameters<FLT> opts)
 /* This makes a decision whether or not to sort the NU pts (influenced by
-   opts.sort), and if yes, calls either single- or multi-threaded bin sort,
+   opts.sort_points), and if yes, calls either single- or multi-threaded bin sort,
    writing reordered index list to sort_indices. If decided not to sort, the
    identity permutation is written to sort_indices.
    The permutation is designed to make RAM access close to contiguous, to
@@ -276,7 +276,8 @@ int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M,
   if (opts.num_threads>0)           // user override up to max avail
     maxnthr = min(maxnthr,opts.num_threads);
   
-  if (opts.sort==1 || (opts.sort==2 && better_to_sort)) {
+  if (opts.sort_points == SortPoints::YES ||
+      (opts.sort_points == SortPoints::AUTO && better_to_sort)) {
     // store a good permutation ordering of all NU pts (rank=1,2 or 3)
     int sort_debug = (opts.verbosity>=2);    // show timing output?
     int sort_nthr = opts.sort_threads;   // choose # threads for sorting
@@ -293,8 +294,6 @@ int indexSort(BIGINT* sort_indices, BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M,
 #pragma omp parallel for num_threads(maxnthr) schedule(static,1000000)
     for (BIGINT i=0; i<M; i++)                // here omp helps xeon, hinders i7
       sort_indices[i]=i;                      // the identity permutation
-    if (opts.verbosity)
-      printf("\tnot sorted (sort=%d): \t%.3g s\n",(int)opts.sort,timer.elapsedsec());
   }
   return did_sort;
 }

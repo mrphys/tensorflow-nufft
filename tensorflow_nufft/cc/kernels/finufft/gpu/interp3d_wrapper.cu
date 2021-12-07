@@ -48,9 +48,9 @@ int CUINTERP3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 	cudaEventCreate(&stop);
 
 	int ier;
-	switch(d_plan->options_.gpu_spread_method)
+	switch(d_plan->options_.spread_method)
 	{
-		case GpuSpreadMethod::NUPTS_DRIVEN:
+		case SpreadMethod::NUPTS_DRIVEN:
 			{
 				cudaEventRecord(start);
 				{
@@ -63,7 +63,7 @@ int CUINTERP3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 				}
 			}
 			break;
-		case GpuSpreadMethod::SUBPROBLEM:
+		case SpreadMethod::SUBPROBLEM:
 			{
 				cudaEventRecord(start);
 				{

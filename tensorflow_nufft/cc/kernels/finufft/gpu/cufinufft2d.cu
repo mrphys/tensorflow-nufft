@@ -79,7 +79,7 @@ int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		cudaEventRecord(start);
 		ier = CUSPREAD2D(d_plan,blksize);
 		if (ier != 0 ) {
-			printf("error: cuspread2d, method(%d)\n", d_plan->options_.gpu_spread_method);
+			printf("error: cuspread2d, method(%d)\n", d_plan->options_.spread_method);
 			return ier;
 		}
 #ifdef TIME
@@ -87,7 +87,7 @@ int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		cudaEventSynchronize(stop);
 		cudaEventElapsedTime(&milliseconds, start, stop);
 		printf("[time  ] \tSpread (%d)\t\t %.3g s\n", milliseconds/1000, 
-			d_plan->options_.gpu_spread_method);
+			d_plan->options_.spread_method);
 #endif
 		// Step 2: FFT
 		cudaEventRecord(start);
@@ -180,7 +180,7 @@ int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		cudaEventRecord(start);
 		ier = CUINTERP2D(d_plan, blksize);
 		if (ier != 0 ) {
-			printf("error: cuinterp2d, method(%d)\n", d_plan->options_.gpu_spread_method);
+			printf("error: cuinterp2d, method(%d)\n", d_plan->options_.spread_method);
 			return ier;
 		}
 #ifdef TIME
@@ -188,7 +188,7 @@ int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		cudaEventSynchronize(stop);
 		cudaEventElapsedTime(&milliseconds, start, stop);
 		printf("[time  ] \tUnspread (%d)\t\t %.3g s\n", milliseconds/1000,
-			d_plan->options_.gpu_spread_method);
+			d_plan->options_.spread_method);
 #endif
 	}
 	return ier;
@@ -221,7 +221,7 @@ int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		cudaEventRecord(start);
 		ier = CUINTERP2D(d_plan, blksize);
 		if (ier != 0 ) {
-			printf("error: cuinterp2d, method(%d)\n", d_plan->options_.gpu_spread_method);
+			printf("error: cuinterp2d, method(%d)\n", d_plan->options_.spread_method);
 			return ier;
 		}
 	}
@@ -260,7 +260,7 @@ int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		cudaEventRecord(start);
 		ier = CUSPREAD2D(d_plan,blksize);
 		if (ier != 0 ) {
-			printf("error: cuspread2d, method(%d)\n", d_plan->options_.gpu_spread_method);
+			printf("error: cuspread2d, method(%d)\n", d_plan->options_.spread_method);
 			return ier;
 		}
 	}

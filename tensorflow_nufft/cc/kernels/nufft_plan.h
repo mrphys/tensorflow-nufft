@@ -79,31 +79,6 @@ template<>
 constexpr double kEpsilon<double> = 1.1e-16;
 
 template<typename Device, typename FloatType>
-struct FftPlanType;
-
-template<>
-struct FftPlanType<CPUDevice, float> {
-  typedef fftwf_plan Type;
-};
-
-template<>
-struct FftPlanType<CPUDevice, double> {
-  typedef fftw_plan Type;
-};
-
-#ifdef GOOGLE_CUDA
-template<>
-struct FftPlanType<GPUDevice, float> {
-  typedef cufftHandle Type;
-};
-
-template<>
-struct FftPlanType<GPUDevice, double> {
-  typedef cufftHandle Type;
-};
-#endif
-
-template<typename Device, typename FloatType>
 struct ComplexType;
 
 template<>
@@ -327,7 +302,8 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 	int *numnupts;
 	int *subprob_to_nupts;
 
-	typename FftPlanType<GPUDevice, FloatType>::Type fftplan;
+  // The cuFFT plan.
+	cufftHandle fft_plan_;
 
   SpreadOptions<FloatType> spopts;
 };

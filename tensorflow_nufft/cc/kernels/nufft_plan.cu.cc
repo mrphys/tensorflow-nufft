@@ -286,17 +286,15 @@ Plan<GPUDevice, FloatType>::Plan(
       kernel_fseries_1d(grid_sizes[i], this->spopts,
                         kernel_fseries_host_data[i]);
 
-      // Allocate device memory.
+      // Allocate device memory and save convenience accessors.
       OP_REQUIRES_OK(context, context->allocate_temp(
                                   DataTypeToEnum<FloatType>::value,
                                   TensorShape({num_coeffs}),
                                   &this->kernel_fseries_[i]));
-
-      // Save convenience accessors.
       this->kernel_fseries_data_[i] = reinterpret_cast<FloatType*>(
           this->kernel_fseries_[i].flat<FloatType>().data());
 
-      // Now copy memory to device.
+      // Now copy coefficients to device.
       size_t num_bytes = sizeof(FloatType) * num_coeffs;
       device.memcpyHostToDevice(
           reinterpret_cast<void*>(this->kernel_fseries_data_[i]),
@@ -305,42 +303,36 @@ Plan<GPUDevice, FloatType>::Plan(
     }
 
     // Make the cuFFT plan.
-    cufftHandle fftplan;
-    switch(this->rank_)
-    {
-      case 2:
-      {
-        int n[] = {nf2, nf1};
-        int inembed[] = {nf2, nf1};
-
-        cufftResult result = cufftPlanMany(
-            &fftplan, rank, n, inembed, 1, inembed[0] * inembed[1],
-            inembed, 1, inembed[0] * inembed[1],
-            kCufftType<FloatType>, this->options_.max_batch_size);
-
-        OP_REQUIRES(context, result == CUFFT_SUCCESS,
-                    errors::Internal(
-                        "cufftPlanMany failed with code: ", result));
+    int n[3];
+    int *inembed = n;
+    int idist = 0;
+    switch(this->rank_) {
+      case 2: {
+        n[0] = this->nf2;
+        n[1] = this->nf1;
+        idist = inembed[0] * inembed[1];
+        break;
       }
-      break;
-      case 3:
-      {
-        int rank = 3;
-        int n[] = {nf3, nf2, nf1};
-        int inembed[] = {nf3, nf2, nf1};
-        int istride = 1;
-        cufftResult result = cufftPlanMany(
-            &fftplan,rank,n,inembed,istride,inembed[0]*inembed[1]*
-            inembed[2],inembed,istride,inembed[0]*inembed[1]*inembed[2],
-            kCufftType<FloatType>, this->options_.max_batch_size);
-
-        OP_REQUIRES(context, result == CUFFT_SUCCESS,
-                    errors::Internal(
-                        "cufftPlanMany failed with code: ", result));
+      case 3: {
+        n[0] = this->nf3;
+        n[1] = this->nf2;
+        n[2] = this->nf1;
+        idist = inembed[0] * inembed[1] * inembed[2];
+        break;
       }
-      break;
     }
-    this->fftplan = fftplan;
+
+    cufftResult result = cufftPlanMany(
+        /* cufftHandle *plan */ &this->fft_plan_,
+        /* int rank */ this->rank_, /* int *n */ n,
+        /* int *inembed */ inembed, /* int istride */ 1, /* int idist */ idist,
+        /* int *onembed */ inembed, /* int ostride */ 1, /* int odist */ idist,
+        /* cufftType */ kCufftType<FloatType>,
+        /* int batch */ this->options_.max_batch_size);
+
+    OP_REQUIRES(context, result == CUFFT_SUCCESS,
+                errors::Internal(
+                    "cufftPlanMany failed with code: ", result));
   }
 
   // Multi-GPU support: reset the device ID
@@ -355,8 +347,8 @@ Plan<GPUDevice, FloatType>::~Plan() {
   cudaGetDevice(& orig_gpu_device_id);
   cudaSetDevice(this->options_.gpu_device_id);
 
-	if (this->fftplan)
-		cufftDestroy(this->fftplan);
+	if (this->fft_plan_)
+		cufftDestroy(this->fft_plan_);
 
   free_gpu_memory(this);
 

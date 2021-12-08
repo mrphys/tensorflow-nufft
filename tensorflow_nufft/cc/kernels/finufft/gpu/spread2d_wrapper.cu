@@ -36,9 +36,8 @@ using namespace tensorflow::nufft;
 
 
 __global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_size_x, 
-	int bin_size_y, int nbinx, int nbiny, int* bin_size, FLT *x, FLT *y, 
-	int* sortidx, int pirange)
-{
+    int bin_size_y, int nbinx, int nbiny, int* bin_size, FLT *x, FLT *y, 
+    int* sortidx, int pirange) {
 	int binidx, binx, biny;
 	int oldidx;
 	FLT x_rescaled,y_rescaled;
@@ -60,10 +59,37 @@ __global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_siz
 	}
 }
 
+__global__ void CalcBinSizeNoGhost3DKernel(int M, int nf1, int nf2, int nf3,
+    int bin_size_x, int bin_size_y, int bin_size_z,
+    int nbinx, int nbiny, int nbinz, int* bin_size, FLT *x, FLT *y, FLT *z,
+    int* sortidx, int pirange) {
+	int binidx, binx, biny, binz;
+	int oldidx;
+	FLT x_rescaled,y_rescaled,z_rescaled;
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
+		x_rescaled=RESCALE(x[i], nf1, pirange);
+		y_rescaled=RESCALE(y[i], nf2, pirange);
+		z_rescaled=RESCALE(z[i], nf3, pirange);
+		binx = floor(x_rescaled/bin_size_x);
+		binx = binx >= nbinx ? binx-1 : binx;
+		binx = binx < 0 ? 0 : binx;
+
+		biny = floor(y_rescaled/bin_size_y);
+		biny = biny >= nbiny ? biny-1 : biny;
+		biny = biny < 0 ? 0 : biny;
+
+		binz = floor(z_rescaled/bin_size_z);
+		binz = binz >= nbinz ? binz-1 : binz;
+		binz = binz < 0 ? 0 : binz;
+		binidx = binx+biny*nbinx+binz*nbinx*nbiny;
+		oldidx = atomicAdd(&bin_size[binidx], 1);
+		sortidx[i] = oldidx;
+	}
+}
+
 __global__ void CalcInvertofGlobalSortIdx2DKernel(int M, int bin_size_x, int bin_size_y, 
-	int nbinx,int nbiny, int* bin_startpts, int* sortidx, FLT *x, FLT *y, 
-	int* index, int pirange, int nf1, int nf2)
-{
+    int nbinx,int nbiny, int* bin_startpts, int* sortidx, FLT *x, FLT *y, 
+    int* index, int pirange, int nf1, int nf2) {
 	int binx, biny;
 	int binidx;
 	FLT x_rescaled, y_rescaled;
@@ -82,13 +108,38 @@ __global__ void CalcInvertofGlobalSortIdx2DKernel(int M, int bin_size_x, int bin
 	}
 }
 
+__global__ void CalcInvertofGlobalSortIdx3DKernel(int M, int bin_size_x, int bin_size_y,
+    int bin_size_z, int nbinx, int nbiny, int nbinz, int* bin_startpts,
+    int* sortidx, FLT *x, FLT *y, FLT *z, int* index, int pirange, int nf1,
+    int nf2, int nf3) {
+	int binx,biny,binz;
+	int binidx;
+	FLT x_rescaled,y_rescaled,z_rescaled;
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
+		x_rescaled=RESCALE(x[i], nf1, pirange);
+		y_rescaled=RESCALE(y[i], nf2, pirange);
+		z_rescaled=RESCALE(z[i], nf3, pirange);
+		binx = floor(x_rescaled/bin_size_x);
+		binx = binx >= nbinx ? binx-1 : binx;
+		binx = binx < 0 ? 0 : binx;
+		biny = floor(y_rescaled/bin_size_y);
+		biny = biny >= nbiny ? biny-1 : biny;
+		biny = biny < 0 ? 0 : biny;
+		binz = floor(z_rescaled/bin_size_z);
+		binz = binz >= nbinz ? binz-1 : binz;
+		binz = binz < 0 ? 0 : binz;
+		binidx = CalcGlobalIdx_V2(binx,biny,binz,nbinx,nbiny,nbinz);
+
+		index[bin_startpts[binidx]+sortidx[i]] = i;
+	}
+}
+
 #ifdef SINGLE
-#define TrivialGlobalSortIdx2DKernel TrivialGlobalSortIdx2DKernel_S
+#define TrivialGlobalSortIdxKernel TrivialGlobalSortIdxKernel_S
 #else
-#define TrivialGlobalSortIdx2DKernel TrivialGlobalSortIdx2DKernel_D
+#define TrivialGlobalSortIdxKernel TrivialGlobalSortIdxKernel_D
 #endif
-__global__ void TrivialGlobalSortIdx2DKernel(int M, int* index)
-{
+__global__ void TrivialGlobalSortIdxKernel(int M, int* index) {
 	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
 		index[i] = i;
 	}
@@ -162,64 +213,57 @@ int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
   return ier;
 }
 
-int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan)
+int CUSPREAD2D_NUPTSDRIVEN_PROP(Plan<GPUDevice, FLT>* d_plan)
 {
-  int num_blocks = (M + 1024 - 1) / 1024;
+  int num_blocks = (d_plan->num_points_ + 1024 - 1) / 1024;
   int threads_per_block = 1024;
 
   if (d_plan->spread_params_.sort_points == SortPoints::YES) {
 
-    int bin_size[2];
+    int bin_size[3];
     bin_size[0] = d_plan->options_.gpu_bin_size.x;
     bin_size[1] = d_plan->options_.gpu_bin_size.y;
-    if (bin_size[0] < 0 || bin_size[1] < 0) {
+    bin_size[2] = d_plan->options_.gpu_bin_size.z;
+    if (bin_size[0] < 0 || bin_size[1] < 0 || bin_size[2] < 0) {
       cout << "error: invalid binsize (binsizex, binsizey) = (";
       cout << bin_size[0] << "," << bin_size[1] << ")" << endl;
       return 1; 
     }
 
-    int num_bins[2];
-    num_bins[0] = ceil((FLT) nf1 / bin_size[0]);
-    num_bins[1] = ceil((FLT) nf2 / bin_size[1]);
+    int num_bins[3] = {1, 1, 1};
+    for (int i = 0; i < d_plan->rank_; i++) {
+      num_bins[i] = (d_plan->grid_dims_[i] + bin_size[i] - 1) / bin_size[i];
+    }
 
-    FLT*   d_kx = d_plan->kx;
-    FLT*   d_ky = d_plan->ky;
-
-    int *d_binsize = d_plan->binsize;
-    int *d_binstartpts = d_plan->binstartpts;
-    int *d_sortidx = d_plan->sortidx;
-    int *d_idxnupts = d_plan->idxnupts;
-
-    int pirange = d_plan->spread_params_.pirange;
-
-    // Synchronize device before we start. This is essential! Otherwise the
-    // next kernel could read the wrong (kx, ky, kz) values.
+    // This may not be necessary.
     d_plan->device_.synchronize();
 
-    d_plan->device_.memset(d_binsize, 0, num_bins[0] * num_bins[1] * sizeof(int));
-    
+    d_plan->device_.memset(d_plan->binsize, 0, num_bins[0] * num_bins[1] * sizeof(int));
     TF_CHECK_OK(GpuLaunchKernel(
         CalcBinSizeNoGhost2DKernel,
         num_blocks, threads_per_block, 0, d_plan->device_.stream(),
-        M, nf1, nf2, bin_size[0], bin_size[1], num_bins[0], num_bins[1],
-        d_binsize, d_kx, d_ky, d_sortidx, pirange));
+        d_plan->num_points_, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
+        bin_size[0], bin_size[1], num_bins[0], num_bins[1],
+        d_plan->binsize, d_plan->points_[0], d_plan->points_[1], d_plan->sortidx,
+        d_plan->spread_params_.pirange));
 
-    int n=num_bins[0]*num_bins[1];
-    thrust::device_ptr<int> d_ptr(d_binsize);
-    thrust::device_ptr<int> d_result(d_binstartpts);
+    int n = num_bins[0] * num_bins[1] * num_bins[2];
+    thrust::device_ptr<int> d_ptr(d_plan->binsize);
+    thrust::device_ptr<int> d_result(d_plan->binstartpts);
     thrust::exclusive_scan(d_ptr, d_ptr + n, d_result);
 
     TF_CHECK_OK(GpuLaunchKernel(
         CalcInvertofGlobalSortIdx2DKernel,
         num_blocks, threads_per_block, 0, d_plan->device_.stream(),
-        M, bin_size[0], bin_size[1], num_bins[0], num_bins[1],
-        d_binstartpts, d_sortidx, d_kx, d_ky,
-        d_idxnupts, pirange, nf1, nf2));
+        d_plan->num_points_, bin_size[0], bin_size[1], num_bins[0], num_bins[1],
+        d_plan->binstartpts, d_plan->sortidx, d_plan->points_[0], d_plan->points_[1],
+        d_plan->idxnupts, d_plan->spread_params_.pirange,
+        d_plan->grid_dims_[0], d_plan->grid_dims_[1]));
   } else {
     TF_CHECK_OK(GpuLaunchKernel(
-        TrivialGlobalSortIdx2DKernel,
+        TrivialGlobalSortIdxKernel,
         num_blocks, threads_per_block, 0, d_plan->device_.stream(),
-        M, d_plan->idxnupts));
+        d_plan->num_points_, d_plan->idxnupts));
   }
   return 0;
 }
@@ -424,5 +468,7 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 #endif
   return 0;
 }
+
+#include "spread3d_wrapper.cu"
 
 #endif // GOOGLE_CUDA

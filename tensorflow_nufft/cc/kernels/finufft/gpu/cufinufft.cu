@@ -86,6 +86,7 @@ Notes: the type FLT means either single or double, matching the
 	int rank = d_plan->rank_;
 
 	d_plan->M = M;
+	d_plan->num_points_ = M;
 #ifdef INFO
 	printf("[info  ] 2d1: (ms,mt)=(%d,%d) (nf1, nf2, nf3)=(%d,%d,%d) nj=%d, ntransform = %d\n",
 		d_plan->ms, d_plan->mt, d_plan->nf1, d_plan->nf2, nf3, d_plan->M,
@@ -128,6 +129,12 @@ Notes: the type FLT means either single or double, matching the
 		d_plan->ky = d_ky;
 	if (rank > 2)
 		d_plan->kz = d_kz;
+	
+	d_plan->points_[0] = d_kx;
+	if (rank > 1)
+		d_plan->points_[1] = d_ky;
+	if (rank > 2)
+		d_plan->points_[2] = d_kz;
 
 	cudaEventRecord(start);
 	switch(d_plan->rank_)
@@ -140,7 +147,7 @@ Notes: the type FLT means either single or double, matching the
 		case 2:
 		{
 			if (d_plan->options_.spread_method == SpreadMethod::NUPTS_DRIVEN) {
-				ier = CUSPREAD2D_NUPTSDRIVEN_PROP(nf1,nf2,M,d_plan);
+				ier = CUSPREAD2D_NUPTSDRIVEN_PROP(d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread2d_nupts_prop, method(%d)\n",
 						  d_plan->options_.spread_method);

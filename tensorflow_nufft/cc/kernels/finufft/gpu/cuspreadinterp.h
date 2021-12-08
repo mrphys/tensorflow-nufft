@@ -87,17 +87,6 @@ void Interp_2d_Subprob_Horner(FLT *x, FLT *y, CUCPX *c, CUCPX *fw, int M,
 //Kernels for 3D codes
 /* -----------------------------Spreading Kernels-----------------------------*/
 /* Kernels for Bin Sort NUpts */
-__global__
-void CalcBinSize_noghost_3d(int M, int nf1, int nf2, int nf3, int  bin_size_x,
-	int bin_size_y, int bin_size_z, int nbinx, int nbiny, int nbinz,
-	int* bin_size, FLT *x, FLT *y, FLT *z, int* sortidx, int pirange);
-__global__
-void CalcInvertofGlobalSortIdx_3d(int M, int bin_size_x, int bin_size_y,
-	int bin_size_z, int nbinx, int nbiny, int nbinz, int* bin_startpts,
-	int* sortidx, FLT *x, FLT *y, FLT *z, int* index, int pirange, int nf1,
-	int nf2, int nf3);
-__global__
-void TrivialGlobalSortIdx_3d(int M, int* index);
 
 /* Kernels for NUptsdriven Method */
 __global__
@@ -209,7 +198,7 @@ int CUSPREAD3D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int 
 int CUINTERP3D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
 
 // Wrappers for methods of spreading
-int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+int CUSPREAD2D_NUPTSDRIVEN_PROP(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
 	int blksize);
 int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);

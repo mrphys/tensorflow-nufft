@@ -123,13 +123,6 @@ void MapBintoSubProb_3d_v1(int* d_subprob_to_obin, int* d_subprobstartpts,
 	}
 }
 
-__global__
-void TrivialGlobalSortIdx_3d(int M, int* index)
-{
-	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
-		index[i] = i;
-	}
-}
 
 __global__
 void FillGhostBins(int binsperobinx, int binsperobiny, int binsperobinz,

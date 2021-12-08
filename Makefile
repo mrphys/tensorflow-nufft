@@ -170,7 +170,6 @@ CUFINUFFTOBJS_64=$(CUFINUFFT_ROOT)/spreadinterp2d.o \
 				 $(CUFINUFFT_ROOT)/deconvolve_wrapper.o \
 				 $(CUFINUFFT_ROOT)/cufinufft.o \
 				 $(CUFINUFFT_ROOT)/spreadinterp3d.o \
-				 $(CUFINUFFT_ROOT)/spread3d_wrapper.o \
 				 $(CUFINUFFT_ROOT)/interp3d_wrapper.o \
 				 $(CUFINUFFT_ROOT)/cufinufft3d.o \
 				 $(CONTRIBOBJS)

@@ -295,6 +295,10 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   
   int grid_dims_[3];
   int grid_count_;
+
+  FloatType* points_[3];
+  int num_points_;
+
   // std::unique_ptr<Spreader<GPUDevice, FloatType>> spreader_; // owned
 
   int M;

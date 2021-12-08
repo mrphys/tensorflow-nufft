@@ -68,62 +68,6 @@ void eval_kernel_vec(FLT *ker, const FLT x, const double w, const double es_c,
 
 /* ---------------------- 3d Spreading Kernels -------------------------------*/
 /* Kernels for bin sort NUpts */
-__global__
-void CalcBinSize_noghost_3d(int M, int nf1, int nf2, int nf3, int  bin_size_x,
-	int bin_size_y, int bin_size_z, int nbinx, int nbiny, int nbinz,
-    int* bin_size, FLT *x, FLT *y, FLT *z, int* sortidx, int pirange)
-{
-	int binidx, binx, biny, binz;
-	int oldidx;
-	FLT x_rescaled,y_rescaled,z_rescaled;
-	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
-		x_rescaled=RESCALE(x[i], nf1, pirange);
-		y_rescaled=RESCALE(y[i], nf2, pirange);
-		z_rescaled=RESCALE(z[i], nf3, pirange);
-		binx = floor(x_rescaled/bin_size_x);
-		binx = binx >= nbinx ? binx-1 : binx;
-		binx = binx < 0 ? 0 : binx;
-
-		biny = floor(y_rescaled/bin_size_y);
-		biny = biny >= nbiny ? biny-1 : biny;
-		biny = biny < 0 ? 0 : biny;
-
-		binz = floor(z_rescaled/bin_size_z);
-		binz = binz >= nbinz ? binz-1 : binz;
-		binz = binz < 0 ? 0 : binz;
-		binidx = binx+biny*nbinx+binz*nbinx*nbiny;
-		oldidx = atomicAdd(&bin_size[binidx], 1);
-		sortidx[i] = oldidx;
-	}
-}
-
-__global__
-void CalcInvertofGlobalSortIdx_3d(int M, int bin_size_x, int bin_size_y,
-	int bin_size_z, int nbinx, int nbiny, int nbinz, int* bin_startpts,
-	int* sortidx, FLT *x, FLT *y, FLT *z, int* index, int pirange, int nf1,
-	int nf2, int nf3)
-{
-	int binx,biny,binz;
-	int binidx;
-	FLT x_rescaled,y_rescaled,z_rescaled;
-	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
-		x_rescaled=RESCALE(x[i], nf1, pirange);
-		y_rescaled=RESCALE(y[i], nf2, pirange);
-		z_rescaled=RESCALE(z[i], nf3, pirange);
-		binx = floor(x_rescaled/bin_size_x);
-		binx = binx >= nbinx ? binx-1 : binx;
-		binx = binx < 0 ? 0 : binx;
-		biny = floor(y_rescaled/bin_size_y);
-		biny = biny >= nbiny ? biny-1 : biny;
-		biny = biny < 0 ? 0 : biny;
-		binz = floor(z_rescaled/bin_size_z);
-		binz = binz >= nbinz ? binz-1 : binz;
-		binz = binz < 0 ? 0 : binz;
-		binidx = CalcGlobalIdx_V2(binx,biny,binz,nbinx,nbiny,nbinz);
-
-		index[bin_startpts[binidx]+sortidx[i]] = i;
-	}
-}
 
 /* Kernels for NUptsdriven method */
 __global__

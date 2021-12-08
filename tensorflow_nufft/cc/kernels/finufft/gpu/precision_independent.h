@@ -57,9 +57,6 @@ void MapBintoSubProb_3d_v1(int* d_subprob_to_obin, int* d_subprobstartpts,
                            int* d_numsubprob,int numbins);
 
 __global__
-void TrivialGlobalSortIdx_3d(int M, int* index);
-
-__global__
 void FillGhostBins(int binsperobinx, int binsperobiny, int binsperobinz,
                    int nobinx, int nobiny, int nobinz, int* binsize);
 

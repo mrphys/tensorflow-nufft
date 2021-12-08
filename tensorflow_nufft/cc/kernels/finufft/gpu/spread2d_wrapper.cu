@@ -213,13 +213,11 @@ int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
   return ier;
 }
 
-int CUSPREAD2D_NUPTSDRIVEN_PROP(Plan<GPUDevice, FLT>* d_plan)
-{
+int CUSPREAD2D_NUPTSDRIVEN_PROP(Plan<GPUDevice, FLT>* d_plan) {
   int num_blocks = (d_plan->num_points_ + 1024 - 1) / 1024;
   int threads_per_block = 1024;
 
   if (d_plan->spread_params_.sort_points == SortPoints::YES) {
-
     int bin_size[3];
     bin_size[0] = d_plan->options_.gpu_bin_size.x;
     bin_size[1] = d_plan->options_.gpu_bin_size.y;
@@ -231,34 +229,68 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(Plan<GPUDevice, FLT>* d_plan)
     }
 
     int num_bins[3] = {1, 1, 1};
+    int bin_count = 1;
     for (int i = 0; i < d_plan->rank_; i++) {
       num_bins[i] = (d_plan->grid_dims_[i] + bin_size[i] - 1) / bin_size[i];
+      bin_count *= num_bins[i];
     }
 
     // This may not be necessary.
     d_plan->device_.synchronize();
 
-    d_plan->device_.memset(d_plan->binsize, 0, num_bins[0] * num_bins[1] * sizeof(int));
-    TF_CHECK_OK(GpuLaunchKernel(
-        CalcBinSizeNoGhost2DKernel,
-        num_blocks, threads_per_block, 0, d_plan->device_.stream(),
-        d_plan->num_points_, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
-        bin_size[0], bin_size[1], num_bins[0], num_bins[1],
-        d_plan->binsize, d_plan->points_[0], d_plan->points_[1], d_plan->sortidx,
-        d_plan->spread_params_.pirange));
+    // Calculate bin sizes.
+    d_plan->device_.memset(d_plan->binsize, 0, bin_count * sizeof(int));
+    switch (d_plan->rank_) {
+      case 2:
+        TF_CHECK_OK(GpuLaunchKernel(
+            CalcBinSizeNoGhost2DKernel,
+            num_blocks, threads_per_block, 0, d_plan->device_.stream(),
+            d_plan->num_points_, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
+            bin_size[0], bin_size[1], num_bins[0], num_bins[1],
+            d_plan->binsize, d_plan->points_[0], d_plan->points_[1], d_plan->sortidx,
+            d_plan->spread_params_.pirange));
+        break;
+      case 3:
+        TF_CHECK_OK(GpuLaunchKernel(
+            CalcBinSizeNoGhost3DKernel,
+            num_blocks, threads_per_block, 0, d_plan->device_.stream(),
+            d_plan->num_points_, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
+            d_plan->grid_dims_[2], bin_size[0], bin_size[1], bin_size[2],
+            num_bins[0], num_bins[1], num_bins[2], d_plan->binsize,
+            d_plan->points_[0], d_plan->points_[1], d_plan->points_[2],
+            d_plan->sortidx, d_plan->spread_params_.pirange));
+        break;
+    }
 
-    int n = num_bins[0] * num_bins[1] * num_bins[2];
-    thrust::device_ptr<int> d_ptr(d_plan->binsize);
-    thrust::device_ptr<int> d_result(d_plan->binstartpts);
-    thrust::exclusive_scan(d_ptr, d_ptr + n, d_result);
+    // Calculate bin start points.
+    thrust::device_ptr<int> d_bin_sizes(d_plan->binsize);
+    thrust::device_ptr<int> d_bin_start_points(d_plan->binstartpts);
+    thrust::exclusive_scan(d_bin_sizes, d_bin_sizes + bin_count,
+                           d_bin_start_points);
 
-    TF_CHECK_OK(GpuLaunchKernel(
-        CalcInvertofGlobalSortIdx2DKernel,
-        num_blocks, threads_per_block, 0, d_plan->device_.stream(),
-        d_plan->num_points_, bin_size[0], bin_size[1], num_bins[0], num_bins[1],
-        d_plan->binstartpts, d_plan->sortidx, d_plan->points_[0], d_plan->points_[1],
-        d_plan->idxnupts, d_plan->spread_params_.pirange,
-        d_plan->grid_dims_[0], d_plan->grid_dims_[1]));
+    switch (d_plan->rank_) {
+      case 2:
+        TF_CHECK_OK(GpuLaunchKernel(
+            CalcInvertofGlobalSortIdx2DKernel,
+            num_blocks, threads_per_block, 0, d_plan->device_.stream(),
+            d_plan->num_points_, bin_size[0], bin_size[1], num_bins[0],
+            num_bins[1], d_plan->binstartpts, d_plan->sortidx,
+            d_plan->points_[0], d_plan->points_[1], d_plan->idxnupts,
+            d_plan->spread_params_.pirange, d_plan->grid_dims_[0],
+            d_plan->grid_dims_[1]));
+        break;
+      case 3:
+        TF_CHECK_OK(GpuLaunchKernel(
+            CalcInvertofGlobalSortIdx3DKernel,
+            num_blocks, threads_per_block, 0, d_plan->device_.stream(),
+            d_plan->num_points_, bin_size[0], bin_size[1], bin_size[2],
+            num_bins[0], num_bins[1], num_bins[2], d_plan->binstartpts,
+            d_plan->sortidx, d_plan->points_[0], d_plan->points_[1],
+            d_plan->points_[2], d_plan->idxnupts,
+            d_plan->spread_params_.pirange, d_plan->grid_dims_[0],
+            d_plan->grid_dims_[1], d_plan->grid_dims_[2]));
+        break;
+    }
   } else {
     TF_CHECK_OK(GpuLaunchKernel(
         TrivialGlobalSortIdxKernel,
@@ -285,8 +317,6 @@ int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
   FLT es_beta=d_plan->spread_params_.ES_beta;
   FLT sigma=d_plan->spread_params_.upsampling_factor;
 
-  FLT* d_kx = d_plan->kx;
-  FLT* d_ky = d_plan->ky;
   CUCPX* d_c = d_plan->c;
   CUCPX* d_fw = d_plan->fine_grid_data_;
 
@@ -297,13 +327,13 @@ int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
 
   if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
     for (int t=0; t<blksize; t++) {
-      Spread_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_kx,
-        d_ky, d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2, sigma,
+      Spread_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_plan->points_[0],
+        d_plan->points_[1], d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2, sigma,
         d_idxnupts, pirange);
     }
   } else {
     for (int t=0; t<blksize; t++) {
-      Spread_2d_NUptsdriven<<<blocks, threadsPerBlock>>>(d_kx, d_ky,
+      Spread_2d_NUptsdriven<<<blocks, threadsPerBlock>>>(d_plan->points_[0], d_plan->points_[1],
         d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2, es_c, es_beta,
         d_idxnupts, pirange);
     }
@@ -311,31 +341,28 @@ int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
 
   return 0;
 }
-int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan)
-/*
-  This function determines the properties for spreading that are independent
-  of the strength of the nodes,  only relates to the locations of the nodes,
-  which only needs to be done once.
-*/
-{
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
+
+int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan) {
+  int num_blocks = (d_plan->num_points_ + 1024 - 1) / 1024;
+  int threads_per_block = 1024;
 
   int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
-  int bin_size_x=d_plan->options_.gpu_bin_size.x;
-  int bin_size_y=d_plan->options_.gpu_bin_size.y;
-  if (bin_size_x < 0 || bin_size_y < 0) {
+
+  int bin_size[3];
+  bin_size[0] = d_plan->options_.gpu_bin_size.x;
+  bin_size[1] = d_plan->options_.gpu_bin_size.y;
+  bin_size[2] = d_plan->options_.gpu_bin_size.z;
+  if (bin_size[0] < 0 || bin_size[1] < 0 || bin_size[2] < 0) {
     cout<<"error: invalid binsize (binsizex, binsizey) = (";
-    cout<<bin_size_x<<","<<bin_size_y<<")"<<endl;
     return 1; 
   }
-  int num_bins[2];
-  num_bins[0] = ceil((FLT) nf1/bin_size_x);
-  num_bins[1] = ceil((FLT) nf2/bin_size_y);
 
-  FLT*   d_kx = d_plan->kx;
-  FLT*   d_ky = d_plan->ky;
+  int num_bins[3] = {1, 1, 1};
+  int bin_count = 1;
+  for (int i = 0; i < d_plan->rank_; i++) {
+    num_bins[i] = (d_plan->grid_dims_[i] + bin_size[i] - 1) / bin_size[i];
+    bin_count *= num_bins[i];
+  }
 
   int *d_binsize = d_plan->binsize;
   int *d_binstartpts = d_plan->binstartpts;
@@ -348,39 +375,57 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_pla
 
   int pirange=d_plan->spread_params_.pirange;
 
-  // Synchronize device before we start. This is essential! Otherwise the
-  // next kernel could read the wrong (kx, ky, kz) values.
-  checkCudaErrors(cudaDeviceSynchronize());
+  // This may not be necessary.
+  d_plan->device_.synchronize();
 
-  checkCudaErrors(cudaMemset(d_binsize,0,num_bins[0]*num_bins[1]*sizeof(int)));
-  CalcBinSizeNoGhost2DKernel<<<(M+1024-1)/1024, 1024>>>(M,nf1,nf2,bin_size_x,
-    bin_size_y,num_bins[0],num_bins[1],d_binsize,d_kx,d_ky,d_sortidx,pirange);
+  // Calculate bin sizes.
+  d_plan->device_.memset(d_plan->binsize, 0, bin_count * sizeof(int));
+  switch (d_plan->rank_) {
+    case 2:
+      TF_CHECK_OK(GpuLaunchKernel(
+          CalcBinSizeNoGhost2DKernel, num_blocks, threads_per_block, 0,
+          d_plan->device_.stream(), M, nf1, nf2, bin_size[0], bin_size[1],
+          num_bins[0], num_bins[1], d_binsize, d_plan->points_[0],
+          d_plan->points_[1], d_sortidx, pirange));
+      break;
+    case 3:
+      break;
+  }
 
-  int n=num_bins[0]*num_bins[1];
   thrust::device_ptr<int> d_ptr(d_binsize);
   thrust::device_ptr<int> d_result(d_binstartpts);
-  thrust::exclusive_scan(d_ptr, d_ptr + n, d_result);
+  thrust::exclusive_scan(d_ptr, d_ptr + bin_count, d_result);
 
-  CalcInvertofGlobalSortIdx2DKernel<<<(M+1024-1)/1024,1024>>>(M,bin_size_x,
-    bin_size_y,num_bins[0],num_bins[1],d_binstartpts,d_sortidx,d_kx,d_ky,
-    d_idxnupts,pirange,nf1,nf2);
+  TF_CHECK_OK(GpuLaunchKernel(
+      CalcInvertofGlobalSortIdx2DKernel, num_blocks, threads_per_block, 0,
+      d_plan->device_.stream(), M, bin_size[0], bin_size[1], num_bins[0],
+      num_bins[1], d_binstartpts, d_sortidx, d_plan->points_[0],
+      d_plan->points_[1], d_idxnupts, pirange, nf1, nf2));
 
-  CalcSubProb_2d<<<(M+1024-1)/1024, 1024>>>(d_binsize,d_numsubprob,
-    maxsubprobsize,num_bins[0]*num_bins[1]);
+  TF_CHECK_OK(GpuLaunchKernel(
+      CalcSubProb_2d, num_blocks, threads_per_block, 0,
+      d_plan->device_.stream(), d_binsize, d_numsubprob, maxsubprobsize,
+      num_bins[0] * num_bins[1]));
 
   d_ptr    = thrust::device_pointer_cast(d_numsubprob);
   d_result = thrust::device_pointer_cast(d_subprobstartpts+1);
-  thrust::inclusive_scan(d_ptr, d_ptr + n, d_result);
+  thrust::inclusive_scan(d_ptr, d_ptr + bin_count, d_result);
   checkCudaErrors(cudaMemset(d_subprobstartpts,0,sizeof(int)));
 
   int totalnumsubprob;
-  checkCudaErrors(cudaMemcpy(&totalnumsubprob,&d_subprobstartpts[n],
+  checkCudaErrors(cudaMemcpy(&totalnumsubprob,&d_subprobstartpts[bin_count],
     sizeof(int),cudaMemcpyDeviceToHost));
   checkCudaErrors(cudaMalloc(&d_subprob_to_bin,totalnumsubprob*sizeof(int)));
-  MapBintoSubProb_2d<<<(num_bins[0]*num_bins[1]+1024-1)/1024, 1024>>>(
-      d_subprob_to_bin,d_subprobstartpts,d_numsubprob,num_bins[0]*num_bins[1]);
+
+  num_blocks = (bin_count + 1024 - 1) / 1024;
+  threads_per_block = 1024;
+  TF_CHECK_OK(GpuLaunchKernel(
+      MapBintoSubProb_2d, num_blocks, threads_per_block, 0,
+      d_plan->device_.stream(), d_subprob_to_bin, d_subprobstartpts,
+      d_numsubprob, bin_count));
+
   assert(d_subprob_to_bin != NULL);
-        if (d_plan->subprob_to_bin != NULL) cudaFree(d_plan->subprob_to_bin);
+  if (d_plan->subprob_to_bin != NULL) cudaFree(d_plan->subprob_to_bin);
   d_plan->subprob_to_bin = d_subprob_to_bin;
   assert(d_plan->subprob_to_bin != NULL);
   d_plan->totalnumsubprob = totalnumsubprob;
@@ -412,8 +457,7 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
   cout<<"[info  ] num_bins = ["<<num_bins[0]<<"x"<<num_bins[1]<<"]"<<endl;
 #endif
 
-  FLT* d_kx = d_plan->kx;
-  FLT* d_ky = d_plan->ky;
+
   CUCPX* d_c = d_plan->c;
   CUCPX* d_fw = d_plan->fine_grid_data_;
 
@@ -442,7 +486,7 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
   if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
     for (int t=0; t<blksize; t++) {
       Spread_2d_Subprob_Horner<<<totalnumsubprob, 256,
-        sharedplanorysize>>>(d_kx, d_ky, d_c+t*M, d_fw+t*nf1*nf2, M,
+        sharedplanorysize>>>(d_plan->points_[0], d_plan->points_[1], d_c+t*M, d_fw+t*nf1*nf2, M,
         ns, nf1, nf2, sigma, d_binstartpts, d_binsize, bin_size_x,
         bin_size_y, d_subprob_to_bin, d_subprobstartpts,
         d_numsubprob, maxsubprobsize,num_bins[0],num_bins[1],
@@ -451,7 +495,7 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
   }else{
     for (int t=0; t<blksize; t++) {
       Spread_2d_Subprob<<<totalnumsubprob, 256, sharedplanorysize>>>(
-        d_kx, d_ky, d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2,
+        d_plan->points_[0], d_plan->points_[1], d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2,
         es_c, es_beta, sigma,d_binstartpts, d_binsize, bin_size_x,
         bin_size_y, d_subprob_to_bin, d_subprobstartpts,
         d_numsubprob, maxsubprobsize, num_bins[0], num_bins[1],

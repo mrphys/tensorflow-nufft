@@ -37,60 +37,161 @@ limitations under the License.
 namespace tensorflow {
 namespace nufft {
 
-template<typename FloatType>
-Status Spreader<GPUDevice, FloatType>::initialize(
-    int rank, int* grid_dims, int num_points,
-    FloatType* points_x, FloatType* points_y, FloatType* points_z,
-    const SpreadParameters<FloatType> params) {
+// __global__ void CalcBinSizeNoGhost2D(
+//     int M, int nf1, int this->grid_dims_[1], int  bin_size_x, int bin_size_y,
+//     int nbinx, int nbiny, int* bin_size, FLT *x, FLT *y, 
+//     int* sortidx, int pirange)
+// {
+//   int binidx, binx, biny;
+//   int oldidx;
+//   FLT x_rescaled,y_rescaled;
+//   for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
+//     x_rescaled=RESCALE(x[i], nf1, pirange);
+//     y_rescaled=RESCALE(y[i], this->grid_dims_[1], pirange);
+//     binx = floor(x_rescaled/bin_size_x);
+//     binx = binx >= nbinx ? binx-1 : binx;
+//     binx = binx < 0 ? 0 : binx;
+//     biny = floor(y_rescaled/bin_size_y);
+//     biny = biny >= nbiny ? biny-1 : biny;
+//     biny = biny < 0 ? 0 : biny;
+//     binidx = binx+biny*nbinx;
+//     oldidx = atomicAdd(&bin_size[binidx], 1);
+//     sortidx[i] = oldidx;
+//     if (binx >= nbinx || biny >= nbiny) {
+//       sortidx[i] = -biny;
+//     }
+//   }
+// }
 
-  if (rank < 2 || rank > 3) {
-    return errors::InvalidArgument("rank must be 2 or 3, got ", rank);
-  }
+// __global__ void CalcInvertofGlobalSortIdx2D(
+//     int M, int bin_size_x, int bin_size_y, 
+//     int nbinx,int nbiny, int* bin_startpts, int* sortidx, FLT *x, FLT *y, 
+//     int* index, int pirange, int nf1, int this->grid_dims_[1])
+// {
+//   int binx, biny;
+//   int binidx;
+//   FLT x_rescaled, y_rescaled;
+//   for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
+//     x_rescaled=RESCALE(x[i], nf1, pirange);
+//     y_rescaled=RESCALE(y[i], this->grid_dims_[1], pirange);
+//     binx = floor(x_rescaled/bin_size_x);
+//     binx = binx >= nbinx ? binx-1 : binx;
+//     binx = binx < 0 ? 0 : binx;
+//     biny = floor(y_rescaled/bin_size_y);
+//     biny = biny >= nbiny ? biny-1 : biny;
+//     biny = biny < 0 ? 0 : biny;
+//     binidx = binx+biny*nbinx;
 
-  this->rank_ = rank;
-  for (int i = 0; i < 3; i++) {
-    this->grid_dims_[i] = i < rank ? grid_dims[i] : 1;
-  }
-  this->num_points_ = num_points;
-  this->points_[0] = points_x;
-  this->points_[1] = points_y;
-  this->points_[2] = points_z;
-  this->params_ = params;
+//     index[bin_startpts[binidx]+sortidx[i]] = i;
+//   }
+// }
 
-  // Allocate some arrays.
-  if (this->indices_points_) {
-    this->device_.deallocate(this->indices_points_);
-  }
-  if (this->sort_indices_) {
-    this->device_.deallocate(this->sort_indices_);
-  }
+// template<typename FloatType>
+// Status Spreader<GPUDevice, FloatType>::initialize(
+//     int rank, int* grid_dims, int num_points,
+//     FloatType* points_x, FloatType* points_y, FloatType* points_z,
+//     const SpreadParameters<FloatType> params) {
+
+//   if (rank < 2 || rank > 3) {
+//     return errors::InvalidArgument("rank must be 2 or 3, got ", rank);
+//   }
+
+//   this->rank_ = rank;
+//   for (int i = 0; i < 3; i++) {
+//     this->grid_dims_[i] = i < rank ? grid_dims[i] : 1;
+//   }
+//   this->num_points_ = num_points;
+//   this->points_[0] = points_x;
+//   this->points_[1] = points_y;
+//   this->points_[2] = points_z;
+//   this->params_ = params;
+
+//   // Allocate some arrays.
+//   if (this->indices_points_) {
+//     this->device_.deallocate(this->indices_points_);
+//   }
+//   if (this->sort_indices_) {
+//     this->device_.deallocate(this->sort_indices_);
+//   }
   
-  size_t num_bytes = sizeof(int) * this->num_points_;
-  switch (this->params_.spread_method) {
-    case SpreadMethod::NUPTS_DRIVEN:
-      this->indices_points_ = reinterpret_cast<int*>(
-          this->device_.allocate(num_bytes));
-      if (this->params_.sort_points == SortPoints::YES) {
-        this->sort_indices_ = reinterpret_cast<int*>(
-            this->device_.allocate(num_bytes));
-      } else {
-        this->sort_indices_ = nullptr;
-      }
-      break;
-    case SpreadMethod::SUBPROBLEM:
-    case SpreadMethod::PAUL:
-      this->indices_points_ = reinterpret_cast<int*>(
-          this->device_.allocate(num_bytes));
-      this->sort_indices_ = reinterpret_cast<int*>(
-          this->device_.allocate(num_bytes));
-      break;
-    case SpreadMethod::BLOCK_GATHER:
-      this->indices_points_ = nullptr;
-      this->sort_indices_ = reinterpret_cast<int*>(
-          this->device_.allocate(num_bytes));
-      break;
-  }
+//   size_t num_bytes = sizeof(int) * this->num_points_;
+//   switch (this->params_.spread_method) {
+//     case SpreadMethod::NUPTS_DRIVEN:
+//       this->indices_points_ = reinterpret_cast<int*>(
+//           this->device_.allocate(num_bytes));
+//       if (this->params_.sort_points == SortPoints::YES) {
+//         this->sort_indices_ = reinterpret_cast<int*>(
+//             this->device_.allocate(num_bytes));
+//       } else {
+//         this->sort_indices_ = nullptr;
+//       }
+//       break;
+//     case SpreadMethod::SUBPROBLEM:
+//     case SpreadMethod::PAUL:
+//       this->indices_points_ = reinterpret_cast<int*>(
+//           this->device_.allocate(num_bytes));
+//       this->sort_indices_ = reinterpret_cast<int*>(
+//           this->device_.allocate(num_bytes));
+//       break;
+//     case SpreadMethod::BLOCK_GATHER:
+//       this->indices_points_ = nullptr;
+//       this->sort_indices_ = reinterpret_cast<int*>(
+//           this->device_.allocate(num_bytes));
+//       break;
+//   }
 
+//   switch (this->params_.spread_method) {
+//     case SpreadMethod::NUPTS_DRIVEN:
+
+//       if (this->params_.sort_points == SortPoints::YES) {
+
+//         int bin_size[2];
+//         bin_size[0] = this->params_.gpu_bin_size.x;
+//         bin_size[1] = this->params_.gpu_bin_size.y;
+//         if (bin_size[0] < 0 || bin_size[1] < 0) {
+//           return errors::Internal(
+//               "gpu_bin_size must be >= 0, got ", bin_size[0], ",", bin_size[1]);
+//         }
+
+//         int num_bins[2];
+//         num_bins[0] = ceil(static_cast<FloatType>(
+//             this->grid_dims_[0] / bin_size[0]));
+//         num_bins[1] = ceil(static_cast<FloatType>(
+//             this->grid_dims_[1] / bin_size[1]));
+
+//         int *d_binsize = d_plan->binsize;
+//         int *d_binstartpts = d_plan->binstartpts;
+//         int *d_sortidx = d_plan->sortidx;
+//         int *d_idxnupts = d_plan->idxnupts;
+
+//         int pirange = this->params_.pirange;
+
+//         // Synchronize device before we start. Otherwise the next kernel could
+//         // read the wrong (kx, ky, kz) values.
+//         // TODO: is this really necessary?
+//         this->device_.synchronize();
+
+//         this->device_.memset(d_binsize, 0,
+//                              num_bins[0] * num_bins[1] * sizeof(int));
+//         CalcBinSizeNoGhost2D<<<(this->num_points_ + 1024 - 1) / 1024, 1024>>>(
+//             this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
+//             bin_size[0], bin_size[1], num_bins[0], num_bins[1],
+//             d_binsize, this->points_[0], this->points_[1], d_sortidx, pirange);
+
+//         int total_bins = num_bins[0] * num_bins[1];
+//         thrust::device_ptr<int> d_ptr(d_binsize);
+//         thrust::device_ptr<int> d_result(d_binstartpts);
+//         thrust::exclusive_scan(d_ptr, d_ptr + total_bins, d_result);
+
+//         CalcInvertofGlobalSortIdx2D<<<(M + 1024 - 1) / 1024, 1024>>>(M, bin_size[0],
+//           bin_size[1], num_bins[0], num_bins[1], d_binstartpts, d_sortidx, this->points_[0],this->points_[1],
+//           d_idxnupts, pirange, nf1, this->grid_dims_[1]);
+
+//       }else{
+//         int *d_idxnupts = d_plan->idxnupts;
+
+//         TrivialGlobalSortIdx_2d<<<(M+1024-1)/1024, 1024>>>(M,d_idxnupts);
+//       }
   // switch(d_plan->rank_)
   // {
   //   case 2:
@@ -176,9 +277,9 @@ Status Spreader<GPUDevice, FloatType>::initialize(
   //   break;
   // }
 
-  this->is_initialized_ = true;
-  return Status::OK();
-}
+//   this->is_initialized_ = true;
+//   return Status::OK();
+// }
 
 template class Spreader<GPUDevice, float>;
 template class Spreader<GPUDevice, double>;

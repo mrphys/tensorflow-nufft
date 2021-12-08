@@ -525,7 +525,7 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
         pass
 
 
-DEFAULT_TOLERANCE = 1
+DEFAULT_TOLERANCE = 1.e-3
 
 
 if __name__ == '__main__':

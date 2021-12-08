@@ -71,7 +71,8 @@ Plan<CPUDevice, FloatType>::Plan(
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
-    const Options& options) {
+    const Options& options)
+    : PlanBase<CPUDevice, FloatType>(context) {
 
   OP_REQUIRES(context,
               type != TransformType::TYPE_3,

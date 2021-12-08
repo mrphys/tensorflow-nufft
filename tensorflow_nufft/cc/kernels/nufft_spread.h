@@ -104,6 +104,14 @@ struct SpreadParameters {
   FloatType ES_halfwidth;
   FloatType ES_c;
   FloatType ES_scale;           // used for spread/interp only
+
+  #if GOOGLE_CUDA
+  // Used for 3D subproblem method. 0 means automatic selection.
+  dim3 gpu_bin_size = {0, 0, 0};
+
+  // Used for 3D spread-block-gather method. 0 means automatic selection.
+  dim3 gpu_obin_size = {0, 0, 0};
+  #endif // GOOGLE_CUDA
 };
 
 template<typename Device, typename FloatType>
@@ -163,8 +171,10 @@ class Spreader<GPUDevice, FloatType> : public SpreaderBase<GPUDevice, FloatType>
   Status interp();
 
  private:
-  int* indices_points_; // owned
-  int* sort_indices_; // owned
+  int* indices_points_;
+  int* sort_indices_;
+  int* bin_sizes_;
+  int* bin_start_pts_;
 };
 #endif // GOOGLE_CUDA
 

@@ -91,7 +91,8 @@ Plan<GPUDevice, FloatType>::Plan(
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
-    const Options& options) {
+    const Options& options) 
+    : PlanBase<GPUDevice, FloatType>(context) {
 
   OP_REQUIRES(context,
               type != TransformType::TYPE_3,
@@ -443,6 +444,8 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
 
   spread_params.sort_points = options.sort_points;
   spread_params.spread_method = options.spread_method;
+  spread_params.gpu_bin_size = options.gpu_bin_size;
+  spread_params.gpu_obin_size = options.gpu_obin_size;
   spread_params.pirange = 1;
   spread_params.num_threads = options.num_threads;
 

@@ -122,6 +122,10 @@ enum class FftDirection {
 template<typename Device, typename FloatType>
 class PlanBase {
 
+ public:
+  PlanBase(OpKernelContext* context)
+      : device_(context->eigen_device<Device>()) { }
+
  public: // TODO: make protected
 
   // The type of the transform. See enum above.
@@ -151,6 +155,9 @@ class PlanBase {
   // Total number of points in the fine grid. The product of the elements of
   // grid_sizes_.
   int64_t num_grid_points_;
+
+  // Reference to the active device.
+  const Device& device_;
 };
 
 template<typename Device, typename FloatType>
@@ -285,7 +292,9 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
   // The parameters for the spreading algorithm/s.
   SpreadParameters<FloatType> spread_params_;
-  std::unique_ptr<Spreader<GPUDevice, FloatType>> spreader_; // owned
+  
+  
+  // std::unique_ptr<Spreader<GPUDevice, FloatType>> spreader_; // owned
 
   int M;
   int nf1;

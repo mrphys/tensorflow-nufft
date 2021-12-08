@@ -39,9 +39,6 @@ __global__
 void CalcSubProb_2d_Paul(int* finegridsize, int* num_subprob,
 	int maxsubprobsize, int bin_size_x, int bin_size_y);
 
-__global__
-void TrivialGlobalSortIdx_2d(int M, int* index);
-
 /* spreadinterp3d */
 __global__
 void CalcSubProb_3d_v2(int* bin_size, int* num_subprob, int maxsubprobsize,

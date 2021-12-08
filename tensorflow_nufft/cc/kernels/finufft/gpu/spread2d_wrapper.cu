@@ -13,6 +13,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#if GOOGLE_CUDA
+
+#define EIGEN_USE_GPU
+
 #include <tensorflow_nufft/third_party/cuda_samples/helper_cuda.h>
 #include <iostream>
 #include <iomanip>
@@ -22,6 +26,7 @@ limitations under the License.
 #include <thrust/scan.h>
 
 #include <cuComplex.h>
+#include "tensorflow/core/util/gpu_kernel_helper.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cuspreadinterp.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/memtransfer.h"
 
@@ -30,7 +35,7 @@ using namespace tensorflow;
 using namespace tensorflow::nufft;
 
 
-__global__ void CalcBinSizeNoGhost2D(int M, int nf1, int nf2, int  bin_size_x, 
+__global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_size_x, 
 	int bin_size_y, int nbinx, int nbiny, int* bin_size, FLT *x, FLT *y, 
 	int* sortidx, int pirange)
 {
@@ -55,7 +60,7 @@ __global__ void CalcBinSizeNoGhost2D(int M, int nf1, int nf2, int  bin_size_x,
 	}
 }
 
-__global__ void CalcInvertofGlobalSortIdx2D(int M, int bin_size_x, int bin_size_y, 
+__global__ void CalcInvertofGlobalSortIdx2DKernel(int M, int bin_size_x, int bin_size_y, 
 	int nbinx,int nbiny, int* bin_startpts, int* sortidx, FLT *x, FLT *y, 
 	int* index, int pirange, int nf1, int nf2)
 {
@@ -77,6 +82,17 @@ __global__ void CalcInvertofGlobalSortIdx2D(int M, int bin_size_x, int bin_size_
 	}
 }
 
+#ifdef SINGLE
+#define TrivialGlobalSortIdx2DKernel TrivialGlobalSortIdx2DKernel_S
+#else
+#define TrivialGlobalSortIdx2DKernel TrivialGlobalSortIdx2DKernel_D
+#endif
+__global__ void TrivialGlobalSortIdx2DKernel(int M, int* index)
+{
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
+		index[i] = i;
+	}
+}
 
 
 int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
@@ -148,6 +164,9 @@ int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 
 int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan)
 {
+  int num_blocks = (M + 1024 - 1) / 1024;
+  int threads_per_block = 1024;
+
   if (d_plan->spread_params_.sort_points == SortPoints::YES) {
 
     int bin_size[2];
@@ -178,24 +197,29 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d
     d_plan->device_.synchronize();
 
     d_plan->device_.memset(d_binsize, 0, num_bins[0] * num_bins[1] * sizeof(int));
-    CalcBinSizeNoGhost2D<<<(M + 1024 - 1) / 1024, 1024>>>(M, nf1, nf2,
-      bin_size[0], bin_size[1], num_bins[0], num_bins[1],
-      d_binsize, d_kx, d_ky, d_sortidx, pirange);
+    
+    TF_CHECK_OK(GpuLaunchKernel(
+        CalcBinSizeNoGhost2DKernel,
+        num_blocks, threads_per_block, 0, d_plan->device_.stream(),
+        M, nf1, nf2, bin_size[0], bin_size[1], num_bins[0], num_bins[1],
+        d_binsize, d_kx, d_ky, d_sortidx, pirange));
 
     int n=num_bins[0]*num_bins[1];
     thrust::device_ptr<int> d_ptr(d_binsize);
     thrust::device_ptr<int> d_result(d_binstartpts);
     thrust::exclusive_scan(d_ptr, d_ptr + n, d_result);
 
-    CalcInvertofGlobalSortIdx2D<<<(M + 1024 - 1) / 1024, 1024>>>(
-      M, bin_size[0], bin_size[1], num_bins[0], num_bins[1],
-      d_binstartpts, d_sortidx, d_kx, d_ky,
-      d_idxnupts, pirange, nf1, nf2);
-
-  }else{
-    int *d_idxnupts = d_plan->idxnupts;
-
-    TrivialGlobalSortIdx_2d<<<(M + 1024 - 1) / 1024, 1024>>>(M, d_idxnupts);
+    TF_CHECK_OK(GpuLaunchKernel(
+        CalcInvertofGlobalSortIdx2DKernel,
+        num_blocks, threads_per_block, 0, d_plan->device_.stream(),
+        M, bin_size[0], bin_size[1], num_bins[0], num_bins[1],
+        d_binstartpts, d_sortidx, d_kx, d_ky,
+        d_idxnupts, pirange, nf1, nf2));
+  } else {
+    TF_CHECK_OK(GpuLaunchKernel(
+        TrivialGlobalSortIdx2DKernel,
+        num_blocks, threads_per_block, 0, d_plan->device_.stream(),
+        M, d_plan->idxnupts));
   }
   return 0;
 }
@@ -285,7 +309,7 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_pla
   checkCudaErrors(cudaDeviceSynchronize());
 
   checkCudaErrors(cudaMemset(d_binsize,0,num_bins[0]*num_bins[1]*sizeof(int)));
-  CalcBinSizeNoGhost2D<<<(M+1024-1)/1024, 1024>>>(M,nf1,nf2,bin_size_x,
+  CalcBinSizeNoGhost2DKernel<<<(M+1024-1)/1024, 1024>>>(M,nf1,nf2,bin_size_x,
     bin_size_y,num_bins[0],num_bins[1],d_binsize,d_kx,d_ky,d_sortidx,pirange);
 
   int n=num_bins[0]*num_bins[1];
@@ -293,7 +317,7 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_pla
   thrust::device_ptr<int> d_result(d_binstartpts);
   thrust::exclusive_scan(d_ptr, d_ptr + n, d_result);
 
-  CalcInvertofGlobalSortIdx2D<<<(M+1024-1)/1024,1024>>>(M,bin_size_x,
+  CalcInvertofGlobalSortIdx2DKernel<<<(M+1024-1)/1024,1024>>>(M,bin_size_x,
     bin_size_y,num_bins[0],num_bins[1],d_binstartpts,d_sortidx,d_kx,d_ky,
     d_idxnupts,pirange,nf1,nf2);
 
@@ -400,3 +424,5 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
 #endif
   return 0;
 }
+
+#endif // GOOGLE_CUDA

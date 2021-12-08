@@ -231,6 +231,10 @@ Plan<GPUDevice, FloatType>::Plan(
   this->nf1 = nf1;
   this->nf2 = nf2;
   this->nf3 = nf3;
+  this->grid_dims_[0] = nf1;
+  this->grid_dims_[1] = nf2;
+  this->grid_dims_[2] = nf3;
+  this->grid_count_ = nf1 * nf2 * nf3;
   this->fft_direction_ = fft_direction;
   this->num_transforms_ = num_transforms;
   this->type_ = type;

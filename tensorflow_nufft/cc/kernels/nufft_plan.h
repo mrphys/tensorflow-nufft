@@ -293,7 +293,8 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // The parameters for the spreading algorithm/s.
   SpreadParameters<FloatType> spread_params_;
   
-  
+  int grid_dims_[3];
+  int grid_count_;
   // std::unique_ptr<Spreader<GPUDevice, FloatType>> spreader_; // owned
 
   int M;

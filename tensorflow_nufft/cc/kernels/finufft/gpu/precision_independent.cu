@@ -73,14 +73,6 @@ void CalcSubProb_2d_Paul(int* finegridsize, int* num_subprob,
 	num_subprob[blockIdx.x] = (int)ceil(*maxptsinbin/(float) maxsubprobsize);
 }
 
-__global__
-void TrivialGlobalSortIdx_2d(int M, int* index)
-{
-	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
-		index[i] = i;
-	}
-}
-
 /* spreadinterp3d */
 __global__
 void CalcSubProb_3d_v2(int* bin_size, int* num_subprob, int maxsubprobsize,

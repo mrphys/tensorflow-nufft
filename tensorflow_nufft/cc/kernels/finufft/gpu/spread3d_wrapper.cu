@@ -58,7 +58,7 @@ int CUSPREAD3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
     case SpreadMethod::NUPTS_DRIVEN:
       {
         cudaEventRecord(start);
-        ier = CUSPREAD3D_NUPTSDRIVEN(nf1, nf2, nf3, M, d_plan, blksize);
+        ier = CUSPREAD2D_NUPTSDRIVEN(d_plan, blksize);
         if (ier != 0 ) {
           cout<<"error: cnufftspread3d_gpu_subprob"<<endl;
           return 1;
@@ -90,58 +90,6 @@ int CUSPREAD3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
       return 2;
   }
   return ier;
-}
-
-int CUSPREAD3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M, 
-  Plan<GPUDevice, FLT>* d_plan, int blksize)
-{
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-
-  dim3 threadsPerBlock;
-  dim3 blocks;
-
-  int ns=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
-  FLT sigma=d_plan->spread_params_.upsampling_factor;
-  FLT es_c=d_plan->spread_params_.ES_c;
-  FLT es_beta=d_plan->spread_params_.ES_beta;
-  int pirange=d_plan->spread_params_.pirange;
-
-  int* d_idxnupts = d_plan->idxnupts;
-  FLT* d_kx = d_plan->kx;
-  FLT* d_ky = d_plan->ky;
-  FLT* d_kz = d_plan->kz;
-  CUCPX* d_c = d_plan->c;
-  CUCPX* d_fw = d_plan->fine_grid_data_;
-
-  threadsPerBlock.x = 16;
-  threadsPerBlock.y = 1;
-  blocks.x = (M + threadsPerBlock.x - 1)/threadsPerBlock.x;
-  blocks.y = 1;
-  cudaEventRecord(start);
-  if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-    for (int t=0; t<blksize; t++) {
-      Spread_3d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_kx, d_ky, 
-        d_kz, d_c+t*M, d_fw+t*nf1*nf2*nf3, M, ns, nf1, nf2, nf3, sigma, 
-        d_idxnupts,pirange);
-    }
-  }else{
-    for (int t=0; t<blksize; t++) {
-      Spread_3d_NUptsdriven<<<blocks, threadsPerBlock>>>(d_kx, d_ky, d_kz,
-        d_c+t*M, d_fw+t*nf1*nf2*nf3, M, ns, nf1, nf2, nf3, es_c, es_beta, 
-        d_idxnupts,pirange);
-    }
-  }
-#ifdef SPREADTIME
-  float milliseconds = 0;
-  cudaEventRecord(stop);
-  cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&milliseconds, start, stop);
-  printf("[time  ] \tKernel Spread_3d_NUptsdriven (%d)\t%.3g ms\n", 
-    milliseconds,d_plan->options_.kernel_evaluation_method);
-#endif
-  return 0;
 }
 
 int CUSPREAD3D_BLOCKGATHER_PROP(int nf1, int nf2, int nf3, int M, 

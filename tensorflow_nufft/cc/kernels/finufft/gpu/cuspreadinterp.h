@@ -199,7 +199,7 @@ int CUINTERP3D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int 
 
 // Wrappers for methods of spreading
 int CUSPREAD2D_NUPTSDRIVEN_PROP(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
+int CUSPREAD2D_NUPTSDRIVEN(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
 	int blksize);
 int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 int CUSPREAD2D_PAUL_PROP(int nf1, int nf2, int M, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);

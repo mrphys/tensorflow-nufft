@@ -172,7 +172,7 @@ int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
     case SpreadMethod::NUPTS_DRIVEN:
       {
         cudaEventRecord(start);
-        ier = CUSPREAD2D_NUPTSDRIVEN(nf1, nf2, M, d_plan, blksize);
+        ier = CUSPREAD2D_NUPTSDRIVEN(d_plan, blksize);
         if (ier != 0 ) {
           cout<<"error: cnufftspread2d_gpu_nuptsdriven"<<endl;
           return 1;
@@ -297,13 +297,7 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(Plan<GPUDevice, FLT>* d_plan) {
   return 0;
 }
 
-int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
-  int blksize)
-{
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-
+int CUSPREAD2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
   dim3 threadsPerBlock;
   dim3 blocks;
 
@@ -319,21 +313,47 @@ int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
 
   threadsPerBlock.x = 16;
   threadsPerBlock.y = 1;
-  blocks.x = (M + threadsPerBlock.x - 1)/threadsPerBlock.x;
+  blocks.x = (d_plan->num_points_ + threadsPerBlock.x - 1)/threadsPerBlock.x;
   blocks.y = 1;
 
-  if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-    for (int t=0; t<blksize; t++) {
-      Spread_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_plan->points_[0],
-        d_plan->points_[1], d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2, sigma,
-        d_idxnupts, pirange);
-    }
-  } else {
-    for (int t=0; t<blksize; t++) {
-      Spread_2d_NUptsdriven<<<blocks, threadsPerBlock>>>(d_plan->points_[0], d_plan->points_[1],
-        d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2, es_c, es_beta,
-        d_idxnupts, pirange);
-    }
+  switch (d_plan->rank_) {
+    case 2:
+      if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+        for (int t=0; t<blksize; t++) {
+          Spread_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_plan->points_[0],
+            d_plan->points_[1], d_c + t * d_plan->num_points_,
+            d_fw + t * d_plan->grid_count_, d_plan->num_points_, ns,
+            d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma, d_idxnupts, pirange);
+        }
+      } else {
+        for (int t=0; t<blksize; t++) {
+          Spread_2d_NUptsdriven<<<blocks, threadsPerBlock>>>(
+            d_plan->points_[0], d_plan->points_[1],
+            d_c + t * d_plan->grid_count_, d_fw + t * d_plan->grid_count_,
+            d_plan->num_points_, ns,
+            d_plan->grid_dims_[0], d_plan->grid_dims_[1], es_c, es_beta, d_idxnupts, pirange);
+        }
+      }
+      break;
+    case 3:
+      if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+        for (int t=0; t<blksize; t++) {
+          Spread_3d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_plan->points_[0],
+            d_plan->points_[1], d_plan->points_[2], d_c+t*d_plan->num_points_,
+            d_fw+t*d_plan->grid_count_, d_plan->num_points_, ns,
+            d_plan->grid_dims_[0], d_plan->grid_dims_[1], d_plan->grid_dims_[2],
+            sigma, d_idxnupts,pirange);
+        }
+      } else {
+        for (int t=0; t<blksize; t++) {
+          Spread_3d_NUptsdriven<<<blocks, threadsPerBlock>>>(d_plan->points_[0],
+            d_plan->points_[1], d_plan->points_[2],
+            d_c+t*d_plan->num_points_, d_fw+t*d_plan->grid_count_, d_plan->num_points_, ns, d_plan->grid_dims_[0],
+            d_plan->grid_dims_[1], d_plan->grid_dims_[2], es_c, es_beta, 
+            d_idxnupts,pirange);
+        }
+      }
+      break;
   }
 
   return 0;

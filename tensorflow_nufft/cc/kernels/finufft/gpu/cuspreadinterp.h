@@ -29,16 +29,6 @@ __global__
 void Spread_2d_NUptsdriven_Horner(FLT *x, FLT *y, CUCPX *c, CUCPX *fw, int M,
 	const int ns, int nf1, int nf2, FLT sigma, int* idxnupts, int pirange);
 
-/* Kernels for SubProb Method */
-// SubProb properties
-__global__
-void CalcBinSize_noghost_2d(int M, int nf1, int nf2, int  bin_size_x,
-	int bin_size_y, int nbinx,int nbiny, int* bin_size, FLT *x, FLT *y,
-	int* sortidx, int pirange);
-__global__
-void CalcInvertofGlobalSortIdx_2d(int M, int bin_size_x, int bin_size_y,
-	int nbinx,int nbiny, int* bin_startpts, int* sortidx,FLT *x, FLT *y,
-	int* index, int pirange, int nf1, int nf2);
 
 // Main Spreading Kernel
 __global__

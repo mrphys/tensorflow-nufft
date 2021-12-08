@@ -30,6 +30,55 @@ using namespace tensorflow;
 using namespace tensorflow::nufft;
 
 
+__global__ void CalcBinSizeNoGhost2D(int M, int nf1, int nf2, int  bin_size_x, 
+	int bin_size_y, int nbinx, int nbiny, int* bin_size, FLT *x, FLT *y, 
+	int* sortidx, int pirange)
+{
+	int binidx, binx, biny;
+	int oldidx;
+	FLT x_rescaled,y_rescaled;
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
+		x_rescaled=RESCALE(x[i], nf1, pirange);
+		y_rescaled=RESCALE(y[i], nf2, pirange);
+		binx = floor(x_rescaled/bin_size_x);
+		binx = binx >= nbinx ? binx-1 : binx;
+		binx = binx < 0 ? 0 : binx;
+		biny = floor(y_rescaled/bin_size_y);
+		biny = biny >= nbiny ? biny-1 : biny;
+		biny = biny < 0 ? 0 : biny;
+		binidx = binx+biny*nbinx;
+		oldidx = atomicAdd(&bin_size[binidx], 1);
+		sortidx[i] = oldidx;
+		if (binx >= nbinx || biny >= nbiny) {
+			sortidx[i] = -biny;
+		}
+	}
+}
+
+__global__ void CalcInvertofGlobalSortIdx2D(int M, int bin_size_x, int bin_size_y, 
+	int nbinx,int nbiny, int* bin_startpts, int* sortidx, FLT *x, FLT *y, 
+	int* index, int pirange, int nf1, int nf2)
+{
+	int binx, biny;
+	int binidx;
+	FLT x_rescaled, y_rescaled;
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
+		x_rescaled=RESCALE(x[i], nf1, pirange);
+		y_rescaled=RESCALE(y[i], nf2, pirange);
+		binx = floor(x_rescaled/bin_size_x);
+		binx = binx >= nbinx ? binx-1 : binx;
+		binx = binx < 0 ? 0 : binx;
+		biny = floor(y_rescaled/bin_size_y);
+		biny = biny >= nbiny ? biny-1 : biny;
+		biny = biny < 0 ? 0 : biny;
+		binidx = binx+biny*nbinx;
+
+		index[bin_startpts[binidx]+sortidx[i]] = i;
+	}
+}
+
+
+
 int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 /*
   A wrapper for different spreading methods.
@@ -110,9 +159,9 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d
       return 1; 
     }
 
-    int numbins[2];
-    numbins[0] = ceil((FLT) nf1 / bin_size[0]);
-    numbins[1] = ceil((FLT) nf2 / bin_size[1]);
+    int num_bins[2];
+    num_bins[0] = ceil((FLT) nf1 / bin_size[0]);
+    num_bins[1] = ceil((FLT) nf2 / bin_size[1]);
 
     FLT*   d_kx = d_plan->kx;
     FLT*   d_ky = d_plan->ky;
@@ -126,21 +175,20 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d
 
     // Synchronize device before we start. This is essential! Otherwise the
     // next kernel could read the wrong (kx, ky, kz) values.
-    checkCudaErrors(cudaDeviceSynchronize());
+    d_plan->device_.synchronize();
 
-    checkCudaErrors(cudaMemset(d_binsize,0,numbins[0]*numbins[1]*
-      sizeof(int)));
-    CalcBinSize_noghost_2d<<<(M + 1024 - 1) / 1024, 1024>>>(M, nf1, nf2,
-      bin_size[0], bin_size[1], numbins[0], numbins[1],
+    d_plan->device_.memset(d_binsize, 0, num_bins[0] * num_bins[1] * sizeof(int));
+    CalcBinSizeNoGhost2D<<<(M + 1024 - 1) / 1024, 1024>>>(M, nf1, nf2,
+      bin_size[0], bin_size[1], num_bins[0], num_bins[1],
       d_binsize, d_kx, d_ky, d_sortidx, pirange);
 
-    int n=numbins[0]*numbins[1];
+    int n=num_bins[0]*num_bins[1];
     thrust::device_ptr<int> d_ptr(d_binsize);
     thrust::device_ptr<int> d_result(d_binstartpts);
     thrust::exclusive_scan(d_ptr, d_ptr + n, d_result);
 
-    CalcInvertofGlobalSortIdx_2d<<<(M + 1024 - 1) / 1024, 1024>>>(
-      M, bin_size[0], bin_size[1], numbins[0], numbins[1],
+    CalcInvertofGlobalSortIdx2D<<<(M + 1024 - 1) / 1024, 1024>>>(
+      M, bin_size[0], bin_size[1], num_bins[0], num_bins[1],
       d_binstartpts, d_sortidx, d_kx, d_ky,
       d_idxnupts, pirange, nf1, nf2);
 
@@ -178,7 +226,7 @@ int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
   threadsPerBlock.y = 1;
   blocks.x = (M + threadsPerBlock.x - 1)/threadsPerBlock.x;
   blocks.y = 1;
-  cudaEventRecord(start);
+
   if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
     for (int t=0; t<blksize; t++) {
       Spread_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_kx,
@@ -193,14 +241,6 @@ int CUSPREAD2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
     }
   }
 
-#ifdef SPREADTIME
-  float milliseconds = 0;
-  cudaEventRecord(stop);
-  cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&milliseconds, start, stop);
-  printf("[time  ] \tKernel Spread_2d_NUptsdriven (%d)\t%.3g ms\n",
-    milliseconds, d_plan->options_.kernel_evaluation_method);
-#endif
   return 0;
 }
 int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan)
@@ -222,31 +262,13 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_pla
     cout<<bin_size_x<<","<<bin_size_y<<")"<<endl;
     return 1; 
   }
-  int numbins[2];
-  numbins[0] = ceil((FLT) nf1/bin_size_x);
-  numbins[1] = ceil((FLT) nf2/bin_size_y);
-#ifdef DEBUG
-  cout<<"[debug  ] Dividing the uniform grids to bin size["
-    <<d_plan->options_.gpu_bin_size.x<<"x"<<d_plan->options_.gpu_bin_size.y<<"]"<<endl;
-  cout<<"[debug  ] numbins = ["<<numbins[0]<<"x"<<numbins[1]<<"]"<<endl;
-#endif
+  int num_bins[2];
+  num_bins[0] = ceil((FLT) nf1/bin_size_x);
+  num_bins[1] = ceil((FLT) nf2/bin_size_y);
 
   FLT*   d_kx = d_plan->kx;
   FLT*   d_ky = d_plan->ky;
 
-#ifdef DEBUG
-  FLT *h_kx;
-  FLT *h_ky;
-  h_kx = (FLT*)malloc(M*sizeof(FLT));
-  h_ky = (FLT*)malloc(M*sizeof(FLT));
-
-  checkCudaErrors(cudaMemcpy(h_kx,d_kx,M*sizeof(FLT),cudaMemcpyDeviceToHost));
-  checkCudaErrors(cudaMemcpy(h_ky,d_ky,M*sizeof(FLT),cudaMemcpyDeviceToHost));
-  for (int i=0; i<M; i++) {
-    cout<<"[debug ]";
-    cout <<"("<<setw(3)<<h_kx[i]<<","<<setw(3)<<h_ky[i]<<")"<<endl;
-  }
-#endif
   int *d_binsize = d_plan->binsize;
   int *d_binstartpts = d_plan->binstartpts;
   int *d_sortidx = d_plan->sortidx;
@@ -262,177 +284,39 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_pla
   // next kernel could read the wrong (kx, ky, kz) values.
   checkCudaErrors(cudaDeviceSynchronize());
 
-  cudaEventRecord(start);
-  checkCudaErrors(cudaMemset(d_binsize,0,numbins[0]*numbins[1]*sizeof(int)));
-  CalcBinSize_noghost_2d<<<(M+1024-1)/1024, 1024>>>(M,nf1,nf2,bin_size_x,
-    bin_size_y,numbins[0],numbins[1],d_binsize,d_kx,d_ky,d_sortidx,pirange);
-#ifdef SPREADTIME
-  float milliseconds = 0;
-  cudaEventRecord(stop);
-  cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&milliseconds, start, stop);
-  printf("[time  ] \tKernel CalcBinSize_noghost_2d \t\t%.3g ms\n",
-    milliseconds);
-#endif
-#ifdef DEBUG
-  int *h_binsize;// For debug
-  h_binsize     = (int*)malloc(numbins[0]*numbins[1]*sizeof(int));
-  checkCudaErrors(cudaMemcpy(h_binsize,d_binsize,numbins[0]*numbins[1]*
-    sizeof(int),cudaMemcpyDeviceToHost));
-  cout<<"[debug ] bin size:"<<endl;
-  for (int j=0; j<numbins[1]; j++) {
-    cout<<"[debug ] ";
-    for (int i=0; i<numbins[0]; i++) {
-      if (i!=0) cout<<" ";
-      cout <<" bin["<<setw(3)<<i<<","<<setw(3)<<j<<"]="<<
-        h_binsize[i+j*numbins[0]];
-    }
-    cout<<endl;
-  }
-  free(h_binsize);
-  cout<<"[debug ] ----------------------------------------------------"<<endl;
-#endif
-#ifdef DEBUG
-  int *h_sortidx;
-  h_sortidx = (int*)malloc(M*sizeof(int));
-  checkCudaErrors(cudaMemcpy(h_sortidx,d_sortidx,M*sizeof(int),
-    cudaMemcpyDeviceToHost));
-  cout<<"[debug ]";
-  for (int i=0; i<M; i++) {
-    cout <<"[debug] point["<<setw(3)<<i<<"]="<<setw(3)<<h_sortidx[i]<<endl;
-  }
+  checkCudaErrors(cudaMemset(d_binsize,0,num_bins[0]*num_bins[1]*sizeof(int)));
+  CalcBinSizeNoGhost2D<<<(M+1024-1)/1024, 1024>>>(M,nf1,nf2,bin_size_x,
+    bin_size_y,num_bins[0],num_bins[1],d_binsize,d_kx,d_ky,d_sortidx,pirange);
 
-#endif
-
-  cudaEventRecord(start);
-  int n=numbins[0]*numbins[1];
+  int n=num_bins[0]*num_bins[1];
   thrust::device_ptr<int> d_ptr(d_binsize);
   thrust::device_ptr<int> d_result(d_binstartpts);
   thrust::exclusive_scan(d_ptr, d_ptr + n, d_result);
-#ifdef SPREADTIME
-  cudaEventRecord(stop);
-  cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&milliseconds, start, stop);
-  printf("[time  ] \tKernel BinStartPts_2d \t\t\t%.3g ms\n", milliseconds);
-#endif
-#ifdef DEBUG
-  int *h_binstartpts;
-  h_binstartpts = (int*)malloc((numbins[0]*numbins[1])*sizeof(int));
-  checkCudaErrors(cudaMemcpy(h_binstartpts,d_binstartpts,
-        (numbins[0]*numbins[1])*sizeof(int),
-        cudaMemcpyDeviceToHost));
-  cout<<"[debug ] Result of scan bin_size array:"<<endl;
-  for (int j=0; j<numbins[1]; j++) {
-    cout<<"[debug ] ";
-    for (int i=0; i<numbins[0]; i++) {
-      if (i!=0) cout<<" ";
-      cout <<"bin["<<setw(3)<<i<<","<<setw(3)<<j<<"] = "<<setw(2)
-        <<h_binstartpts[i+j*numbins[0]];
-    }
-    cout<<endl;
-  }
-  free(h_binstartpts);
-  cout<<"[debug ] ---------------------------------------------------"<<endl;
-#endif
-  cudaEventRecord(start);
-  CalcInvertofGlobalSortIdx_2d<<<(M+1024-1)/1024,1024>>>(M,bin_size_x,
-    bin_size_y,numbins[0],numbins[1],d_binstartpts,d_sortidx,d_kx,d_ky,
+
+  CalcInvertofGlobalSortIdx2D<<<(M+1024-1)/1024,1024>>>(M,bin_size_x,
+    bin_size_y,num_bins[0],num_bins[1],d_binstartpts,d_sortidx,d_kx,d_ky,
     d_idxnupts,pirange,nf1,nf2);
-#ifdef DEBUG
-  int *h_idxnupts;
-  h_idxnupts = (int*)malloc(M*sizeof(int));
-  checkCudaErrors(cudaMemcpy(h_idxnupts,d_idxnupts,M*sizeof(int),
-        cudaMemcpyDeviceToHost));
-  for (int i=0; i<M; i++) {
-    cout <<"[debug ] idx="<< h_idxnupts[i]<<endl;
-  }
-  free(h_idxnupts);
-#endif
-  cudaEventRecord(start);
+
   CalcSubProb_2d<<<(M+1024-1)/1024, 1024>>>(d_binsize,d_numsubprob,
-    maxsubprobsize,numbins[0]*numbins[1]);
-#ifdef SPREADTIME
-  cudaEventRecord(stop);
-  cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&milliseconds, start, stop);
-  printf("[time  ] \tKernel CalcSubProb_2d\t\t%.3g ms\n", milliseconds);
-#endif
-#ifdef DEBUG
-  int* h_numsubprob;
-  h_numsubprob = (int*) malloc(n*sizeof(int));
-  checkCudaErrors(cudaMemcpy(h_numsubprob,d_numsubprob,numbins[0]*numbins[1]*
-        sizeof(int),cudaMemcpyDeviceToHost));
-  for (int j=0; j<numbins[1]; j++) {
-    cout<<"[debug ] ";
-    for (int i=0; i<numbins[0]; i++) {
-      if (i!=0) cout<<" ";
-      cout <<"nsub["<<setw(3)<<i<<","<<setw(3)<<j<<"] = "<<setw(2)<<
-        h_numsubprob[i+j*numbins[0]];
-    }
-    cout<<endl;
-  }
-  free(h_numsubprob);
-#endif
+    maxsubprobsize,num_bins[0]*num_bins[1]);
+
   d_ptr    = thrust::device_pointer_cast(d_numsubprob);
   d_result = thrust::device_pointer_cast(d_subprobstartpts+1);
   thrust::inclusive_scan(d_ptr, d_ptr + n, d_result);
   checkCudaErrors(cudaMemset(d_subprobstartpts,0,sizeof(int)));
-#ifdef SPREADTIME
-  cudaEventRecord(stop);
-  cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&milliseconds, start, stop);
-  printf("[time  ] \tKernel Scan Subprob array\t\t%.3g ms\n", milliseconds);
-#endif
 
-#ifdef DEBUG
-  printf("[debug ] Subproblem start points\n");
-  int* h_subprobstartpts;
-  h_subprobstartpts = (int*) malloc((n+1)*sizeof(int));
-  checkCudaErrors(cudaMemcpy(h_subprobstartpts,d_subprobstartpts,
-        (n+1)*sizeof(int),cudaMemcpyDeviceToHost));
-  for (int j=0; j<numbins[1]; j++) {
-    cout<<"[debug ] ";
-    for (int i=0; i<numbins[0]; i++) {
-      if (i!=0) cout<<" ";
-      cout <<"nsub["<<setw(3)<<i<<","<<setw(3)<<j<<"] = "<<setw(2)<<
-        h_subprobstartpts[i+j*numbins[0]];
-    }
-    cout<<endl;
-  }
-  printf("[debug ] Total number of subproblems = %d\n", h_subprobstartpts[n]);
-  free(h_subprobstartpts);
-#endif
-  cudaEventRecord(start);
   int totalnumsubprob;
   checkCudaErrors(cudaMemcpy(&totalnumsubprob,&d_subprobstartpts[n],
     sizeof(int),cudaMemcpyDeviceToHost));
   checkCudaErrors(cudaMalloc(&d_subprob_to_bin,totalnumsubprob*sizeof(int)));
-  MapBintoSubProb_2d<<<(numbins[0]*numbins[1]+1024-1)/1024, 1024>>>(
-      d_subprob_to_bin,d_subprobstartpts,d_numsubprob,numbins[0]*numbins[1]);
+  MapBintoSubProb_2d<<<(num_bins[0]*num_bins[1]+1024-1)/1024, 1024>>>(
+      d_subprob_to_bin,d_subprobstartpts,d_numsubprob,num_bins[0]*num_bins[1]);
   assert(d_subprob_to_bin != NULL);
         if (d_plan->subprob_to_bin != NULL) cudaFree(d_plan->subprob_to_bin);
   d_plan->subprob_to_bin = d_subprob_to_bin;
   assert(d_plan->subprob_to_bin != NULL);
   d_plan->totalnumsubprob = totalnumsubprob;
-#ifdef DEBUG
-  printf("[debug ] Map Subproblem to Bins\n");
-  int* h_subprob_to_bin;
-  h_subprob_to_bin = (int*) malloc((totalnumsubprob)*sizeof(int));
-  checkCudaErrors(cudaMemcpy(h_subprob_to_bin,d_subprob_to_bin,
-        (totalnumsubprob)*sizeof(int),cudaMemcpyDeviceToHost));
-  for (int j=0; j<totalnumsubprob; j++) {
-    cout<<"[debug ] ";
-    cout <<"nsub["<<j<<"] = "<<setw(2)<<h_subprob_to_bin[j];
-    cout<<endl;
-  }
-  free(h_subprob_to_bin);
-#endif
-#ifdef SPREADTIME
-  cudaEventRecord(stop);
-  cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&milliseconds, start, stop);
-  printf("[time  ] \tKernel Subproblem to Bin map\t\t%.3g ms\n", milliseconds);
-#endif
+
   return 0;
 }
 
@@ -451,13 +335,13 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
   // assume that bin_size_x > ns/2;
   int bin_size_x=d_plan->options_.gpu_bin_size.x;
   int bin_size_y=d_plan->options_.gpu_bin_size.y;
-  int numbins[2];
-  numbins[0] = ceil((FLT) nf1/bin_size_x);
-  numbins[1] = ceil((FLT) nf2/bin_size_y);
+  int num_bins[2];
+  num_bins[0] = ceil((FLT) nf1/bin_size_x);
+  num_bins[1] = ceil((FLT) nf2/bin_size_y);
 #ifdef INFO
   cout<<"[info  ] Dividing the uniform grids to bin size["
     <<d_plan->options_.gpu_bin_size.x<<"x"<<d_plan->options_.gpu_bin_size.y<<"]"<<endl;
-  cout<<"[info  ] numbins = ["<<numbins[0]<<"x"<<numbins[1]<<"]"<<endl;
+  cout<<"[info  ] num_bins = ["<<num_bins[0]<<"x"<<num_bins[1]<<"]"<<endl;
 #endif
 
   FLT* d_kx = d_plan->kx;
@@ -493,7 +377,7 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
         sharedplanorysize>>>(d_kx, d_ky, d_c+t*M, d_fw+t*nf1*nf2, M,
         ns, nf1, nf2, sigma, d_binstartpts, d_binsize, bin_size_x,
         bin_size_y, d_subprob_to_bin, d_subprobstartpts,
-        d_numsubprob, maxsubprobsize,numbins[0],numbins[1],
+        d_numsubprob, maxsubprobsize,num_bins[0],num_bins[1],
         d_idxnupts, pirange);
     }
   }else{
@@ -502,7 +386,7 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan,
         d_kx, d_ky, d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2,
         es_c, es_beta, sigma,d_binstartpts, d_binsize, bin_size_x,
         bin_size_y, d_subprob_to_bin, d_subprobstartpts,
-        d_numsubprob, maxsubprobsize, numbins[0], numbins[1],
+        d_numsubprob, maxsubprobsize, num_bins[0], num_bins[1],
         d_idxnupts, pirange);
     }
   }

@@ -156,54 +156,6 @@ void Spread_2d_NUptsdriven_Horner(FLT *x, FLT *y, CUCPX *c, CUCPX *fw, int M,
 
 /* Kernels for SubProb Method */
 // SubProb properties
-__global__
-void CalcBinSize_noghost_2d(int M, int nf1, int nf2, int  bin_size_x, 
-	int bin_size_y, int nbinx, int nbiny, int* bin_size, FLT *x, FLT *y, 
-	int* sortidx, int pirange)
-{
-	int binidx, binx, biny;
-	int oldidx;
-	FLT x_rescaled,y_rescaled;
-	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
-		x_rescaled=RESCALE(x[i], nf1, pirange);
-		y_rescaled=RESCALE(y[i], nf2, pirange);
-		binx = floor(x_rescaled/bin_size_x);
-		binx = binx >= nbinx ? binx-1 : binx;
-		binx = binx < 0 ? 0 : binx;
-		biny = floor(y_rescaled/bin_size_y);
-		biny = biny >= nbiny ? biny-1 : biny;
-		biny = biny < 0 ? 0 : biny;
-		binidx = binx+biny*nbinx;
-		oldidx = atomicAdd(&bin_size[binidx], 1);
-		sortidx[i] = oldidx;
-		if (binx >= nbinx || biny >= nbiny) {
-			sortidx[i] = -biny;
-		}
-	}
-}
-
-__global__
-void CalcInvertofGlobalSortIdx_2d(int M, int bin_size_x, int bin_size_y, 
-	int nbinx,int nbiny, int* bin_startpts, int* sortidx, FLT *x, FLT *y, 
-	int* index, int pirange, int nf1, int nf2)
-{
-	int binx, biny;
-	int binidx;
-	FLT x_rescaled, y_rescaled;
-	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
-		x_rescaled=RESCALE(x[i], nf1, pirange);
-		y_rescaled=RESCALE(y[i], nf2, pirange);
-		binx = floor(x_rescaled/bin_size_x);
-		binx = binx >= nbinx ? binx-1 : binx;
-		binx = binx < 0 ? 0 : binx;
-		biny = floor(y_rescaled/bin_size_y);
-		biny = biny >= nbiny ? biny-1 : biny;
-		biny = biny < 0 ? 0 : biny;
-		binidx = binx+biny*nbinx;
-
-		index[bin_startpts[binidx]+sortidx[i]] = i;
-	}
-}
 
 
 __global__

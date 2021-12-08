@@ -199,7 +199,7 @@ Notes: the type FLT means either single or double, matching the
 				}
 			}
 			if (d_plan->options_.spread_method == SpreadMethod::NUPTS_DRIVEN) {
-				ier = CUSPREAD3D_NUPTSDRIVEN_PROP(nf1,nf2,nf3,M,d_plan);
+				ier = CUSPREAD2D_NUPTSDRIVEN_PROP(d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread3d_nuptsdriven_prop, method(%d)\n",
 						d_plan->options_.spread_method);

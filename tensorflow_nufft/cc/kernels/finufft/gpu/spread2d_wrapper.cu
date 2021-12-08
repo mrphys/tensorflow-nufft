@@ -214,6 +214,7 @@ int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 }
 
 int CUSPREAD2D_NUPTSDRIVEN_PROP(Plan<GPUDevice, FLT>* d_plan) {
+  
   int num_blocks = (d_plan->num_points_ + 1024 - 1) / 1024;
   int threads_per_block = 1024;
 
@@ -225,7 +226,7 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(Plan<GPUDevice, FLT>* d_plan) {
     if (bin_size[0] < 0 || bin_size[1] < 0 || bin_size[2] < 0) {
       cout << "error: invalid binsize (binsizex, binsizey) = (";
       cout << bin_size[0] << "," << bin_size[1] << ")" << endl;
-      return 1; 
+      return 1;
     }
 
     int num_bins[3] = {1, 1, 1};
@@ -251,18 +252,15 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(Plan<GPUDevice, FLT>* d_plan) {
             d_plan->spread_params_.pirange));
         break;
       case 3:
-        TF_CHECK_OK(GpuLaunchKernel(
-            CalcBinSizeNoGhost3DKernel,
-            num_blocks, threads_per_block, 0, d_plan->device_.stream(),
-            d_plan->num_points_, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
-            d_plan->grid_dims_[2], bin_size[0], bin_size[1], bin_size[2],
-            num_bins[0], num_bins[1], num_bins[2], d_plan->binsize,
-            d_plan->points_[0], d_plan->points_[1], d_plan->points_[2],
-            d_plan->sortidx, d_plan->spread_params_.pirange));
+        CalcBinSizeNoGhost3DKernel<<<num_blocks, threads_per_block>>>(
+          d_plan->num_points_, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
+          d_plan->grid_dims_[2],
+          bin_size[0],bin_size[1],bin_size[2],num_bins[0],num_bins[1],num_bins[2],
+          d_plan->binsize,d_plan->points_[0],d_plan->points_[1],d_plan->points_[2],
+          d_plan->sortidx,d_plan->spread_params_.pirange);
         break;
     }
 
-    // Calculate bin start points.
     thrust::device_ptr<int> d_bin_sizes(d_plan->binsize);
     thrust::device_ptr<int> d_bin_start_points(d_plan->binstartpts);
     thrust::exclusive_scan(d_bin_sizes, d_bin_sizes + bin_count,
@@ -280,15 +278,13 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(Plan<GPUDevice, FLT>* d_plan) {
             d_plan->grid_dims_[1]));
         break;
       case 3:
-        TF_CHECK_OK(GpuLaunchKernel(
-            CalcInvertofGlobalSortIdx3DKernel,
-            num_blocks, threads_per_block, 0, d_plan->device_.stream(),
-            d_plan->num_points_, bin_size[0], bin_size[1], bin_size[2],
-            num_bins[0], num_bins[1], num_bins[2], d_plan->binstartpts,
-            d_plan->sortidx, d_plan->points_[0], d_plan->points_[1],
-            d_plan->points_[2], d_plan->idxnupts,
-            d_plan->spread_params_.pirange, d_plan->grid_dims_[0],
-            d_plan->grid_dims_[1], d_plan->grid_dims_[2]));
+        CalcInvertofGlobalSortIdx3DKernel<<<num_blocks, threads_per_block>>>(
+          d_plan->num_points_,bin_size[0],
+          bin_size[1],bin_size[2],num_bins[0],num_bins[1],num_bins[2],
+          d_plan->binstartpts,
+          d_plan->sortidx,d_plan->points_[0],d_plan->points_[1],d_plan->points_[2],
+          d_plan->idxnupts, d_plan->spread_params_.pirange, d_plan->grid_dims_[0],
+          d_plan->grid_dims_[1], d_plan->grid_dims_[2]);
         break;
     }
   } else {
@@ -297,6 +293,7 @@ int CUSPREAD2D_NUPTSDRIVEN_PROP(Plan<GPUDevice, FLT>* d_plan) {
         num_blocks, threads_per_block, 0, d_plan->device_.stream(),
         d_plan->num_points_, d_plan->idxnupts));
   }
+
   return 0;
 }
 

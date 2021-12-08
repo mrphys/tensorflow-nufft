@@ -70,7 +70,6 @@ limitations under the License.
 #undef CUSPREAD2D_PAUL_PROP
 /* spreading 3d */
 #undef CUSPREAD3D
-#undef CUSPREAD3D_NUPTSDRIVEN_PROP
 #undef CUSPREAD3D_NUPTSDRIVEN
 #undef CUSPREAD3D_BLOCKGATHER_PROP
 #undef CUSPREAD3D_BLOCKGATHER
@@ -114,7 +113,6 @@ limitations under the License.
 #define CUSPREAD2D_PAUL_PROP cuspread2df_paul_prop
 /* spreading 3d */
 #define CUSPREAD3D cuspread3df
-#define CUSPREAD3D_NUPTSDRIVEN_PROP cuspread3df_nuptsdriven_prop
 #define CUSPREAD3D_NUPTSDRIVEN cuspread3df_nuptsdriven
 #define CUSPREAD3D_BLOCKGATHER_PROP cuspread3df_blockgather_prop
 #define CUSPREAD3D_BLOCKGATHER cuspread3df_blockgather
@@ -160,7 +158,6 @@ limitations under the License.
 #define CUSPREAD2D_PAUL_PROP cuspread2d_paul_prop
 /* spreading 3d */
 #define CUSPREAD3D cuspread3d
-#define CUSPREAD3D_NUPTSDRIVEN_PROP cuspread3d_nuptsdriven_prop
 #define CUSPREAD3D_NUPTSDRIVEN cuspread3d_nuptsdriven
 #define CUSPREAD3D_BLOCKGATHER_PROP cuspread3d_blockgather_prop
 #define CUSPREAD3D_BLOCKGATHER cuspread3d_blockgather

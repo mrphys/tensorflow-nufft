@@ -208,8 +208,6 @@ int CUSPREAD2D_SUBPROB(int nf1, int nf2, int M, tensorflow::nufft::Plan<tensorfl
 int CUSPREAD2D_PAUL(int nf1, int nf2, int M, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
 	int blksize);
 
-int CUSPREAD3D_NUPTSDRIVEN_PROP(int nf1, int nf2, int nf3, int M,
-	tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 int CUSPREAD3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M,
 	tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
 int CUSPREAD3D_BLOCKGATHER_PROP(int nf1, int nf2, int nf3, int M,

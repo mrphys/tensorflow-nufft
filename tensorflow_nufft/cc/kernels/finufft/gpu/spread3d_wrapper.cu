@@ -92,65 +92,6 @@ int CUSPREAD3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
   return ier;
 }
 
-int CUSPREAD3D_NUPTSDRIVEN_PROP(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d_plan) {
-  int num_blocks = (d_plan->num_points_ + 1024 - 1) / 1024;
-  int threads_per_block = 1024;
-
-  if (d_plan->spread_params_.sort_points == SortPoints::YES) {
-    int bin_size[3];
-    bin_size[0] = d_plan->options_.gpu_bin_size.x;
-    bin_size[1] = d_plan->options_.gpu_bin_size.y;
-    bin_size[2] = d_plan->options_.gpu_bin_size.z;
-    if (bin_size[0] < 0 || bin_size[1] < 0 || bin_size[2] < 0) {
-      cout << "error: invalid binsize (binsizex, binsizey) = (";
-      cout << bin_size[0] << "," << bin_size[1] << ")" << endl;
-      return 1; 
-    }
-
-    int numbins[3];
-    numbins[0] = ceil((FLT) nf1/bin_size[0]);
-    numbins[1] = ceil((FLT) nf2/bin_size[1]);
-    numbins[2] = ceil((FLT) nf3/bin_size[2]);
-
-    FLT*   d_kx = d_plan->kx;
-    FLT*   d_ky = d_plan->ky;
-    FLT*   d_kz = d_plan->kz;
-
-    int *d_binsize = d_plan->binsize;
-    int *d_binstartpts = d_plan->binstartpts;
-    int *d_sortidx = d_plan->sortidx;
-    int *d_idxnupts = d_plan->idxnupts;
-
-    int pirange = d_plan->spread_params_.pirange;
-
-    // Synchronize device before we start. This is essential! Otherwise the
-    // next kernel could read the wrong (kx, ky, kz) values.
-    checkCudaErrors(cudaDeviceSynchronize());
-
-    checkCudaErrors(cudaMemset(d_binsize,0,numbins[0]*numbins[1]*numbins[2]*
-      sizeof(int)));
-    CalcBinSizeNoGhost3DKernel<<<num_blocks, threads_per_block>>>(M,nf1,nf2,nf3,
-      bin_size[0],bin_size[1],bin_size[2],numbins[0],numbins[1],numbins[2],
-      d_binsize,d_kx,d_ky,d_kz,d_sortidx,pirange);
-
-    int n=numbins[0]*numbins[1]*numbins[2];
-    thrust::device_ptr<int> d_ptr(d_binsize);
-    thrust::device_ptr<int> d_result(d_binstartpts);
-    thrust::exclusive_scan(d_ptr, d_ptr + n, d_result);
-
-    CalcInvertofGlobalSortIdx3DKernel<<<num_blocks, threads_per_block>>>(M,bin_size[0],
-      bin_size[1],bin_size[2],numbins[0],numbins[1],numbins[2],d_binstartpts,
-      d_sortidx,d_kx,d_ky,d_kz,d_idxnupts, pirange, nf1, nf2, nf3);
-
-  }else{
-    int *d_idxnupts = d_plan->idxnupts;
-
-    TrivialGlobalSortIdxKernel<<<num_blocks, threads_per_block>>>(M,d_idxnupts);
-
-  }
-  return 0;
-}
-
 int CUSPREAD3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M, 
   Plan<GPUDevice, FLT>* d_plan, int blksize)
 {

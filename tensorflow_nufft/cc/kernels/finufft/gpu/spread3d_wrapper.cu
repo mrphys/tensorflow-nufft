@@ -681,9 +681,6 @@ int CUSPREAD3D_SUBPROB_PROP(int nf1, int nf2, int nf3, int M,
 int CUSPREAD3D_SUBPROB(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d_plan,
   int blksize)
 {
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
 
   int ns=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
   int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
@@ -696,12 +693,6 @@ int CUSPREAD3D_SUBPROB(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d
   numbins[0] = ceil((FLT) nf1/bin_size_x);
   numbins[1] = ceil((FLT) nf2/bin_size_y);
   numbins[2] = ceil((FLT) nf3/bin_size_z);
-#ifdef INFO
-  cout<<"[info  ] Dividing the uniform grids to bin size["
-    <<d_plan->options_.gpu_bin_size.x<<"x"<<d_plan->options_.gpu_bin_size.y<<"x"<<d_plan->options_.gpu_bin_size.z<<"]"<<endl;
-  cout<<"[info  ] numbins = ["<<numbins[0]<<"x"<<numbins[1]<<"]"<<endl;
-  cout<<ns<<endl;
-#endif
 
   FLT* d_kx = d_plan->kx;
   FLT* d_ky = d_plan->ky;
@@ -722,7 +713,7 @@ int CUSPREAD3D_SUBPROB(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d
   FLT es_c=d_plan->spread_params_.ES_c;
   FLT es_beta=d_plan->spread_params_.ES_beta;
   int pirange=d_plan->spread_params_.pirange;
-  cudaEventRecord(start);
+
   size_t sharedplanorysize = (bin_size_x+2*ceil(ns/2.0))*(bin_size_y+2*
       ceil(ns/2.0))*(bin_size_z+2*ceil(ns/2.0))*sizeof(CUCPX);
   if (sharedplanorysize > 49152) {
@@ -747,13 +738,6 @@ int CUSPREAD3D_SUBPROB(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d
         numbins[1], numbins[2],d_idxnupts,pirange);
     }
   }
-#ifdef SPREADTIME
-  float milliseconds = 0;
-  cudaEventRecord(stop);
-  cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&milliseconds, start, stop);
-  printf("[time  ] \tKernel Spread_3d_Subprob (%d) \t%.3g ms\n", milliseconds, 
-    d_plan->options_.kernel_evaluation_method);
-#endif
+
   return 0;
 }

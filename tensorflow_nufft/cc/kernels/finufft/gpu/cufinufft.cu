@@ -171,7 +171,7 @@ Notes: the type FLT means either single or double, matching the
 				}
 			}
 			if (d_plan->options_.spread_method == SpreadMethod::PAUL) {
-				int ier = CUSPREAD2D_PAUL_PROP(nf1,nf2,M,d_plan);
+				int ier = CUSPREAD2D_PAUL_PROP(d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread2d_paul_prop, method(%d)\n",
 						d_plan->options_.spread_method);

@@ -158,10 +158,6 @@ int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
   Melody Shih 07/25/19
 */
 {
-  int nf1 = d_plan->nf1;
-  int nf2 = d_plan->nf2;
-  int M = d_plan->M;
-
   cudaEvent_t start, stop;
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
@@ -192,7 +188,7 @@ int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
     case SpreadMethod::PAUL:
       {
         cudaEventRecord(start);
-        ier = CUSPREAD2D_PAUL(nf1, nf2, M, d_plan, blksize);
+        ier = CUSPREAD2D_PAUL(d_plan, blksize);
         if (ier != 0 ) {
           cout<<"error: cnufftspread2d_gpu_paul"<<endl;
           return 1;
@@ -584,6 +580,119 @@ int CUSPREAD2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
   }
 
   return 0;
+}
+
+int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan, int blksize) {
+	dim3 threadsPerBlock;
+	dim3 blocks;
+
+	int ns=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
+	FLT es_c=d_plan->spread_params_.ES_c;
+	FLT es_beta=d_plan->spread_params_.ES_beta;
+	FLT sigma = d_plan->options_.upsampling_factor;
+	int pirange=d_plan->spread_params_.pirange;
+	int *d_idxnupts=d_plan->idxnupts;
+
+	FLT* d_kx = d_plan->kx;
+	FLT* d_ky = d_plan->ky;
+	CUCPX* d_c = d_plan->c;
+	CUCPX* d_fw = d_plan->fine_grid_data_;
+
+	threadsPerBlock.x = 32;
+	threadsPerBlock.y = 1;
+	blocks.x = (M + threadsPerBlock.x - 1)/threadsPerBlock.x;
+	blocks.y = 1;
+
+	if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+		for (int t=0; t<blksize; t++) {
+			Interp_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_kx, 
+				d_ky, d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2, sigma, 
+				d_idxnupts, pirange);
+		}
+	}else{
+		for (int t=0; t<blksize; t++) {
+			Interp_2d_NUptsdriven<<<blocks, threadsPerBlock>>>(d_kx, d_ky, 
+				d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2, es_c, es_beta, 
+				d_idxnupts, pirange);
+		}
+	}
+
+	return 0;
+}
+
+int CUINTERP2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan, int blksize) {
+	int ns=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
+	FLT es_c=d_plan->spread_params_.ES_c;
+	FLT es_beta=d_plan->spread_params_.ES_beta;
+	int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
+
+	// assume that bin_size_x > ns/2;
+	int bin_size_x=d_plan->options_.gpu_bin_size.x;
+	int bin_size_y=d_plan->options_.gpu_bin_size.y;
+	int numbins[2];
+	numbins[0] = ceil((FLT) nf1/bin_size_x);
+	numbins[1] = ceil((FLT) nf2/bin_size_y);
+
+	FLT* d_kx = d_plan->kx;
+	FLT* d_ky = d_plan->ky;
+	CUCPX* d_c = d_plan->c;
+	CUCPX* d_fw = d_plan->fine_grid_data_;
+
+	int *d_binsize = d_plan->binsize;
+	int *d_binstartpts = d_plan->binstartpts;
+	int *d_numsubprob = d_plan->numsubprob;
+	int *d_subprobstartpts = d_plan->subprobstartpts;
+	int *d_idxnupts = d_plan->idxnupts;
+	int *d_subprob_to_bin = d_plan->subprob_to_bin;
+	int totalnumsubprob=d_plan->totalnumsubprob;
+	int pirange=d_plan->spread_params_.pirange;
+
+	FLT sigma=d_plan->options_.upsampling_factor;
+	size_t sharedplanorysize = (bin_size_x+2*ceil(ns/2.0))*(bin_size_y+2*
+		ceil(ns/2.0))*sizeof(CUCPX);
+	if (sharedplanorysize > 49152) {
+		cout<<"error: not enough shared memory"<<endl;
+		return 1;
+	}
+
+	if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+		for (int t=0; t<blksize; t++) {
+			Interp_2d_Subprob_Horner<<<totalnumsubprob, 256, sharedplanorysize>>>(
+					d_kx, d_ky, d_c+t*M,
+					d_fw+t*nf1*nf2, M, ns, nf1, nf2, sigma,
+					d_binstartpts, d_binsize,
+					bin_size_x, bin_size_y,
+					d_subprob_to_bin, d_subprobstartpts,
+					d_numsubprob, maxsubprobsize,
+					numbins[0], numbins[1], d_idxnupts, pirange);
+		}
+	} else {
+		for (int t=0; t<blksize; t++) {
+			Interp_2d_Subprob<<<totalnumsubprob, 256, sharedplanorysize>>>(
+					d_kx, d_ky, d_c+t*M,
+					d_fw+t*nf1*nf2, M, ns, nf1, nf2,
+					es_c, es_beta, sigma,
+					d_binstartpts, d_binsize,
+					bin_size_x, bin_size_y,
+					d_subprob_to_bin, d_subprobstartpts,
+					d_numsubprob, maxsubprobsize,
+					numbins[0], numbins[1], d_idxnupts, pirange);
+		}
+	}
+
+	return 0;
+}
+
+int CUSPREAD2D_PAUL_PROP(Plan<GPUDevice, FLT>* d_plan)
+{
+  // TODO: unimplemented error.
+	return 1;
+}
+
+int CUSPREAD2D_PAUL(Plan<GPUDevice, FLT>* d_plan, int blksize)
+{
+  // TODO: unimplemented error.
+	return 1;
 }
 
 int CUSPREAD3D_BLOCKGATHER_PROP(

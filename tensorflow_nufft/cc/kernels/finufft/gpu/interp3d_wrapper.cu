@@ -55,7 +55,7 @@ int CUINTERP3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 				cudaEventRecord(start);
 				{
 					PROFILE_CUDA_GROUP("Interpolation", 6);
-					ier = CUINTERP3D_NUPTSDRIVEN(nf1, nf2, nf3, M, d_plan, blksize);
+					ier = CUINTERP2D_NUPTSDRIVEN(d_plan, blksize);
 					if (ier != 0 ) {
 						cout<<"error: cnufftspread3d_gpu_nuptsdriven"<<endl;
 						return 1;
@@ -94,10 +94,6 @@ int CUINTERP3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 int CUINTERP3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d_plan,
 	int blksize)
 {
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-
 	dim3 threadsPerBlock;
 	dim3 blocks;
 
@@ -120,7 +116,6 @@ int CUINTERP3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT
 	blocks.x = (M + threadsPerBlock.x - 1)/threadsPerBlock.x;
 	blocks.y = 1;
 
-	cudaEventRecord(start);
 	if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
 		for (int t=0; t<blksize; t++) {
 			Interp_3d_NUptsdriven_Horner<<<blocks, threadsPerBlock, 0, 
@@ -135,14 +130,7 @@ int CUINTERP3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT
 				nf1, nf2, nf3,es_c, es_beta, d_idxnupts,pirange);
 		}
 	}
-#ifdef SPREADTIME
-	float milliseconds = 0;
-	cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("[time  ] \tKernel Interp_3d_NUptsdriven (%d) \t%.3g ms\n", 
-		milliseconds, d_plan->options_.kernel_evaluation_method);
-#endif
+
 	return 0;
 }
 

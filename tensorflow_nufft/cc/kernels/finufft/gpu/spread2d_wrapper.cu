@@ -593,31 +593,61 @@ int CUINTERP2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
 	int pirange=d_plan->spread_params_.pirange;
 	int *d_idxnupts=d_plan->idxnupts;
 
-	FLT* d_kx = d_plan->kx;
-	FLT* d_ky = d_plan->ky;
 	CUCPX* d_c = d_plan->c;
 	CUCPX* d_fw = d_plan->fine_grid_data_;
 
-	threadsPerBlock.x = 32;
-	threadsPerBlock.y = 1;
-	blocks.x = (d_plan->num_points_ + threadsPerBlock.x - 1)/threadsPerBlock.x;
-	blocks.y = 1;
+  switch (d_plan->rank_) {
+    case 2:
+      threadsPerBlock.x = 32;
+      threadsPerBlock.y = 1;
+      blocks.x = (d_plan->num_points_ + threadsPerBlock.x - 1)/threadsPerBlock.x;
+      blocks.y = 1;
 
-	if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-		for (int t=0; t<blksize; t++) {
-			Interp_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_kx, 
-				d_ky, d_c+t * d_plan->num_points_, d_fw+t*d_plan->grid_count_,
-        d_plan->num_points_, kernel_width, d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma, 
-				d_idxnupts, pirange);
-		}
-	}else{
-		for (int t=0; t<blksize; t++) {
-			Interp_2d_NUptsdriven<<<blocks, threadsPerBlock>>>(d_kx, d_ky, 
-				d_c+t * d_plan->num_points_, d_fw+t*d_plan->grid_count_,
-        d_plan->num_points_, kernel_width, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
-        es_c, es_beta,  d_idxnupts, pirange);
-		}
-	}
+      if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+        for (int t=0; t<blksize; t++) {
+          Interp_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(
+            d_plan->points_[0], d_plan->points_[1], d_c+t * d_plan->num_points_,
+            d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width,
+            d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma,  d_idxnupts,
+            pirange);
+        }
+      } else {
+        for (int t=0; t<blksize; t++) {
+          Interp_2d_NUptsdriven<<<blocks, threadsPerBlock>>>(
+            d_plan->points_[0], d_plan->points_[1], 
+            d_c+t * d_plan->num_points_, d_fw+t*d_plan->grid_count_,
+            d_plan->num_points_, kernel_width, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
+            es_c, es_beta,  d_idxnupts, pirange);
+        }
+      }
+      break;
+    case 3:
+      threadsPerBlock.x = 16;
+      threadsPerBlock.y = 1;
+      blocks.x = (d_plan->num_points_ + threadsPerBlock.x - 1)/threadsPerBlock.x;
+      blocks.y = 1;
+
+      if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+        for (int t=0; t<blksize; t++) {
+          Interp_3d_NUptsdriven_Horner<<<blocks, threadsPerBlock, 0, 0>>>(
+              d_plan->points_[0], d_plan->points_[1], d_plan->points_[2],
+              d_c + t * d_plan->num_points_, d_fw+t*d_plan->grid_count_,
+              d_plan->num_points_, kernel_width, d_plan->grid_dims_[0],
+              d_plan->grid_dims_[1], d_plan->grid_dims_[2], sigma, d_idxnupts,
+              pirange);
+        }
+      } else {
+        for (int t=0; t<blksize; t++) {
+          Interp_3d_NUptsdriven<<<blocks, threadsPerBlock, 0, 0>>>(
+              d_plan->points_[0], d_plan->points_[1], d_plan->points_[2],
+              d_c + t * d_plan->num_points_, d_fw + t * d_plan->grid_count_,
+              d_plan->num_points_, kernel_width, 
+              d_plan->grid_dims_[0], d_plan->grid_dims_[1], d_plan->grid_dims_[2],
+              es_c, es_beta, d_idxnupts,pirange);
+        }
+      }
+      break;
+  }
 
 	return 0;
 }

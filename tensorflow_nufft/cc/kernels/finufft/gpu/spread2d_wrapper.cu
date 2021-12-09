@@ -801,88 +801,58 @@ int CUINTERP2D(Plan<GPUDevice, FLT>* d_plan, int blksize) {
 
 int INITSPREAD(Plan<GPUDevice, FLT>* d_plan) {
   int ier = 0;
-  switch(d_plan->rank_)
-	{
-		case 2:
-		{
-			if (d_plan->options_.spread_method == SpreadMethod::NUPTS_DRIVEN) {
-				ier = CUSPREAD2D_NUPTSDRIVEN_PROP(d_plan);
-				if (ier != 0 ) {
-					printf("error: cuspread2d_nupts_prop, method(%d)\n",
-						  d_plan->options_.spread_method);
+  switch(d_plan->options_.spread_method) {
+		case SpreadMethod::NUPTS_DRIVEN:
+      ier = CUSPREAD2D_NUPTSDRIVEN_PROP(d_plan);
+      if (ier != 0 ) {
+        printf("error: cuspread2d_nupts_prop, method(%d)\n",
+            d_plan->options_.spread_method);
 
-                                        // // Multi-GPU support: reset the device ID
-                                        // cudaSetDevice(orig_gpu_device_id);
+                                      // // Multi-GPU support: reset the device ID
+                                      // cudaSetDevice(orig_gpu_device_id);
 
-					return 1;
-				}
-			}
-			if (d_plan->options_.spread_method == SpreadMethod::SUBPROBLEM) {
-				ier = CUSPREAD2D_SUBPROB_PROP(d_plan);
-				if (ier != 0 ) {
-					printf("error: cuspread2d_subprob_prop, method(%d)\n",
-					       d_plan->options_.spread_method);
+        return 1;
+      }
+      break;
+		case SpreadMethod::SUBPROBLEM:
+      ier = CUSPREAD2D_SUBPROB_PROP(d_plan);
+      if (ier != 0 ) {
+        printf("error: cuspread2d_subprob_prop, method(%d)\n",
+                d_plan->options_.spread_method);
 
-                                        // // Multi-GPU support: reset the device ID
-                                        // cudaSetDevice(orig_gpu_device_id);
+                                      // // Multi-GPU support: reset the device ID
+                                      // cudaSetDevice(orig_gpu_device_id);
 
-					return 1;
-				}
-			}
-			if (d_plan->options_.spread_method == SpreadMethod::PAUL) {
-				int ier = CUSPREAD2D_PAUL_PROP(d_plan);
-				if (ier != 0 ) {
-					printf("error: cuspread2d_paul_prop, method(%d)\n",
-						d_plan->options_.spread_method);
+        return 1;
+      }
+      break;
+    case SpreadMethod::PAUL:
+      ier = CUSPREAD2D_PAUL_PROP(d_plan);
+      if (ier != 0 ) {
+        printf("error: cuspread2d_paul_prop, method(%d)\n",
+          d_plan->options_.spread_method);
 
-                                        // // Multi-GPU support: reset the device ID
-                                        // cudaSetDevice(orig_gpu_device_id);
+                                      // // Multi-GPU support: reset the device ID
+                                      // cudaSetDevice(orig_gpu_device_id);
 
-					return 1;
-				}
-			}
-		}
-		break;
-		case 3:
-		{
-			if (d_plan->options_.spread_method == SpreadMethod::BLOCK_GATHER) {
-				int ier = CUSPREAD3D_BLOCKGATHER_PROP(d_plan);
-				if (ier != 0 ) {
-					printf("error: cuspread3d_blockgather_prop, method(%d)\n",
-						d_plan->options_.spread_method);
+        return 1;
+      }
+      break;
+    case SpreadMethod::BLOCK_GATHER:
+      ier = CUSPREAD3D_BLOCKGATHER_PROP(d_plan);
+      if (ier != 0 ) {
+        printf("error: cuspread3d_blockgather_prop, method(%d)\n",
+          d_plan->options_.spread_method);
 
-                                        // // Multi-GPU support: reset the device ID
-                                        // cudaSetDevice(orig_gpu_device_id);
+                                      // // Multi-GPU support: reset the device ID
+                                      // cudaSetDevice(orig_gpu_device_id);
 
-					return ier;
-				}
-			}
-			if (d_plan->options_.spread_method == SpreadMethod::NUPTS_DRIVEN) {
-				ier = CUSPREAD2D_NUPTSDRIVEN_PROP(d_plan);
-				if (ier != 0 ) {
-					printf("error: cuspread3d_nuptsdriven_prop, method(%d)\n",
-						d_plan->options_.spread_method);
-
-                                        // // Multi-GPU support: reset the device ID
-                                        // cudaSetDevice(orig_gpu_device_id);
-
-					return ier;
-				}
-			}
-			if (d_plan->options_.spread_method == SpreadMethod::SUBPROBLEM) {
-				int ier = CUSPREAD2D_SUBPROB_PROP(d_plan);
-				if (ier != 0 ) {
-					printf("error: cuspread3d_subprob_prop, method(%d)\n",
-						d_plan->options_.spread_method);
-
-                                        // // Multi-GPU support: reset the device ID
-                                        // cudaSetDevice(orig_gpu_device_id);
-
-					return ier;
-				}
-			}
-		}
-		break;
+        return ier;
+      }
+		  break;
+    default:
+      // TODO: error
+      break;
 	}
   return 0;
 }

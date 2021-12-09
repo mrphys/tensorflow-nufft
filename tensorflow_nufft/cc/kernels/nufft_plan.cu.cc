@@ -614,12 +614,14 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
             this->spread_params_.pirange));
         break;
       case 3:
-        CalcBinSizeNoGhost3DKernel<FloatType><<<num_blocks, threads_per_block>>>(
-          this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
-          this->grid_dims_[2],
-          bin_size[0],bin_size[1],bin_size[2],num_bins[0],num_bins[1],num_bins[2],
-          this->binsize,this->points_[0],this->points_[1],this->points_[2],
-          this->sortidx,this->spread_params_.pirange);
+        TF_CHECK_OK(GpuLaunchKernel(
+            CalcBinSizeNoGhost3DKernel<FloatType>,
+            num_blocks, threads_per_block, 0, this->device_.stream(),
+            this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
+            this->grid_dims_[2],
+            bin_size[0],bin_size[1],bin_size[2],num_bins[0],num_bins[1],num_bins[2],
+            this->binsize,this->points_[0],this->points_[1],this->points_[2],
+            this->sortidx,this->spread_params_.pirange));
         break;
     }
 
@@ -702,18 +704,21 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
   switch (this->rank_) {
     case 2:
       TF_CHECK_OK(GpuLaunchKernel(
-          CalcBinSizeNoGhost2DKernel<FloatType>, num_blocks, threads_per_block, 0,
-          this->device_.stream(), this->num_points_, this->grid_dims_[0],
+          CalcBinSizeNoGhost2DKernel<FloatType>,
+          num_blocks, threads_per_block, 0, this->device_.stream(),
+          this->num_points_, this->grid_dims_[0],
           this->grid_dims_[1], bin_size[0], bin_size[1],
           num_bins[0], num_bins[1], d_binsize, this->points_[0],
           this->points_[1], d_sortidx, pirange));
       break;
     case 3:
-      CalcBinSizeNoGhost3DKernel<FloatType><<<num_blocks, threads_per_block>>>(
-        this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
-        this->grid_dims_[2], bin_size[0],
-        bin_size[1], bin_size[2], num_bins[0], num_bins[1], num_bins[2], d_binsize,
-        this->points_[0], this->points_[1], this->points_[2], d_sortidx, pirange);
+      TF_CHECK_OK(GpuLaunchKernel(
+          CalcBinSizeNoGhost3DKernel<FloatType>,
+          num_blocks, threads_per_block, 0, this->device_.stream(),
+          this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
+          this->grid_dims_[2], bin_size[0],
+          bin_size[1], bin_size[2], num_bins[0], num_bins[1], num_bins[2], d_binsize,
+          this->points_[0], this->points_[1], this->points_[2], d_sortidx, pirange));
       break;
   }
 
@@ -724,29 +729,29 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
   switch (this->rank_) {
     case 2:
       TF_CHECK_OK(GpuLaunchKernel(
-          CalcInvertofGlobalSortIdx2DKernel<FloatType>, num_blocks, threads_per_block, 0,
-          this->device_.stream(), this->num_points_, bin_size[0], bin_size[1], num_bins[0],
+          CalcInvertofGlobalSortIdx2DKernel<FloatType>,
+          num_blocks, threads_per_block, 0, this->device_.stream(),
+          this->num_points_, bin_size[0], bin_size[1], num_bins[0],
           num_bins[1], d_binstartpts, d_sortidx, this->points_[0],
           this->points_[1], d_idxnupts, pirange, this->grid_dims_[0],
           this->grid_dims_[1]));
-
-      TF_CHECK_OK(GpuLaunchKernel(
-          CalcSubproblemKernel, num_blocks, threads_per_block, 0,
-          this->device_.stream(), d_binsize, d_numsubprob, maxsubprobsize,
-          bin_count));
       break;
     case 3:
-      CalcInvertofGlobalSortIdx3DKernel<FloatType><<<num_blocks, threads_per_block>>>(
-        this->num_points_, bin_size[0],
-        bin_size[1], bin_size[2], num_bins[0], num_bins[1], num_bins[2],
-        d_binstartpts, d_sortidx, this->points_[0], this->points_[1],
-        this->points_[2], d_idxnupts, pirange, this->grid_dims_[0],
-        this->grid_dims_[1], this->grid_dims_[2]);
-    
-      CalcSubproblemKernel<<<num_blocks, threads_per_block>>>(d_binsize,d_numsubprob,
-          maxsubprobsize, bin_count);
+      TF_CHECK_OK(GpuLaunchKernel(
+          CalcInvertofGlobalSortIdx3DKernel<FloatType>,
+          num_blocks, threads_per_block, 0, this->device_.stream(),
+          this->num_points_, bin_size[0],
+          bin_size[1], bin_size[2], num_bins[0], num_bins[1], num_bins[2],
+          d_binstartpts, d_sortidx, this->points_[0], this->points_[1],
+          this->points_[2], d_idxnupts, pirange, this->grid_dims_[0],
+          this->grid_dims_[1], this->grid_dims_[2]));
       break;
   }
+
+  TF_CHECK_OK(GpuLaunchKernel(
+      CalcSubproblemKernel, num_blocks, threads_per_block, 0,
+      this->device_.stream(), d_binsize, d_numsubprob, maxsubprobsize,
+      bin_count));
 
   d_ptr    = thrust::device_pointer_cast(d_numsubprob);
   d_result = thrust::device_pointer_cast(d_subprobstartpts+1);
@@ -761,18 +766,10 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
   num_blocks = (bin_count + 1024 - 1) / 1024;
   threads_per_block = 1024;
 
-  switch (this->rank_) {
-    case 2:
-      TF_CHECK_OK(GpuLaunchKernel(
-          MapBinToSubproblemKernel, num_blocks, threads_per_block, 0,
-          this->device_.stream(), d_subprob_to_bin, d_subprobstartpts,
-          d_numsubprob, bin_count));
-      break;
-    case 3:
-      MapBinToSubproblemKernel<<<(num_bins[0]*num_bins[1]+1024-1)/1024, 1024>>>(
-          d_subprob_to_bin, d_subprobstartpts, d_numsubprob, bin_count);
-      break;
-  }
+  TF_CHECK_OK(GpuLaunchKernel(
+      MapBinToSubproblemKernel, num_blocks, threads_per_block, 0,
+      this->device_.stream(), d_subprob_to_bin, d_subprobstartpts,
+      d_numsubprob, bin_count));
 
   assert(d_subprob_to_bin != NULL);
   if (this->subprob_to_bin != NULL) cudaFree(this->subprob_to_bin);

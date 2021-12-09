@@ -336,7 +336,7 @@ class NUFFTOpsTest(tf.test.TestCase):
                             tf.zeros([128, 128, 128]))
         result = nufft_ops.interp(source, points)
         self.assertAllClose(tf.math.real(result), tf.ones([num_points]),
-                            rtol=1e-5, atol=1e-5)
+                            rtol=DEFAULT_TOLERANCE, atol=DEFAULT_TOLERANCE)
 
 
   def test_parallel_iteration(self):

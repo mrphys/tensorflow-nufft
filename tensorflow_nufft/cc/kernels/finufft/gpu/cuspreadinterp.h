@@ -214,9 +214,9 @@ int CUSPREAD3D_BLOCKGATHER(
 	tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
 
 // Wrappers for methods of interpolation
-int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
+int CUINTERP2D_NUPTSDRIVEN(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
 	int blksize);
-int CUINTERP2D_SUBPROB(int nf1, int nf2, int M, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
+int CUINTERP2D_SUBPROB(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
 	int blksize);
 int CUINTERP3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M,
 	tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);

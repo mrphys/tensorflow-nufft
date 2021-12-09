@@ -56,7 +56,7 @@ int CUINTERP2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 				cudaEventRecord(start);
 				{
 					PROFILE_CUDA_GROUP("Spreading", 6);
-					ier = CUINTERP2D_NUPTSDRIVEN(nf1, nf2, M, d_plan, blksize);
+					ier = CUINTERP2D_NUPTSDRIVEN(d_plan, blksize);
 					if (ier != 0 ) {
 						cout<<"error: cnufftspread2d_gpu_nuptsdriven"<<endl;
 						return 1;
@@ -67,7 +67,7 @@ int CUINTERP2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 		case SpreadMethod::SUBPROBLEM:
 			{
 				cudaEventRecord(start);
-				ier = CUINTERP2D_SUBPROB(nf1, nf2, M, d_plan, blksize);
+				ier = CUINTERP2D_SUBPROB(d_plan, blksize);
 				if (ier != 0 ) {
 					cout<<"error: cuinterp2d_subprob"<<endl;
 					return 1;

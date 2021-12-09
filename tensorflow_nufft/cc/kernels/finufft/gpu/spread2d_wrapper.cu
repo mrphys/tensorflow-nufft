@@ -582,7 +582,7 @@ int CUSPREAD2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
   return 0;
 }
 
-int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan, int blksize) {
+int CUINTERP2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
 	dim3 threadsPerBlock;
 	dim3 blocks;
 
@@ -600,7 +600,7 @@ int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
 
 	threadsPerBlock.x = 32;
 	threadsPerBlock.y = 1;
-	blocks.x = (M + threadsPerBlock.x - 1)/threadsPerBlock.x;
+	blocks.x = (d_plan->num_points_ + threadsPerBlock.x - 1)/threadsPerBlock.x;
 	blocks.y = 1;
 
 	if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
@@ -622,7 +622,7 @@ int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
 	return 0;
 }
 
-int CUINTERP2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan, int blksize) {
+int CUINTERP2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
 	int kernel_width=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
 	FLT es_c=d_plan->spread_params_.ES_c;
 	FLT es_beta=d_plan->spread_params_.ES_beta;

@@ -699,32 +699,62 @@ int CUINTERP2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
     return 1;
   }
 
-	if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-		for (int t=0; t<blksize; t++) {
-			Interp_2d_Subprob_Horner<<<num_blocks, threads_per_block, shared_memory_size>>>(
-					d_kx, d_ky, d_c+t*d_plan->num_points_,
-					d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width,
-          d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma,
-					d_binstartpts, d_binsize,
-					bin_size[0], bin_size[1],
-					d_subprob_to_bin, d_subprobstartpts,
-					d_numsubprob, maxsubprobsize,
-					num_bins[0], num_bins[1], d_idxnupts, pirange);
-		}
-	} else {
-		for (int t=0; t<blksize; t++) {
-			Interp_2d_Subprob<<<num_blocks, threads_per_block, shared_memory_size>>>(
-					d_kx, d_ky, d_c+t*d_plan->num_points_,
-					d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width,
-          d_plan->grid_dims_[0], d_plan->grid_dims_[1],
-					es_c, es_beta, sigma,
-					d_binstartpts, d_binsize,
-					bin_size[0], bin_size[1],
-					d_subprob_to_bin, d_subprobstartpts,
-					d_numsubprob, maxsubprobsize,
-					num_bins[0], num_bins[1], d_idxnupts, pirange);
-		}
-	}
+  switch (d_plan->rank_) {
+    case 2:
+      if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+        for (int t=0; t<blksize; t++) {
+          Interp_2d_Subprob_Horner<<<num_blocks, threads_per_block, shared_memory_size>>>(
+              d_kx, d_ky, d_c+t*d_plan->num_points_,
+              d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width,
+              d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma,
+              d_binstartpts, d_binsize,
+              bin_size[0], bin_size[1],
+              d_subprob_to_bin, d_subprobstartpts,
+              d_numsubprob, maxsubprobsize,
+              num_bins[0], num_bins[1], d_idxnupts, pirange);
+        }
+      } else {
+        for (int t=0; t<blksize; t++) {
+          Interp_2d_Subprob<<<num_blocks, threads_per_block, shared_memory_size>>>(
+              d_kx, d_ky, d_c + t * d_plan->num_points_,
+              d_fw + t * d_plan->grid_count_, d_plan->num_points_, kernel_width,
+              d_plan->grid_dims_[0], d_plan->grid_dims_[1],
+              es_c, es_beta, sigma,
+              d_binstartpts, d_binsize,
+              bin_size[0], bin_size[1],
+              d_subprob_to_bin, d_subprobstartpts,
+              d_numsubprob, maxsubprobsize,
+              num_bins[0], num_bins[1], d_idxnupts, pirange);
+        }
+      }
+      break;
+    case 3:
+      for (int t=0; t<blksize; t++) {
+        if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+          Interp_3d_Subprob_Horner<<<num_blocks, threads_per_block,
+            shared_memory_size>>>(
+              d_plan->points_[0], d_plan->points_[1], d_plan->points_[2],
+              d_c + t * d_plan->num_points_, d_fw + t * d_plan->grid_count_, 
+            d_plan->num_points_, kernel_width, d_plan->grid_dims_[0],
+            d_plan->grid_dims_[1], d_plan->grid_dims_[2], sigma,
+            d_binstartpts, d_binsize, bin_size[0],
+            bin_size[1], bin_size[2], d_subprob_to_bin, d_subprobstartpts,
+            d_numsubprob, maxsubprobsize,num_bins[0], num_bins[1], num_bins[2],
+            d_idxnupts, pirange);
+        }else{
+          Interp_3d_Subprob<<<num_blocks, threads_per_block,
+            shared_memory_size>>>(
+              d_plan->points_[0], d_plan->points_[1], d_plan->points_[2],
+              d_c + t * d_plan->num_points_, d_fw + t * d_plan->grid_count_, 
+            d_plan->num_points_, kernel_width, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
+            d_plan->grid_dims_[2], es_c, es_beta, d_binstartpts, d_binsize, 
+            bin_size[0], bin_size[1], bin_size[2], d_subprob_to_bin, 
+            d_subprobstartpts, d_numsubprob, maxsubprobsize,num_bins[0], 
+            num_bins[1], num_bins[2], d_idxnupts, pirange);
+        }
+      }
+      break;
+  }
 
 	return 0;
 }

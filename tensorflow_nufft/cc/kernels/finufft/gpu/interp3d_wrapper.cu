@@ -68,7 +68,7 @@ int CUINTERP3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
 				cudaEventRecord(start);
 				{
 					PROFILE_CUDA_GROUP("Interpolation", 6);
-					ier = CUINTERP3D_SUBPROB(nf1, nf2, nf3, M, d_plan, blksize);
+					ier = CUINTERP2D_SUBPROB(d_plan, blksize);
 					if (ier != 0 ) {
 						cout<<"error: cnufftspread3d_gpu_subprob"<<endl;
 						return 1;
@@ -202,13 +202,6 @@ int CUINTERP3D_SUBPROB(int nf1, int nf2, int nf3, int M, Plan<GPUDevice, FLT>* d
 				numbins[1], numbins[2],d_idxnupts,pirange);
 		}
 	}
-#ifdef SPREADTIME
-	float milliseconds = 0;
-	cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("[time  ] \tKernel Interp_3d_Subprob (%d) \t%.3g ms\n", milliseconds,
-	d_plan->options_.kernel_evaluation_method);
-#endif
+
 	return 0;
 }

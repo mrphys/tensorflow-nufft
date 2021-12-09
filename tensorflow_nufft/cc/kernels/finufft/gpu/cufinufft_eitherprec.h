@@ -57,8 +57,6 @@ limitations under the License.
 #undef CUFINUFFT3D_INTERP
 #undef CUFINUFFT3D_SPREAD
 /* memtransfer.h */
-#undef ALLOCGPUMEM1D_NUPTS
-#undef ALLOCGPUMEM2D_NUPTS
 #undef ALLOCGPUMEM3D_NUPTS
 /* spreading 2D */
 #undef CUSPREAD2D
@@ -94,8 +92,6 @@ limitations under the License.
 #define CUFINUFFT3D2_EXEC cufinufftf3d2_exec
 #define CUFINUFFT2D_INTERP cufinufftf2d_interp
 /* memtransfer.h */
-#define ALLOCGPUMEM1D_NUPTS allocgpumem1df_nupts
-#define ALLOCGPUMEM2D_NUPTS allocgpumem2df_nupts
 #define ALLOCGPUMEM3D_NUPTS allocgpumem3df_nupts
 /* spreading 2D */
 #define CUSPREAD2D cuspread2df
@@ -133,8 +129,6 @@ limitations under the License.
 #define CUFINUFFT3D_INTERP cufinufft3d_interp
 #define CUFINUFFT3D_SPREAD cufinufft3d_spread
 /* memtransfer.h */
-#define ALLOCGPUMEM1D_NUPTS allocgpumem1d_nupts
-#define ALLOCGPUMEM2D_NUPTS allocgpumem2d_nupts
 #define ALLOCGPUMEM3D_NUPTS allocgpumem3d_nupts
 /* spreading 2D */
 #define CUSPREAD2D cuspread2d

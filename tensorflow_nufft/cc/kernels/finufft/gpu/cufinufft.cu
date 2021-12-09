@@ -37,42 +37,7 @@ extern "C" {
 
 int CUFINUFFT_SETPTS(int M, FLT* d_kx, FLT* d_ky, FLT* d_kz, int N, FLT *d_s,
 	FLT *d_t, FLT *d_u, Plan<GPUDevice, FLT>* d_plan)
-/*
-	"setNUpts" stage (in single or double precision).
 
-	In this stage, we
-		(1) set the number and locations of nonuniform points
-		(2) allocate gpu arrays with size determined by number of nupts
-		(3) rescale x,y,z coordinates for spread/interp (on gpu, rescaled
-		    coordinates are stored)
-		(4) determine the spread/interp properties that only relates to the
-		    locations of nupts (see 2d/spread2d_wrapper.cu,
-		    3d/spread3d_wrapper.cu for what have been done in
-		    function spread<rank>d_<method>_prop() )
-
-        See ../docs/cppdoc.md for main user-facing documentation.
-        Here is the old developer docs, which are useful only to translate
-        the argument names from the user-facing ones:
-        
-	Input:
-	M                 number of nonuniform points
-	d_kx, d_ky, d_kz  gpu array of x,y,z locations of sources (each a size M
-	                  FLT array) in [-pi, pi). set h_kz to "NULL" if dimension
-	                  is less than 3. same for h_ky for dimension 1.
-	N, d_s, d_t, d_u  not used for type1, type2. set to 0 and NULL.
-
-	Input/Output:
-	d_plan            pointer to a Plan<GPUDevice, FLT>. Variables and arrays inside
-	                  the plan are set and allocated.
-
-        Returned value:
-        a status flag: 0 if success, otherwise an error occurred
-
-Notes: the type FLT means either single or double, matching the
-	precision of the library version called.
-
-	Melody Shih 07/25/19; Barnett 2/16/21 moved out docs.
-*/
 {
         // Mult-GPU support: set the CUDA Device ID:
         int orig_gpu_device_id;
@@ -85,24 +50,7 @@ Notes: the type FLT means either single or double, matching the
 
 
 	int ier;
-	switch(d_plan->rank_)
-	{
-		case 1:
-		{
-			ier = ALLOCGPUMEM1D_NUPTS(d_plan);
-		}
-		break;
-		case 2:
-		{
-			ier = ALLOCGPUMEM2D_NUPTS(d_plan);
-		}
-		break;
-		case 3:
-		{
-			ier = ALLOCGPUMEM3D_NUPTS(d_plan);
-		}
-		break;
-	}
+	ier = ALLOCGPUMEM3D_NUPTS(d_plan);
 
 	d_plan->kx = d_kx;
 	if (d_plan->rank_ > 1)

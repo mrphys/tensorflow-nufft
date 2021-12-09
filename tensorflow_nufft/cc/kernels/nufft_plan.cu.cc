@@ -140,7 +140,6 @@ Plan<GPUDevice, FloatType>::Plan(
   this->mt = 0;
   this->mu = 0;
   this->totalnumsubprob = 0;
-  this->byte_now = 0;
   this->kx = nullptr;
   this->ky = nullptr;
   this->kz = nullptr;
@@ -371,6 +370,16 @@ Plan<GPUDevice, FloatType>::~Plan() {
         cudaSetDevice(orig_gpu_device_id);
 }
 
+template<typename FloatType>
+Status Plan<GPUDevice, FloatType>::set_points(
+    int num_points,
+    FloatType* points_x,
+    FloatType* points_y,
+    FloatType* points_z) {
+
+	return Status::OK();
+}
+
 namespace {
 
 template<typename FloatType>
@@ -557,7 +566,6 @@ Status allocate_gpu_memory_2d(Plan<GPUDevice, FloatType>* d_plan) {
   int nf1 = d_plan->nf1;
   int nf2 = d_plan->nf2;
 
-  d_plan->byte_now=0;
   // No extra memory is needed in nuptsdriven method (case 1)
   switch (d_plan->options_.spread_method)
   {
@@ -629,8 +637,6 @@ Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan) {
   int nf1 = d_plan->nf1;
   int nf2 = d_plan->nf2;
   int nf3 = d_plan->nf3;
-
-  d_plan->byte_now=0;
 
   switch(d_plan->options_.spread_method)
   {

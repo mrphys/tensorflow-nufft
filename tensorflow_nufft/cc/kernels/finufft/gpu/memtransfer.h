@@ -19,9 +19,5 @@ limitations under the License.
 #include <tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft_eitherprec.h>
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
-int ALLOCGPUMEM1D_NUPTS(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-
-int ALLOCGPUMEM2D_NUPTS(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-
 int ALLOCGPUMEM3D_NUPTS(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 #endif

@@ -310,7 +310,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   int mu;
 
   int totalnumsubprob;
-  int byte_now;
   
   FloatType *kx;
   FloatType *ky;

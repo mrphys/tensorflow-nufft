@@ -34,33 +34,9 @@ int CalcGlobalIdx(int xidx, int yidx, int zidx, int onx, int ony, int onz,
 			 (xidx%bnx+yidx%bny*bnx+zidx%bnz*bny*bnx);
 }
 
-__device__
-int CalcGlobalIdx_V2(int xidx, int yidx, int zidx, int nbinx, int nbiny, int nbinz) {
-	return xidx + yidx*nbinx + zidx*nbinx*nbiny;
-}
+
 
 /* spreadinterp 2d */
-__global__
-void CalcSubProb_2d(int* bin_size, int* num_subprob, int maxsubprobsize,
-	int numbins)
-{
-	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<numbins;
-		i+=gridDim.x*blockDim.x) {
-		num_subprob[i]=ceil(bin_size[i]/(float) maxsubprobsize);
-	}
-}
-
-__global__
-void MapBintoSubProb_2d(int* d_subprob_to_bin,int* d_subprobstartpts,
-	int* d_numsubprob,int numbins)
-{
-	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<numbins;
-		i+=gridDim.x*blockDim.x) {
-		for (int j=0; j<d_numsubprob[i]; j++) {
-			d_subprob_to_bin[d_subprobstartpts[i]+j]=i;
-		}
-	}
-}
 
 __global__
 void CalcSubProb_2d_Paul(int* finegridsize, int* num_subprob,
@@ -74,27 +50,6 @@ void CalcSubProb_2d_Paul(int* finegridsize, int* num_subprob,
 }
 
 /* spreadinterp3d */
-__global__
-void CalcSubProb_3d_v2(int* bin_size, int* num_subprob, int maxsubprobsize,
-	int numbins)
-{
-	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<numbins;
-		i+=gridDim.x*blockDim.x) {
-		num_subprob[i]=ceil(bin_size[i]/(float) maxsubprobsize);
-	}
-}
-
-__global__
-void MapBintoSubProb_3d_v2(int* d_subprob_to_bin,int* d_subprobstartpts,
-	int* d_numsubprob,int numbins)
-{
-	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<numbins;
-		i+=gridDim.x*blockDim.x) {
-		for (int j=0; j<d_numsubprob[i]; j++) {
-			d_subprob_to_bin[d_subprobstartpts[i]+j]=i;
-		}
-	}
-}
 
 __global__
 void CalcSubProb_3d_v1(int binsperobinx, int binsperobiny, int binsperobinz,

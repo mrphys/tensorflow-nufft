@@ -26,7 +26,6 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft_eitherprec.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cuspreadinterp.h"
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cudeconvolve.h"
-#include "tensorflow_nufft/cc/kernels/finufft/gpu/memtransfer.h"
 
 using namespace std;
 using namespace tensorflow;
@@ -60,7 +59,7 @@ int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	for (int i=0; i*d_plan->options_.max_batch_size < d_plan->num_transforms_; i++) {
 		blksize = min(d_plan->num_transforms_ - i*d_plan->options_.max_batch_size, 
 			d_plan->options_.max_batch_size);
-		d_cstart   = d_c + i*d_plan->options_.max_batch_size*d_plan->M;
+		d_cstart   = d_c + i*d_plan->options_.max_batch_size*d_plan->num_points_;
 		d_fkstart  = d_fk + i*d_plan->options_.max_batch_size*d_plan->ms*d_plan->mt;
 		d_plan->c  = d_cstart;
 		d_plan->fk = d_fkstart;
@@ -144,7 +143,7 @@ int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	for (int i=0; i*d_plan->options_.max_batch_size < d_plan->num_transforms_; i++) {
 		blksize = min(d_plan->num_transforms_ - i*d_plan->options_.max_batch_size, 
 			d_plan->options_.max_batch_size);
-		d_cstart  = d_c  + i*d_plan->options_.max_batch_size*d_plan->M;
+		d_cstart  = d_c  + i*d_plan->options_.max_batch_size*d_plan->num_points_;
 		d_fkstart = d_fk + i*d_plan->options_.max_batch_size*d_plan->ms*d_plan->mt;
 
 		d_plan->c = d_cstart;
@@ -212,7 +211,7 @@ int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	for (int i=0; i*d_plan->options_.max_batch_size < d_plan->num_transforms_; i++) {
 		blksize = min(d_plan->num_transforms_ - i*d_plan->options_.max_batch_size, 
 			d_plan->options_.max_batch_size);
-		d_cstart  = d_c  + i*d_plan->options_.max_batch_size*d_plan->M;
+		d_cstart  = d_c  + i*d_plan->options_.max_batch_size*d_plan->num_points_;
 		d_fkstart = d_fk + i*d_plan->options_.max_batch_size*gridsize;
 
 		d_plan->c = d_cstart;
@@ -228,7 +227,7 @@ int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	
 	using namespace thrust::placeholders;
 	thrust::device_ptr<FLT> dev_ptr((FLT*) d_c);
-	thrust::transform(dev_ptr, dev_ptr + 2*d_plan->num_transforms_*d_plan->M,
+	thrust::transform(dev_ptr, dev_ptr + 2*d_plan->num_transforms_*d_plan->num_points_,
 					  dev_ptr, _1 * (FLT) d_plan->spread_params_.ES_scale); 
 	
 	return ier;
@@ -251,7 +250,7 @@ int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 	for (int i=0; i*d_plan->options_.max_batch_size < d_plan->num_transforms_; i++) {
 		blksize = min(d_plan->num_transforms_ - i*d_plan->options_.max_batch_size, 
 			d_plan->options_.max_batch_size);
-		d_cstart   = d_c + i*d_plan->options_.max_batch_size*d_plan->M;
+		d_cstart   = d_c + i*d_plan->options_.max_batch_size*d_plan->num_points_;
 		d_fkstart  = d_fk + i*d_plan->options_.max_batch_size*gridsize;
 		
 		d_plan->c  = d_cstart;

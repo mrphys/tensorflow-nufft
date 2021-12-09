@@ -149,7 +149,6 @@ CUFINUFFT_LIB = $(CUFINUFFT_ROOT)/libcufinufft.a
 CUFINUFFT_DLINK = $(CUFINUFFT_ROOT)/libcufinufft.dlink
 CUFINUFFT_HEADERS = $(CUFINUFFT_ROOT)/cufinufft.h \
 					$(CUFINUFFT_ROOT)/cudeconvolve.h \
-					$(CUFINUFFT_ROOT)/memtransfer.h \
 					$(CUFINUFFT_ROOT)/profile.h \
 					$(CUFINUFFT_ROOT)/cuspreadinterp.h \
 					$(CUFINUFFT_ROOT)/cufinufft_eitherprec.h \
@@ -166,7 +165,6 @@ CUFINUFFTOBJS=$(CUFINUFFT_ROOT)/precision_independent.o \
 CUFINUFFTOBJS_64=$(CUFINUFFT_ROOT)/spreadinterp2d.o \
 				 $(CUFINUFFT_ROOT)/cufinufft2d.o \
 				 $(CUFINUFFT_ROOT)/spread2d_wrapper.o \
-				 $(CUFINUFFT_ROOT)/memtransfer_wrapper.o \
 				 $(CUFINUFFT_ROOT)/deconvolve_wrapper.o \
 				 $(CUFINUFFT_ROOT)/cufinufft.o \
 				 $(CUFINUFFT_ROOT)/spreadinterp3d.o \

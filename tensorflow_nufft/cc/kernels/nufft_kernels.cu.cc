@@ -35,7 +35,8 @@ int setpts<GPUDevice, float>(
     Plan<GPUDevice, float>* plan,
     int64_t M, float* x, float* y, float* z,
     int64_t N, float* s, float* t, float* u) {
-  return cufinufftf_setpts(M, x, y, z, N, s, t, u, plan);
+  plan->set_points(M, x, y, z);
+  return 0;
 };
 
 template<>
@@ -43,7 +44,8 @@ int setpts<GPUDevice, double>(
     Plan<GPUDevice, double>* plan,
     int64_t M, double* x, double* y, double* z,
     int64_t N, double* s, double* t, double* u) {
-  return cufinufft_setpts(M, x, y, z, N, s, t, u, plan);
+  plan->set_points(M, x, y, z);
+  return 0;
 };
 
 template<>

@@ -221,8 +221,6 @@ int CUINTERP2D_NUPTSDRIVEN(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* 
 int CUINTERP2D_SUBPROB(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
 	int blksize);
 
-int INITSPREAD(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-
 } // namespace nufft
 } // namespace tensorflow
 

@@ -70,6 +70,9 @@ template<typename FloatType>
 constexpr static FloatType kPi = FloatType(3.14159265358979329);
 
 template<typename FloatType>
+constexpr static FloatType kOneOverTwoPi = FloatType(0.159154943091895336);
+
+template<typename FloatType>
 constexpr static std::complex<FloatType> kImaginaryUnit = std::complex<FloatType>(0.0, 1.0);
 
 template<typename FloatType>
@@ -219,9 +222,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   int nj;          // number of NU pts in type 1,2 (for type 3, num input x pts)
   int nk;          // number of NU freq pts (type 3 only)
 
-  // int64_t nf1;      // size of internal fine grid in x (1) direction
-  // int64_t nf2;      // " y
-  // int64_t nf3;      // " z
   int64_t nf;       // total # fine grid points (product of the above three)
   
   FloatType* phiHat1;    // FT of kernel in t1,2, on x-axis mode grid
@@ -270,6 +270,18 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
                     FloatType* points_y,
                     FloatType* points_z);
 
+ private:
+  
+  Status init_spreader();
+
+  Status init_spreader_nupts_driven();
+
+  Status init_spreader_subproblem();
+
+  Status init_spreader_paul();
+
+  Status init_spreader_block_gather();
+
  public:
 
   // Batch of fine grids for cuFFT to plan and execute. This is usually the
@@ -299,9 +311,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   FloatType* points_[3];
   int num_points_;
 
-  // std::unique_ptr<Spreader<GPUDevice, FloatType>> spreader_; // owned
-
-  int M;
   int nf1;
   int nf2;
   int nf3;
@@ -311,9 +320,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
   int totalnumsubprob;
   
-  FloatType *kx;
-  FloatType *ky;
-  FloatType *kz;
   typename ComplexType<GPUDevice, FloatType>::Type* c;
   typename ComplexType<GPUDevice, FloatType>::Type* fk;
 

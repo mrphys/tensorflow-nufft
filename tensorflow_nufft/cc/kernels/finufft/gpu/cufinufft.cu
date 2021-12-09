@@ -23,7 +23,6 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft_eitherprec.h"
 #include "cuspreadinterp.h"
 #include "cudeconvolve.h"
-#include "memtransfer.h"
 
 using namespace std;
 using namespace tensorflow;
@@ -35,74 +34,6 @@ using namespace tensorflow::nufft;
 extern "C" {
 #endif
 
-int CUFINUFFT_SETPTS(int M, FLT* d_kx, FLT* d_ky, FLT* d_kz, int N, FLT *d_s,
-	FLT *d_t, FLT *d_u, Plan<GPUDevice, FLT>* d_plan)
-
-{
-        // Mult-GPU support: set the CUDA Device ID:
-        int orig_gpu_device_id;
-        cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(d_plan->options_.gpu_device_id);
-
-
-	d_plan->M = M;
-	d_plan->num_points_ = M;
-
-	if (d_plan->sortidx ) checkCudaErrors(cudaFree(d_plan->sortidx));
-	if (d_plan->idxnupts) checkCudaErrors(cudaFree(d_plan->idxnupts));
-
-	switch (d_plan->options_.spread_method)
-	{
-		case SpreadMethod::NUPTS_DRIVEN:
-			{
-				if (d_plan->spread_params_.sort_points == SortPoints::YES)
-					checkCudaErrors(cudaMalloc(&d_plan->sortidx, M*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->idxnupts,M*sizeof(int)));
-			}
-			break;
-		case SpreadMethod::SUBPROBLEM:
-			{
-				checkCudaErrors(cudaMalloc(&d_plan->idxnupts,M*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->sortidx, M*sizeof(int)));
-			}
-			break;
-		case SpreadMethod::PAUL:
-			{
-				checkCudaErrors(cudaMalloc(&d_plan->idxnupts,M*sizeof(int)));
-				checkCudaErrors(cudaMalloc(&d_plan->sortidx, M*sizeof(int)));
-			}
-			break;
-		case SpreadMethod::BLOCK_GATHER:
-			{
-				checkCudaErrors(cudaMalloc(&d_plan->sortidx,M*sizeof(int)));
-			}
-			break;
-		default:
-			cerr << "err: invalid method" << endl;
-	}
-
-
-	d_plan->kx = d_kx;
-	if (d_plan->rank_ > 1)
-		d_plan->ky = d_ky;
-	if (d_plan->rank_ > 2)
-		d_plan->kz = d_kz;
-	
-	d_plan->points_[0] = d_kx;
-	if (d_plan->rank_ > 1)
-		d_plan->points_[1] = d_ky;
-	if (d_plan->rank_ > 2)
-		d_plan->points_[2] = d_kz;
-
-	
-		INITSPREAD(d_plan);
-
-        // Multi-GPU support: reset the device ID
-        cudaSetDevice(orig_gpu_device_id);
-
-	return 0;
-}
-
 int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 /*
 	"exec" stage (single and double precision versions).
@@ -113,7 +44,7 @@ int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
         See ../docs/cppdoc.md for main user-facing documentation.
 
 	Input/Output:
-	d_c   a size d_plan->M CPX array on gpu (input for Type 1; output for Type
+	d_c   a size d_plan->num_points_ CPX array on gpu (input for Type 1; output for Type
 	      2)
 	d_fk  a size d_plan->ms*d_plan->mt*d_plan->mu CPX array on gpu ((input for
 	      Type 2; output for Type 1)

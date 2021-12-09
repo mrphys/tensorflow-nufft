@@ -44,7 +44,6 @@ limitations under the License.
 
 
 /* Undefine things so we don't get warnings/errors later */
-#undef CUFINUFFT_SETPTS
 #undef CUFINUFFT_EXECUTE
 #undef CUFINUFFT_INTERP
 #undef CUFINUFFT_SPREAD
@@ -56,19 +55,12 @@ limitations under the License.
 #undef CUFINUFFT2D_SPREAD
 #undef CUFINUFFT3D_INTERP
 #undef CUFINUFFT3D_SPREAD
-/* memtransfer.h */
-#undef ALLOCGPUMEM3D_NUPTS
 /* spreading 2D */
 #undef CUSPREAD2D
-#undef CUSPREAD2D_NUPTSDRIVEN_PROP
 #undef CUSPREAD2D_NUPTSDRIVEN
-#undef CUSPREAD2D_SUBPROB_PROP
 #undef CUSPREAD2D_SUBPROB
 #undef CUSPREAD2D_PAUL
-#undef CUSPREAD2D_PAUL_PROP
-#undef INITSPREAD
 /* spreading 3d */
-#undef CUSPREAD3D_BLOCKGATHER_PROP
 #undef CUSPREAD3D_BLOCKGATHER
 /* interp */
 #undef CUINTERP2D
@@ -82,7 +74,6 @@ limitations under the License.
 
 #ifdef SINGLE
 
-#define CUFINUFFT_SETPTS cufinufftf_setpts
 #define CUFINUFFT_EXECUTE cufinufftf_execute
 #define CUFINUFFT_INTERP cufinufftf_interp
 #define CUFINUFFT_SPREAD cufinufftf_spread
@@ -91,19 +82,11 @@ limitations under the License.
 #define CUFINUFFT3D1_EXEC cufinufftf3d1_exec
 #define CUFINUFFT3D2_EXEC cufinufftf3d2_exec
 #define CUFINUFFT2D_INTERP cufinufftf2d_interp
-/* memtransfer.h */
-#define ALLOCGPUMEM3D_NUPTS allocgpumem3df_nupts
 /* spreading 2D */
 #define CUSPREAD2D cuspread2df
-#define CUSPREAD2D_NUPTSDRIVEN_PROP cuspread2df_nuptsdriven_prop
 #define CUSPREAD2D_NUPTSDRIVEN cuspread2df_nuptsdriven
-#define CUSPREAD2D_SUBPROB_PROP cuspread2df_subprob_prop
 #define CUSPREAD2D_SUBPROB cuspread2df_subprob
 #define CUSPREAD2D_PAUL cuspread2df_paul
-#define CUSPREAD2D_PAUL_PROP cuspread2df_paul_prop
-#define INITSPREAD initspreadf
-/* spreading 3d */
-#define CUSPREAD3D_BLOCKGATHER_PROP cuspread3df_blockgather_prop
 #define CUSPREAD3D_BLOCKGATHER cuspread3df_blockgather
 /* interp */
 #define CUINTERP2D cuinterp2df
@@ -116,7 +99,6 @@ limitations under the License.
 
 #else
 
-#define CUFINUFFT_SETPTS cufinufft_setpts
 #define CUFINUFFT_EXECUTE cufinufft_execute
 #define CUFINUFFT_INTERP cufinufft_interp
 #define CUFINUFFT_SPREAD cufinufft_spread
@@ -128,18 +110,11 @@ limitations under the License.
 #define CUFINUFFT2D_SPREAD cufinufft2d_spread
 #define CUFINUFFT3D_INTERP cufinufft3d_interp
 #define CUFINUFFT3D_SPREAD cufinufft3d_spread
-/* memtransfer.h */
-#define ALLOCGPUMEM3D_NUPTS allocgpumem3d_nupts
 /* spreading 2D */
 #define CUSPREAD2D cuspread2d
-#define CUSPREAD2D_NUPTSDRIVEN_PROP cuspread2d_nuptsdriven_prop
 #define CUSPREAD2D_NUPTSDRIVEN cuspread2d_nuptsdriven
-#define CUSPREAD2D_SUBPROB_PROP cuspread2d_subprob_prop
 #define CUSPREAD2D_SUBPROB cuspread2d_subprob
 #define CUSPREAD2D_PAUL cuspread2d_paul
-#define CUSPREAD2D_PAUL_PROP cuspread2d_paul_prop
-#define INITSPREAD initspread
-#define CUSPREAD3D_BLOCKGATHER_PROP cuspread3d_blockgather_prop
 #define CUSPREAD3D_BLOCKGATHER cuspread3d_blockgather
 #define CUINTERP2D cuinterp2d
 #define CUINTERP2D_NUPTSDRIVEN cuinterp2d_nuptsdriven
@@ -156,8 +131,6 @@ limitations under the License.
 #ifdef __cplusplus
 extern "C" {
 #endif
-int CUFINUFFT_SETPTS(int M, FLT* h_kx, FLT* h_ky, FLT* h_kz, int N, FLT *h_s,
-	FLT *h_t, FLT *h_u, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 int CUFINUFFT_EXECUTE(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 int CUFINUFFT_INTERP(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 int CUFINUFFT_SPREAD(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);

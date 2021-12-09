@@ -32,12 +32,22 @@ limitations under the License.
 
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
+#include <thrust/device_ptr.h>
+#include <thrust/scan.h>
+
 #include "tensorflow/core/platform/stream_executor.h"
+#include "tensorflow/core/util/gpu_kernel_helper.h"
 
 #include "tensorflow_nufft/third_party/cuda_samples/helper_cuda.h"
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
 #include "tensorflow_nufft/cc/kernels/omp_api.h"
 
+// NU coord handling macro: if p is true, rescales from [-pi,pi] to [0,N], then
+// folds *only* one period below and above, ie [-N,2N], into the domain [0,N]...
+#define RESCALE(x, N, p) (p ? \
+		     ((x * kOneOverTwoPi<FloatType> + (x < -kPi<FloatType> ? 1.5 : \
+         (x >= kPi<FloatType> ? -0.5 : 0.5)))*N) : \
+		     (x < 0 ? x + N : (x >= N ? x - N : x)))
 
 namespace tensorflow {
 namespace nufft {
@@ -79,8 +89,138 @@ Status allocate_gpu_memory_3d(Plan<GPUDevice, FloatType>* d_plan);
 template<typename FloatType>
 void free_gpu_memory(Plan<GPUDevice, FloatType>* d_plan);
 
-} // namespace
+__device__ int CalcGlobalIdxV2(int xidx, int yidx, int zidx, int nbinx, int nbiny, int nbinz) {
+	return xidx + yidx*nbinx + zidx*nbinx*nbiny;
+}
 
+template<typename FloatType>
+__global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_size_x, 
+    int bin_size_y, int nbinx, int nbiny, int* bin_size, FloatType *x, FloatType *y, 
+    int* sortidx, int pirange) {
+	int binidx, binx, biny;
+	int oldidx;
+	FloatType x_rescaled,y_rescaled;
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
+		x_rescaled=RESCALE(x[i], nf1, pirange);
+		y_rescaled=RESCALE(y[i], nf2, pirange);
+		binx = floor(x_rescaled/bin_size_x);
+		binx = binx >= nbinx ? binx-1 : binx;
+		binx = binx < 0 ? 0 : binx;
+		biny = floor(y_rescaled/bin_size_y);
+		biny = biny >= nbiny ? biny-1 : biny;
+		biny = biny < 0 ? 0 : biny;
+		binidx = binx+biny*nbinx;
+		oldidx = atomicAdd(&bin_size[binidx], 1);
+		sortidx[i] = oldidx;
+		if (binx >= nbinx || biny >= nbiny) {
+			sortidx[i] = -biny;
+		}
+	}
+}
+
+template<typename FloatType>
+__global__ void CalcBinSizeNoGhost3DKernel(int M, int nf1, int nf2, int nf3,
+    int bin_size_x, int bin_size_y, int bin_size_z,
+    int nbinx, int nbiny, int nbinz, int* bin_size, FloatType *x, FloatType *y, FloatType *z,
+    int* sortidx, int pirange) {
+	int binidx, binx, biny, binz;
+	int oldidx;
+	FloatType x_rescaled,y_rescaled,z_rescaled;
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
+		x_rescaled=RESCALE(x[i], nf1, pirange);
+		y_rescaled=RESCALE(y[i], nf2, pirange);
+		z_rescaled=RESCALE(z[i], nf3, pirange);
+		binx = floor(x_rescaled/bin_size_x);
+		binx = binx >= nbinx ? binx-1 : binx;
+		binx = binx < 0 ? 0 : binx;
+
+		biny = floor(y_rescaled/bin_size_y);
+		biny = biny >= nbiny ? biny-1 : biny;
+		biny = biny < 0 ? 0 : biny;
+
+		binz = floor(z_rescaled/bin_size_z);
+		binz = binz >= nbinz ? binz-1 : binz;
+		binz = binz < 0 ? 0 : binz;
+		binidx = binx+biny*nbinx+binz*nbinx*nbiny;
+		oldidx = atomicAdd(&bin_size[binidx], 1);
+		sortidx[i] = oldidx;
+	}
+}
+
+template<typename FloatType>
+__global__ void CalcInvertofGlobalSortIdx2DKernel(int M, int bin_size_x, int bin_size_y, 
+    int nbinx,int nbiny, int* bin_startpts, int* sortidx, FloatType *x, FloatType *y, 
+    int* index, int pirange, int nf1, int nf2) {
+	int binx, biny;
+	int binidx;
+	FloatType x_rescaled, y_rescaled;
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
+		x_rescaled=RESCALE(x[i], nf1, pirange);
+		y_rescaled=RESCALE(y[i], nf2, pirange);
+		binx = floor(x_rescaled/bin_size_x);
+		binx = binx >= nbinx ? binx-1 : binx;
+		binx = binx < 0 ? 0 : binx;
+		biny = floor(y_rescaled/bin_size_y);
+		biny = biny >= nbiny ? biny-1 : biny;
+		biny = biny < 0 ? 0 : biny;
+		binidx = binx+biny*nbinx;
+
+		index[bin_startpts[binidx]+sortidx[i]] = i;
+	}
+}
+
+template<typename FloatType>
+__global__ void CalcInvertofGlobalSortIdx3DKernel(int M, int bin_size_x, int bin_size_y,
+    int bin_size_z, int nbinx, int nbiny, int nbinz, int* bin_startpts,
+    int* sortidx, FloatType *x, FloatType *y, FloatType *z, int* index, int pirange, int nf1,
+    int nf2, int nf3) {
+	int binx,biny,binz;
+	int binidx;
+	FloatType x_rescaled,y_rescaled,z_rescaled;
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
+		x_rescaled=RESCALE(x[i], nf1, pirange);
+		y_rescaled=RESCALE(y[i], nf2, pirange);
+		z_rescaled=RESCALE(z[i], nf3, pirange);
+		binx = floor(x_rescaled/bin_size_x);
+		binx = binx >= nbinx ? binx-1 : binx;
+		binx = binx < 0 ? 0 : binx;
+		biny = floor(y_rescaled/bin_size_y);
+		biny = biny >= nbiny ? biny-1 : biny;
+		biny = biny < 0 ? 0 : biny;
+		binz = floor(z_rescaled/bin_size_z);
+		binz = binz >= nbinz ? binz-1 : binz;
+		binz = binz < 0 ? 0 : binz;
+		binidx = CalcGlobalIdxV2(binx,biny,binz,nbinx,nbiny,nbinz);
+
+		index[bin_startpts[binidx]+sortidx[i]] = i;
+	}
+}
+
+__global__ void TrivialGlobalSortIdxKernel(int M, int* index) {
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<M; i+=gridDim.x*blockDim.x) {
+		index[i] = i;
+	}
+}
+
+__global__ void CalcSubproblemKernel(int* bin_size, int* num_subprob, int maxsubprobsize,
+	  int numbins) {
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<numbins;
+		i+=gridDim.x*blockDim.x) {
+		num_subprob[i]=ceil(bin_size[i]/(float) maxsubprobsize);
+	}
+}
+
+__global__ void MapBinToSubproblemKernel(int* d_subprob_to_bin,int* d_subprobstartpts,
+	  int* d_numsubprob,int numbins) {
+	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<numbins;
+		i+=gridDim.x*blockDim.x) {
+		for (int j=0; j<d_numsubprob[i]; j++) {
+			d_subprob_to_bin[d_subprobstartpts[i]+j]=i;
+		}
+	}
+}
+
+} // namespace
 
 template<typename FloatType>
 Plan<GPUDevice, FloatType>::Plan(
@@ -132,7 +272,6 @@ Plan<GPUDevice, FloatType>::Plan(
 
 
   // Initialize all values to 0. TODO: move to initialization list.
-  this->M = 0;
   this->nf1 = 0;
   this->nf2 = 0;
   this->nf3 = 0;
@@ -140,9 +279,6 @@ Plan<GPUDevice, FloatType>::Plan(
   this->mt = 0;
   this->mu = 0;
   this->totalnumsubprob = 0;
-  this->kx = nullptr;
-  this->ky = nullptr;
-  this->kz = nullptr;
   this->c = nullptr;
   this->fk = nullptr;
   this->idxnupts = nullptr;
@@ -361,8 +497,8 @@ Plan<GPUDevice, FloatType>::~Plan() {
   cudaGetDevice(& orig_gpu_device_id);
   cudaSetDevice(this->options_.gpu_device_id);
 
-	if (this->fft_plan_)
-		cufftDestroy(this->fft_plan_);
+  if (this->fft_plan_)
+    cufftDestroy(this->fft_plan_);
 
   free_gpu_memory(this);
 
@@ -377,7 +513,284 @@ Status Plan<GPUDevice, FloatType>::set_points(
     FloatType* points_y,
     FloatType* points_z) {
 
-	return Status::OK();
+  // Mult-GPU support: set the CUDA Device ID:
+  int orig_gpu_device_id;
+  cudaGetDevice(& orig_gpu_device_id);
+  cudaSetDevice(this->options_.gpu_device_id);
+
+  this->num_points_ = num_points;
+  this->points_[0] = points_x;
+  this->points_[1] = this->rank_ > 1 ? points_y : nullptr;
+  this->points_[2] = this->rank_ > 2 ? points_z : nullptr;
+
+  if (this->sortidx ) checkCudaErrors(cudaFree(this->sortidx));
+  if (this->idxnupts) checkCudaErrors(cudaFree(this->idxnupts));
+
+  size_t num_bytes = sizeof(int) * this->num_points_;
+  switch (this->options_.spread_method) {
+    case SpreadMethod::NUPTS_DRIVEN:
+      if (this->spread_params_.sort_points == SortPoints::YES)
+        checkCudaErrors(cudaMalloc(&this->sortidx, num_bytes));
+      checkCudaErrors(cudaMalloc(&this->idxnupts, num_bytes));
+      break;
+    case SpreadMethod::SUBPROBLEM:
+      checkCudaErrors(cudaMalloc(&this->idxnupts, num_bytes));
+      checkCudaErrors(cudaMalloc(&this->sortidx, num_bytes));
+      break;
+    case SpreadMethod::PAUL:
+      checkCudaErrors(cudaMalloc(&this->idxnupts, num_bytes));
+      checkCudaErrors(cudaMalloc(&this->sortidx, num_bytes));
+      break;
+    case SpreadMethod::BLOCK_GATHER:
+      checkCudaErrors(cudaMalloc(&this->sortidx, num_bytes));
+      break;
+  }
+  
+  TF_RETURN_IF_ERROR(this->init_spreader());
+
+  // Multi-GPU support: reset the device ID
+  cudaSetDevice(orig_gpu_device_id);
+
+  return Status::OK();
+}
+
+template<typename FloatType>
+Status Plan<GPUDevice, FloatType>::init_spreader() {
+
+  switch(this->options_.spread_method) {
+		case SpreadMethod::NUPTS_DRIVEN:
+      TF_RETURN_IF_ERROR(this->init_spreader_nupts_driven());
+      break;
+		case SpreadMethod::SUBPROBLEM:
+      TF_RETURN_IF_ERROR(this->init_spreader_subproblem());
+      break;
+    case SpreadMethod::PAUL:
+      TF_RETURN_IF_ERROR(this->init_spreader_paul());
+      break;
+    case SpreadMethod::BLOCK_GATHER:
+      TF_RETURN_IF_ERROR(this->init_spreader_block_gather());
+		  break;
+	}
+  return Status::OK();
+}
+
+template<typename FloatType>
+Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
+  
+  int num_blocks = (this->num_points_ + 1024 - 1) / 1024;
+  int threads_per_block = 1024;
+
+  if (this->spread_params_.sort_points == SortPoints::YES) {
+    int bin_size[3];
+    bin_size[0] = this->options_.gpu_bin_size.x;
+    bin_size[1] = this->options_.gpu_bin_size.y;
+    bin_size[2] = this->options_.gpu_bin_size.z;
+    if (bin_size[0] < 0 || bin_size[1] < 0 || bin_size[2] < 0) {
+      return errors::InvalidArgument(
+          "Invalid bin size: (", bin_size[0], ", ", bin_size[1], ", ",
+          bin_size[2], ")");
+    }
+
+    int num_bins[3] = {1, 1, 1};
+    int bin_count = 1;
+    for (int i = 0; i < this->rank_; i++) {
+      num_bins[i] = (this->grid_dims_[i] + bin_size[i] - 1) / bin_size[i];
+      bin_count *= num_bins[i];
+    }
+
+    // This may not be necessary.
+    this->device_.synchronize();
+
+    // Calculate bin sizes.
+    this->device_.memset(this->binsize, 0, bin_count * sizeof(int));
+    switch (this->rank_) {
+      case 2:
+        TF_CHECK_OK(GpuLaunchKernel(
+            CalcBinSizeNoGhost2DKernel<FloatType>,
+            num_blocks, threads_per_block, 0, this->device_.stream(),
+            this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
+            bin_size[0], bin_size[1], num_bins[0], num_bins[1],
+            this->binsize, this->points_[0], this->points_[1], this->sortidx,
+            this->spread_params_.pirange));
+        break;
+      case 3:
+        CalcBinSizeNoGhost3DKernel<FloatType><<<num_blocks, threads_per_block>>>(
+          this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
+          this->grid_dims_[2],
+          bin_size[0],bin_size[1],bin_size[2],num_bins[0],num_bins[1],num_bins[2],
+          this->binsize,this->points_[0],this->points_[1],this->points_[2],
+          this->sortidx,this->spread_params_.pirange);
+        break;
+    }
+
+    thrust::device_ptr<int> d_bin_sizes(this->binsize);
+    thrust::device_ptr<int> d_bin_start_points(this->binstartpts);
+    thrust::exclusive_scan(d_bin_sizes, d_bin_sizes + bin_count,
+                           d_bin_start_points);
+
+    switch (this->rank_) {
+      case 2:
+        TF_CHECK_OK(GpuLaunchKernel(
+            CalcInvertofGlobalSortIdx2DKernel<FloatType>,
+            num_blocks, threads_per_block, 0, this->device_.stream(),
+            this->num_points_, bin_size[0], bin_size[1], num_bins[0],
+            num_bins[1], this->binstartpts, this->sortidx,
+            this->points_[0], this->points_[1], this->idxnupts,
+            this->spread_params_.pirange, this->grid_dims_[0],
+            this->grid_dims_[1]));
+        break;
+      case 3:
+        CalcInvertofGlobalSortIdx3DKernel<FloatType><<<num_blocks, threads_per_block>>>(
+          this->num_points_,bin_size[0],
+          bin_size[1],bin_size[2],num_bins[0],num_bins[1],num_bins[2],
+          this->binstartpts,
+          this->sortidx,this->points_[0],this->points_[1],this->points_[2],
+          this->idxnupts, this->spread_params_.pirange, this->grid_dims_[0],
+          this->grid_dims_[1], this->grid_dims_[2]);
+        break;
+    }
+  } else {
+    TF_CHECK_OK(GpuLaunchKernel(
+        TrivialGlobalSortIdxKernel,
+        num_blocks, threads_per_block, 0, this->device_.stream(),
+        this->num_points_, this->idxnupts));
+  }
+
+  return Status::OK();
+}
+
+template<typename FloatType>
+Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
+  int num_blocks = (this->num_points_ + 1024 - 1) / 1024;
+  int threads_per_block = 1024;
+
+  int maxsubprobsize=this->options_.gpu_max_subproblem_size;
+
+  int bin_size[3];
+  bin_size[0] = this->options_.gpu_bin_size.x;
+  bin_size[1] = this->options_.gpu_bin_size.y;
+  bin_size[2] = this->options_.gpu_bin_size.z;
+  if (bin_size[0] < 0 || bin_size[1] < 0 || bin_size[2] < 0) {
+    return errors::InvalidArgument(
+        "Invalid bin size: (", bin_size[0], ", ", bin_size[1], ", ",
+        bin_size[2], ")");
+  }
+
+  int num_bins[3] = {1, 1, 1};
+  int bin_count = 1;
+  for (int i = 0; i < this->rank_; i++) {
+    num_bins[i] = (this->grid_dims_[i] + bin_size[i] - 1) / bin_size[i];
+    bin_count *= num_bins[i];
+  }
+
+  int *d_binsize = this->binsize;
+  int *d_binstartpts = this->binstartpts;
+  int *d_sortidx = this->sortidx;
+  int *d_numsubprob = this->numsubprob;
+  int *d_subprobstartpts = this->subprobstartpts;
+  int *d_idxnupts = this->idxnupts;
+
+  int *d_subprob_to_bin = NULL;
+
+  int pirange=this->spread_params_.pirange;
+
+  // This may not be necessary.
+  this->device_.synchronize();
+
+  // Calculate bin sizes.
+  this->device_.memset(this->binsize, 0, bin_count * sizeof(int));
+  switch (this->rank_) {
+    case 2:
+      TF_CHECK_OK(GpuLaunchKernel(
+          CalcBinSizeNoGhost2DKernel<FloatType>, num_blocks, threads_per_block, 0,
+          this->device_.stream(), this->num_points_, this->grid_dims_[0],
+          this->grid_dims_[1], bin_size[0], bin_size[1],
+          num_bins[0], num_bins[1], d_binsize, this->points_[0],
+          this->points_[1], d_sortidx, pirange));
+      break;
+    case 3:
+      CalcBinSizeNoGhost3DKernel<FloatType><<<num_blocks, threads_per_block>>>(
+        this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
+        this->grid_dims_[2], bin_size[0],
+        bin_size[1], bin_size[2], num_bins[0], num_bins[1], num_bins[2], d_binsize,
+        this->points_[0], this->points_[1], this->points_[2], d_sortidx, pirange);
+      break;
+  }
+
+  thrust::device_ptr<int> d_ptr(d_binsize);
+  thrust::device_ptr<int> d_result(d_binstartpts);
+  thrust::exclusive_scan(d_ptr, d_ptr + bin_count, d_result);
+
+  switch (this->rank_) {
+    case 2:
+      TF_CHECK_OK(GpuLaunchKernel(
+          CalcInvertofGlobalSortIdx2DKernel<FloatType>, num_blocks, threads_per_block, 0,
+          this->device_.stream(), this->num_points_, bin_size[0], bin_size[1], num_bins[0],
+          num_bins[1], d_binstartpts, d_sortidx, this->points_[0],
+          this->points_[1], d_idxnupts, pirange, this->grid_dims_[0],
+          this->grid_dims_[1]));
+
+      TF_CHECK_OK(GpuLaunchKernel(
+          CalcSubproblemKernel, num_blocks, threads_per_block, 0,
+          this->device_.stream(), d_binsize, d_numsubprob, maxsubprobsize,
+          bin_count));
+      break;
+    case 3:
+      CalcInvertofGlobalSortIdx3DKernel<FloatType><<<num_blocks, threads_per_block>>>(
+        this->num_points_, bin_size[0],
+        bin_size[1], bin_size[2], num_bins[0], num_bins[1], num_bins[2],
+        d_binstartpts, d_sortidx, this->points_[0], this->points_[1],
+        this->points_[2], d_idxnupts, pirange, this->grid_dims_[0],
+        this->grid_dims_[1], this->grid_dims_[2]);
+    
+      CalcSubproblemKernel<<<num_blocks, threads_per_block>>>(d_binsize,d_numsubprob,
+          maxsubprobsize, bin_count);
+      break;
+  }
+
+  d_ptr    = thrust::device_pointer_cast(d_numsubprob);
+  d_result = thrust::device_pointer_cast(d_subprobstartpts+1);
+  thrust::inclusive_scan(d_ptr, d_ptr + bin_count, d_result);
+  checkCudaErrors(cudaMemset(d_subprobstartpts,0,sizeof(int)));
+
+  int totalnumsubprob;
+  checkCudaErrors(cudaMemcpy(&totalnumsubprob,&d_subprobstartpts[bin_count],
+    sizeof(int),cudaMemcpyDeviceToHost));
+  checkCudaErrors(cudaMalloc(&d_subprob_to_bin,totalnumsubprob*sizeof(int)));
+
+  num_blocks = (bin_count + 1024 - 1) / 1024;
+  threads_per_block = 1024;
+
+  switch (this->rank_) {
+    case 2:
+      TF_CHECK_OK(GpuLaunchKernel(
+          MapBinToSubproblemKernel, num_blocks, threads_per_block, 0,
+          this->device_.stream(), d_subprob_to_bin, d_subprobstartpts,
+          d_numsubprob, bin_count));
+      break;
+    case 3:
+      MapBinToSubproblemKernel<<<(num_bins[0]*num_bins[1]+1024-1)/1024, 1024>>>(
+          d_subprob_to_bin, d_subprobstartpts, d_numsubprob, bin_count);
+      break;
+  }
+
+  assert(d_subprob_to_bin != NULL);
+  if (this->subprob_to_bin != NULL) cudaFree(this->subprob_to_bin);
+  this->subprob_to_bin = d_subprob_to_bin;
+  assert(this->subprob_to_bin != NULL);
+  this->totalnumsubprob = totalnumsubprob;
+
+  return Status::OK();
+}
+
+template<typename FloatType>
+Status Plan<GPUDevice, FloatType>::init_spreader_paul() {
+	return errors::Unimplemented("init_spreader_paul");
+}
+
+template<typename FloatType>
+Status Plan<GPUDevice, FloatType>::init_spreader_block_gather() {
+  return errors::Unimplemented("init_spreader_block_gather");
 }
 
 namespace {
@@ -717,64 +1130,64 @@ void free_gpu_memory(Plan<GPUDevice, FloatType>* d_plan) {
       cudaGetDevice(& orig_gpu_device_id);
       cudaSetDevice(d_plan->options_.gpu_device_id);
 
-	switch(d_plan->options_.spread_method)
-	{
-		case SpreadMethod::NUPTS_DRIVEN:
-			{
-				if (d_plan->spread_params_.sort_points == SortPoints::YES) {
+  switch(d_plan->options_.spread_method)
+  {
+    case SpreadMethod::NUPTS_DRIVEN:
+      {
+        if (d_plan->spread_params_.sort_points == SortPoints::YES) {
           if (d_plan->idxnupts)
-					  checkCudaErrors(cudaFree(d_plan->idxnupts));
+            checkCudaErrors(cudaFree(d_plan->idxnupts));
           if (d_plan->sortidx)
-					  checkCudaErrors(cudaFree(d_plan->sortidx));
-					checkCudaErrors(cudaFree(d_plan->binsize));
-					checkCudaErrors(cudaFree(d_plan->binstartpts));
-				}else{
+            checkCudaErrors(cudaFree(d_plan->sortidx));
+          checkCudaErrors(cudaFree(d_plan->binsize));
+          checkCudaErrors(cudaFree(d_plan->binstartpts));
+        }else{
           if (d_plan->idxnupts)
-					  checkCudaErrors(cudaFree(d_plan->idxnupts));
-				}
-			}
-			break;
-		case SpreadMethod::SUBPROBLEM:
-			{
+            checkCudaErrors(cudaFree(d_plan->idxnupts));
+        }
+      }
+      break;
+    case SpreadMethod::SUBPROBLEM:
+      {
         if (d_plan->idxnupts)
-				  checkCudaErrors(cudaFree(d_plan->idxnupts));
+          checkCudaErrors(cudaFree(d_plan->idxnupts));
         if (d_plan->sortidx)
-				  checkCudaErrors(cudaFree(d_plan->sortidx));
-				checkCudaErrors(cudaFree(d_plan->numsubprob));
-				checkCudaErrors(cudaFree(d_plan->binsize));
-				checkCudaErrors(cudaFree(d_plan->binstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprobstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
-			}
-			break;
-		case SpreadMethod::PAUL:
-			{
+          checkCudaErrors(cudaFree(d_plan->sortidx));
+        checkCudaErrors(cudaFree(d_plan->numsubprob));
+        checkCudaErrors(cudaFree(d_plan->binsize));
+        checkCudaErrors(cudaFree(d_plan->binstartpts));
+        checkCudaErrors(cudaFree(d_plan->subprobstartpts));
+        checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
+      }
+      break;
+    case SpreadMethod::PAUL:
+      {
         if (d_plan->idxnupts)
-				  checkCudaErrors(cudaFree(d_plan->idxnupts));
+          checkCudaErrors(cudaFree(d_plan->idxnupts));
         if (d_plan->sortidx)
-				  checkCudaErrors(cudaFree(d_plan->sortidx));
-				checkCudaErrors(cudaFree(d_plan->numsubprob));
-				checkCudaErrors(cudaFree(d_plan->binsize));
-				checkCudaErrors(cudaFree(d_plan->finegridsize));
-				checkCudaErrors(cudaFree(d_plan->binstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprobstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
-			}
-			break;
+          checkCudaErrors(cudaFree(d_plan->sortidx));
+        checkCudaErrors(cudaFree(d_plan->numsubprob));
+        checkCudaErrors(cudaFree(d_plan->binsize));
+        checkCudaErrors(cudaFree(d_plan->finegridsize));
+        checkCudaErrors(cudaFree(d_plan->binstartpts));
+        checkCudaErrors(cudaFree(d_plan->subprobstartpts));
+        checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
+      }
+      break;
     case SpreadMethod::BLOCK_GATHER:
-			{
+      {
         if (d_plan->idxnupts)
-				  checkCudaErrors(cudaFree(d_plan->idxnupts));
+          checkCudaErrors(cudaFree(d_plan->idxnupts));
         if (d_plan->sortidx)
-				  checkCudaErrors(cudaFree(d_plan->sortidx));
-				checkCudaErrors(cudaFree(d_plan->numsubprob));
-				checkCudaErrors(cudaFree(d_plan->binsize));
-				checkCudaErrors(cudaFree(d_plan->binstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprobstartpts));
-				checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
-			}
-			break;
-	}
+          checkCudaErrors(cudaFree(d_plan->sortidx));
+        checkCudaErrors(cudaFree(d_plan->numsubprob));
+        checkCudaErrors(cudaFree(d_plan->binsize));
+        checkCudaErrors(cudaFree(d_plan->binstartpts));
+        checkCudaErrors(cudaFree(d_plan->subprobstartpts));
+        checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
+      }
+      break;
+  }
 
         // Multi-GPU support: reset the device ID
         cudaSetDevice(orig_gpu_device_id);

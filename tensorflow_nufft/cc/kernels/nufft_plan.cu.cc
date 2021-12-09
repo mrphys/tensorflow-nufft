@@ -337,6 +337,10 @@ Plan<GPUDevice, FloatType>::Plan(
     this->mt = num_modes[1];
   if (rank > 2)
     this->mu = num_modes[2];
+  this->num_modes_[0] = num_modes[0];
+  this->num_modes_[1] = (this->rank_ > 1) ? num_modes[1] : 1;
+  this->num_modes_[2] = (this->rank_ > 2) ? num_modes[2] : 1;
+  this->mode_count_ = this->num_modes_[0] * this->num_modes_[1] * this->num_modes_[2];
 
   // Set the bin sizes.
   set_bin_sizes(type, rank, this->options_);
@@ -419,8 +423,7 @@ Plan<GPUDevice, FloatType>::Plan(
   }
 
   // Perform some actions not needed in spread/interp only mode.
-  if (!this->options_.spread_only)
-  {
+  if (!this->options_.spread_only) {
     // Allocate fine grid and set convenience pointer.
     int num_grid_elements = this->nf1 * this->nf2 * this->nf3;
     OP_REQUIRES_OK(context, context->allocate_temp(
@@ -554,9 +557,9 @@ Status Plan<GPUDevice, FloatType>::set_points(
   size_t num_bytes = sizeof(int) * this->num_points_;
   switch (this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
+      checkCudaErrors(cudaMalloc(&this->idxnupts, num_bytes));
       if (this->spread_params_.sort_points == SortPoints::YES)
         checkCudaErrors(cudaMalloc(&this->sortidx, num_bytes));
-      checkCudaErrors(cudaMalloc(&this->idxnupts, num_bytes));
       break;
     case SpreadMethod::SUBPROBLEM:
       checkCudaErrors(cudaMalloc(&this->idxnupts, num_bytes));

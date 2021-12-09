@@ -49,7 +49,6 @@ limitations under the License.
 #undef CUFINUFFT_SPREAD
 #undef CUFINUFFT2D1_EXEC
 #undef CUFINUFFT2D2_EXEC
-#undef CUFINUFFT3D1_EXEC
 #undef CUFINUFFT3D2_EXEC
 #undef CUFINUFFT2D_INTERP
 #undef CUFINUFFT2D_SPREAD
@@ -79,7 +78,6 @@ limitations under the License.
 #define CUFINUFFT_SPREAD cufinufftf_spread
 #define CUFINUFFT2D1_EXEC cufinufftf2d1_exec
 #define CUFINUFFT2D2_EXEC cufinufftf2d2_exec
-#define CUFINUFFT3D1_EXEC cufinufftf3d1_exec
 #define CUFINUFFT3D2_EXEC cufinufftf3d2_exec
 #define CUFINUFFT2D_INTERP cufinufftf2d_interp
 /* spreading 2D */
@@ -104,7 +102,6 @@ limitations under the License.
 #define CUFINUFFT_SPREAD cufinufft_spread
 #define CUFINUFFT2D1_EXEC cufinufft2d1_exec
 #define CUFINUFFT2D2_EXEC cufinufft2d2_exec
-#define CUFINUFFT3D1_EXEC cufinufft3d1_exec
 #define CUFINUFFT3D2_EXEC cufinufft3d2_exec
 #define CUFINUFFT2D_INTERP cufinufft2d_interp
 #define CUFINUFFT2D_SPREAD cufinufft2d_spread
@@ -144,7 +141,6 @@ int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflo
 int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 
 // 3d
-int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 
 // 2d

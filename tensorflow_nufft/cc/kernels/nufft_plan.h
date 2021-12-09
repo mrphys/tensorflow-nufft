@@ -137,9 +137,6 @@ class PlanBase {
   // The rank of the transform (number of dimensions). Must be 1, 2 or 3.
   int rank_;
 
-  // The number of modes in each dimension.
-  gtl::InlinedVector<int, 4> num_modes_;
-
   // Direction of the FFT. See enum above.
   FftDirection fft_direction_;
 
@@ -218,6 +215,9 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
   // The parameters for the spreading algorithm/s.
   SpreadParameters<FloatType> spread_params_;
+
+  // The number of modes in each dimension.
+  gtl::InlinedVector<int, 4> num_modes_;
 
   int nj;          // number of NU pts in type 1,2 (for type 3, num input x pts)
   int nk;          // number of NU freq pts (type 3 only)
@@ -314,6 +314,9 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   int bin_dims_[3];
   int num_bins_[3];
   int bin_count_;
+
+  int num_modes_[3];
+  int mode_count_;
 
   int nf1;
   int nf2;

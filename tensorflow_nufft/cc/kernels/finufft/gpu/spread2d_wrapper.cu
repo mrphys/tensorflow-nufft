@@ -59,14 +59,14 @@ int CUSPREAD2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Spread_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_plan->points_[0],
             d_plan->points_[1], d_c + t * d_plan->num_points_,
-            d_fw + t * d_plan->grid_count_, d_plan->num_points_, kernel_width,
+            d_fw + t * d_plan->grid_size_, d_plan->num_points_, kernel_width,
             d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma, d_idxnupts, pirange);
         }
       } else {
         for (int t=0; t<blksize; t++) {
           Spread_2d_NUptsdriven<<<blocks, threadsPerBlock>>>(
             d_plan->points_[0], d_plan->points_[1],
-            d_c + t * d_plan->grid_count_, d_fw + t * d_plan->grid_count_,
+            d_c + t * d_plan->grid_size_, d_fw + t * d_plan->grid_size_,
             d_plan->num_points_, kernel_width,
             d_plan->grid_dims_[0], d_plan->grid_dims_[1], es_c, es_beta, d_idxnupts, pirange);
         }
@@ -77,7 +77,7 @@ int CUSPREAD2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Spread_3d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_plan->points_[0],
             d_plan->points_[1], d_plan->points_[2], d_c+t*d_plan->num_points_,
-            d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width,
+            d_fw+t*d_plan->grid_size_, d_plan->num_points_, kernel_width,
             d_plan->grid_dims_[0], d_plan->grid_dims_[1], d_plan->grid_dims_[2],
             sigma, d_idxnupts,pirange);
         }
@@ -85,7 +85,7 @@ int CUSPREAD2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Spread_3d_NUptsdriven<<<blocks, threadsPerBlock>>>(d_plan->points_[0],
             d_plan->points_[1], d_plan->points_[2],
-            d_c+t*d_plan->num_points_, d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width, d_plan->grid_dims_[0],
+            d_c+t*d_plan->num_points_, d_fw+t*d_plan->grid_size_, d_plan->num_points_, kernel_width, d_plan->grid_dims_[0],
             d_plan->grid_dims_[1], d_plan->grid_dims_[2], es_c, es_beta, 
             d_idxnupts,pirange);
         }
@@ -149,7 +149,7 @@ int CUSPREAD2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Spread_2d_Subprob_Horner<<<num_blocks, threads_per_block,
             shared_memory_size>>>(d_plan->points_[0], d_plan->points_[1],
-              d_c+t*d_plan->num_points_, d_fw+t*d_plan->grid_count_, d_plan->num_points_,
+              d_c+t*d_plan->num_points_, d_fw+t*d_plan->grid_size_, d_plan->num_points_,
               kernel_width, d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma, d_binstartpts,
             d_binsize, bin_size[0],
             bin_size[1], d_subprob_to_bin, d_subprobstartpts,
@@ -160,7 +160,7 @@ int CUSPREAD2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Spread_2d_Subprob<<<num_blocks, threads_per_block, shared_memory_size>>>(
             d_plan->points_[0], d_plan->points_[1], d_c+t*d_plan->num_points_,
-            d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width,
+            d_fw+t*d_plan->grid_size_, d_plan->num_points_, kernel_width,
             d_plan->grid_dims_[0], d_plan->grid_dims_[1],
             es_c, es_beta, sigma,d_binstartpts, d_binsize, bin_size[0],
             bin_size[1], d_subprob_to_bin, d_subprobstartpts,
@@ -175,7 +175,7 @@ int CUSPREAD2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
           Spread_3d_Subprob_Horner<<<num_blocks, threads_per_block,
             shared_memory_size>>>(d_plan->points_[0], d_plan->points_[1],
               d_plan->points_[2], d_c+t*d_plan->num_points_,
-              d_fw+t*d_plan->grid_count_, 
+              d_fw+t*d_plan->grid_size_, 
               d_plan->num_points_, kernel_width, d_plan->grid_dims_[0],
               d_plan->grid_dims_[1], d_plan->grid_dims_[2], sigma,
               d_binstartpts, d_binsize, bin_size[0],
@@ -186,7 +186,7 @@ int CUSPREAD2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
           Spread_3d_Subprob<<<num_blocks, threads_per_block,
             shared_memory_size>>>(d_plan->points_[0], d_plan->points_[1],
               d_plan->points_[2], d_c+t*d_plan->num_points_,
-              d_fw+t*d_plan->grid_count_, 
+              d_fw+t*d_plan->grid_size_, 
               d_plan->num_points_, kernel_width, d_plan->grid_dims_[0],
               d_plan->grid_dims_[1], d_plan->grid_dims_[2], es_c, es_beta,
               d_binstartpts, d_binsize, 
@@ -226,7 +226,7 @@ int CUINTERP2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Interp_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(
             d_plan->points_[0], d_plan->points_[1], d_c+t * d_plan->num_points_,
-            d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width,
+            d_fw+t*d_plan->grid_size_, d_plan->num_points_, kernel_width,
             d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma,  d_idxnupts,
             pirange);
         }
@@ -234,7 +234,7 @@ int CUINTERP2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Interp_2d_NUptsdriven<<<blocks, threadsPerBlock>>>(
             d_plan->points_[0], d_plan->points_[1], 
-            d_c+t * d_plan->num_points_, d_fw+t*d_plan->grid_count_,
+            d_c+t * d_plan->num_points_, d_fw+t*d_plan->grid_size_,
             d_plan->num_points_, kernel_width, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
             es_c, es_beta,  d_idxnupts, pirange);
         }
@@ -250,7 +250,7 @@ int CUINTERP2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Interp_3d_NUptsdriven_Horner<<<blocks, threadsPerBlock, 0, 0>>>(
               d_plan->points_[0], d_plan->points_[1], d_plan->points_[2],
-              d_c + t * d_plan->num_points_, d_fw+t*d_plan->grid_count_,
+              d_c + t * d_plan->num_points_, d_fw+t*d_plan->grid_size_,
               d_plan->num_points_, kernel_width, d_plan->grid_dims_[0],
               d_plan->grid_dims_[1], d_plan->grid_dims_[2], sigma, d_idxnupts,
               pirange);
@@ -259,7 +259,7 @@ int CUINTERP2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Interp_3d_NUptsdriven<<<blocks, threadsPerBlock, 0, 0>>>(
               d_plan->points_[0], d_plan->points_[1], d_plan->points_[2],
-              d_c + t * d_plan->num_points_, d_fw + t * d_plan->grid_count_,
+              d_c + t * d_plan->num_points_, d_fw + t * d_plan->grid_size_,
               d_plan->num_points_, kernel_width, 
               d_plan->grid_dims_[0], d_plan->grid_dims_[1], d_plan->grid_dims_[2],
               es_c, es_beta, d_idxnupts,pirange);
@@ -322,7 +322,7 @@ int CUINTERP2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Interp_2d_Subprob_Horner<<<num_blocks, threads_per_block, shared_memory_size>>>(
               d_plan->points_[0], d_plan->points_[1], d_c+t*d_plan->num_points_,
-              d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width,
+              d_fw+t*d_plan->grid_size_, d_plan->num_points_, kernel_width,
               d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma,
               d_binstartpts, d_binsize,
               bin_size[0], bin_size[1],
@@ -334,7 +334,7 @@ int CUINTERP2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Interp_2d_Subprob<<<num_blocks, threads_per_block, shared_memory_size>>>(
               d_plan->points_[0], d_plan->points_[1], d_c + t * d_plan->num_points_,
-              d_fw + t * d_plan->grid_count_, d_plan->num_points_, kernel_width,
+              d_fw + t * d_plan->grid_size_, d_plan->num_points_, kernel_width,
               d_plan->grid_dims_[0], d_plan->grid_dims_[1],
               es_c, es_beta, sigma,
               d_binstartpts, d_binsize,
@@ -351,7 +351,7 @@ int CUINTERP2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
           Interp_3d_Subprob_Horner<<<num_blocks, threads_per_block,
             shared_memory_size>>>(
               d_plan->points_[0], d_plan->points_[1], d_plan->points_[2],
-              d_c + t * d_plan->num_points_, d_fw + t * d_plan->grid_count_, 
+              d_c + t * d_plan->num_points_, d_fw + t * d_plan->grid_size_, 
             d_plan->num_points_, kernel_width, d_plan->grid_dims_[0],
             d_plan->grid_dims_[1], d_plan->grid_dims_[2], sigma,
             d_binstartpts, d_binsize, bin_size[0],
@@ -362,7 +362,7 @@ int CUINTERP2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
           Interp_3d_Subprob<<<num_blocks, threads_per_block,
             shared_memory_size>>>(
               d_plan->points_[0], d_plan->points_[1], d_plan->points_[2],
-              d_c + t * d_plan->num_points_, d_fw + t * d_plan->grid_count_, 
+              d_c + t * d_plan->num_points_, d_fw + t * d_plan->grid_size_, 
             d_plan->num_points_, kernel_width, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
             d_plan->grid_dims_[2], es_c, es_beta, d_binstartpts, d_binsize, 
             bin_size[0], bin_size[1], bin_size[2], d_subprob_to_bin, 

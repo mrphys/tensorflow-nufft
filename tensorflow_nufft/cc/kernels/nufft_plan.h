@@ -306,12 +306,12 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   SpreadParameters<FloatType> spread_params_;
   
   int grid_dims_[3];
-  int grid_count_;
+  int grid_size_;
 
   FloatType* points_[3];
   int num_points_;
 
-  int bin_size_[3];
+  int bin_dims_[3];
   int num_bins_[3];
   int bin_count_;
 

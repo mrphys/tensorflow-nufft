@@ -48,9 +48,39 @@ int CUFINUFFT_SETPTS(int M, FLT* d_kx, FLT* d_ky, FLT* d_kz, int N, FLT *d_s,
 	d_plan->M = M;
 	d_plan->num_points_ = M;
 
+	if (d_plan->sortidx ) checkCudaErrors(cudaFree(d_plan->sortidx));
+	if (d_plan->idxnupts) checkCudaErrors(cudaFree(d_plan->idxnupts));
 
-	int ier;
-	ier = ALLOCGPUMEM3D_NUPTS(d_plan);
+	switch (d_plan->options_.spread_method)
+	{
+		case SpreadMethod::NUPTS_DRIVEN:
+			{
+				if (d_plan->spread_params_.sort_points == SortPoints::YES)
+					checkCudaErrors(cudaMalloc(&d_plan->sortidx, M*sizeof(int)));
+				checkCudaErrors(cudaMalloc(&d_plan->idxnupts,M*sizeof(int)));
+			}
+			break;
+		case SpreadMethod::SUBPROBLEM:
+			{
+				checkCudaErrors(cudaMalloc(&d_plan->idxnupts,M*sizeof(int)));
+				checkCudaErrors(cudaMalloc(&d_plan->sortidx, M*sizeof(int)));
+			}
+			break;
+		case SpreadMethod::PAUL:
+			{
+				checkCudaErrors(cudaMalloc(&d_plan->idxnupts,M*sizeof(int)));
+				checkCudaErrors(cudaMalloc(&d_plan->sortidx, M*sizeof(int)));
+			}
+			break;
+		case SpreadMethod::BLOCK_GATHER:
+			{
+				checkCudaErrors(cudaMalloc(&d_plan->sortidx,M*sizeof(int)));
+			}
+			break;
+		default:
+			cerr << "err: invalid method" << endl;
+	}
+
 
 	d_plan->kx = d_kx;
 	if (d_plan->rank_ > 1)

@@ -66,9 +66,7 @@ CUFINUFFT_CFLAGS = -funroll-loops
 # 	-gencode=arch=compute_86,code=sm_86 \
 # 	-gencode=arch=compute_86,code=compute_86
 
-NVARCH ?= \
-	-gencode=arch=compute_61,code=sm_61 \
-	-gencode=arch=compute_61,code=compute_61
+NVARCH ?= -gencode=arch=compute_61,code=sm_61
 
 CUDAFE = --diag_suppress=174 --diag_suppress=611 --diag_suppress=20012 --display_error_number
 

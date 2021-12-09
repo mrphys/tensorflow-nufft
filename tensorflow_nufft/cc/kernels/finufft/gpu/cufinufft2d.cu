@@ -78,14 +78,7 @@ int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
     }
 
     // Step 3: deconvolve and shuffle
-    switch (d_plan->rank_) {
-      case 2:
-        CUDECONVOLVE2D(d_plan, blksize);
-        break;
-      case 3:
-        CUDECONVOLVE2D(d_plan, blksize);
-        break;
-    }
+    CUDECONVOLVE2D(d_plan, blksize);
   }
   return ier;
 }
@@ -104,13 +97,6 @@ int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
   Melody Shih 07/25/19
 */
 {
-  assert(d_plan->spread_params_.spread_direction == SpreadDirection::INTERP);
-
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-
-  cudaEventRecord(start);
   int blksize;
   int ier;
   CUCPX* d_fkstart;
@@ -119,51 +105,30 @@ int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
     blksize = min(d_plan->num_transforms_ - i*d_plan->options_.max_batch_size, 
       d_plan->options_.max_batch_size);
     d_cstart  = d_c  + i*d_plan->options_.max_batch_size*d_plan->num_points_;
-    d_fkstart = d_fk + i*d_plan->options_.max_batch_size*d_plan->ms*d_plan->mt;
+    d_fkstart = d_fk + i*d_plan->options_.max_batch_size*d_plan->mode_count_;
 
     d_plan->c = d_cstart;
     d_plan->fk = d_fkstart;
 
     // Step 1: amplify Fourier coeffs fk and copy into upsampled array fw
-    cudaEventRecord(start);
     CUDECONVOLVE2D(d_plan,blksize);
-#ifdef TIME
-    float milliseconds = 0;
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("[time  ] \tAmplify & Copy fktofw\t %.3g s\n", milliseconds/1000);
-#endif
+
     // Step 2: FFT
     cudaDeviceSynchronize();
-    cudaEventRecord(start);
     cufftResult result = CUFFT_EX(
-      d_plan->fft_plan_, d_plan->fine_grid_data_, d_plan->fine_grid_data_, static_cast<int>(d_plan->fft_direction_));
+      d_plan->fft_plan_, d_plan->fine_grid_data_, d_plan->fine_grid_data_,
+      static_cast<int>(d_plan->fft_direction_));
     if (result != CUFFT_SUCCESS) {
       fprintf(stderr,"[%s] CUFFT_EX failed with error code: %d\n",__func__,result);
         return ERR_CUFFT;
     }
-#ifdef TIME
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("[time  ] \tCUFFT Exec\t\t %.3g s\n", milliseconds/1000);
-#endif
 
     // Step 3: deconvolve and shuffle
-    cudaEventRecord(start);
     ier = CUINTERP2D(d_plan, blksize);
     if (ier != 0 ) {
       printf("error: cuinterp2d, method(%d)\n", d_plan->options_.spread_method);
       return ier;
     }
-#ifdef TIME
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("[time  ] \tUnspread (%d)\t\t %.3g s\n", milliseconds/1000,
-      d_plan->options_.spread_method);
-#endif
   }
   return ier;
 }

@@ -29,7 +29,7 @@ using namespace tensorflow::nufft;
 // Note: assume modeord=0: CMCL-compatible mode ordering in fk (from -N/2 up 
 // to N/2-1)
 __global__
-void Deconvolve_2d(int ms, int mt, int nf1, int nf2, CUCPX* fw, CUCPX *fk, 
+void Deconvolve2DKernel(int ms, int mt, int nf1, int nf2, CUCPX* fw, CUCPX *fk, 
   FLT *fwkerhalf1, FLT *fwkerhalf2)
 {
   for (int i=blockDim.x*blockIdx.x+threadIdx.x; i<ms*mt; i+=blockDim.x*gridDim.x) {
@@ -47,7 +47,7 @@ void Deconvolve_2d(int ms, int mt, int nf1, int nf2, CUCPX* fw, CUCPX *fk,
 }
 
 __global__
-void Deconvolve_3d(int ms, int mt, int mu, int nf1, int nf2, int nf3, CUCPX* fw, 
+void Deconvolve3DKernel(int ms, int mt, int mu, int nf1, int nf2, int nf3, CUCPX* fw, 
   CUCPX *fk, FLT *fwkerhalf1, FLT *fwkerhalf2, FLT *fwkerhalf3)
 {
   for (int i=blockDim.x*blockIdx.x+threadIdx.x; i<ms*mt*mu; i+=blockDim.x*
@@ -72,7 +72,7 @@ void Deconvolve_3d(int ms, int mt, int mu, int nf1, int nf2, int nf3, CUCPX* fw,
 
 /* Kernel for copying fk to fw with same amplication */
 __global__
-void Amplify_2d(int ms, int mt, int nf1, int nf2, CUCPX* fw, CUCPX *fk, 
+void Amplify2DKernel(int ms, int mt, int nf1, int nf2, CUCPX* fw, CUCPX *fk, 
   FLT *fwkerhalf1, FLT *fwkerhalf2)
 {
   for (int i=blockDim.x*blockIdx.x+threadIdx.x; i<ms*mt; i+=blockDim.x*gridDim.x) {
@@ -90,7 +90,7 @@ void Amplify_2d(int ms, int mt, int nf1, int nf2, CUCPX* fw, CUCPX *fk,
 }
 
 __global__
-void Amplify_3d(int ms, int mt, int mu, int nf1, int nf2, int nf3, CUCPX* fw, 
+void Amplify3DKernel(int ms, int mt, int mu, int nf1, int nf2, int nf3, CUCPX* fw, 
   CUCPX *fk, FLT *fwkerhalf1, FLT *fwkerhalf2, FLT *fwkerhalf3)
 {
   for (int i=blockDim.x*blockIdx.x+threadIdx.x; i<ms*mt*mu; 
@@ -129,7 +129,7 @@ int CUDECONVOLVE2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
     switch (d_plan->rank_) {
       case 2:
         for (int t=0; t<blksize; t++) {
-          Deconvolve_2d<<<num_blocks, threads_per_block>>>(
+          Deconvolve2DKernel<<<num_blocks, threads_per_block>>>(
             d_plan->num_modes_[0], d_plan->num_modes_[1],
             d_plan->grid_dims_[0], d_plan->grid_dims_[1], 
             d_plan->fine_grid_data_ + t * d_plan->grid_size_,
@@ -139,7 +139,7 @@ int CUDECONVOLVE2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
         break;
       case 3:
         for (int t=0; t<blksize; t++) {
-          Deconvolve_3d<<<num_blocks, threads_per_block>>>(
+          Deconvolve3DKernel<<<num_blocks, threads_per_block>>>(
             d_plan->num_modes_[0], d_plan->num_modes_[1], d_plan->num_modes_[2],
             d_plan->grid_dims_[0], d_plan->grid_dims_[1], d_plan->grid_dims_[2],
             d_plan->fine_grid_data_ + t * d_plan->grid_size_,
@@ -154,7 +154,7 @@ int CUDECONVOLVE2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
     switch (d_plan->rank_) {
       case 2:
         for (int t=0; t<blksize; t++) {
-          Amplify_2d<<<num_blocks, threads_per_block>>>(d_plan->num_modes_[0], 
+          Amplify2DKernel<<<num_blocks, threads_per_block>>>(d_plan->num_modes_[0], 
             d_plan->num_modes_[1], d_plan->grid_dims_[0], d_plan->grid_dims_[1],
             d_plan->fine_grid_data_ + t * d_plan->grid_size_,
             d_plan->fk + t * d_plan->mode_count_,
@@ -163,7 +163,7 @@ int CUDECONVOLVE2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
         break;
       case 3:
         for (int t=0; t<blksize; t++) {
-          Amplify_3d<<<num_blocks, threads_per_block>>>(d_plan->num_modes_[0],
+          Amplify3DKernel<<<num_blocks, threads_per_block>>>(d_plan->num_modes_[0],
             d_plan->num_modes_[1], d_plan->num_modes_[2],
             d_plan->grid_dims_[0], d_plan->grid_dims_[1], d_plan->grid_dims_[2],
             d_plan->fine_grid_data_ + t * d_plan->grid_size_,

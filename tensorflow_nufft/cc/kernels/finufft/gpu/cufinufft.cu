@@ -88,7 +88,7 @@ int CUFINUFFT_EXECUTE(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 			if (d_plan->type_ == TransformType::TYPE_1)
 				ier = CUFINUFFT2D1_EXEC(d_c,  d_fk, d_plan);
 			if (d_plan->type_ == TransformType::TYPE_2)
-				ier = CUFINUFFT3D2_EXEC(d_c,  d_fk, d_plan);
+				ier = CUFINUFFT2D2_EXEC(d_c,  d_fk, d_plan);
 			if (d_plan->type_ == TransformType::TYPE_3) {
 				cerr<<"Not Implemented yet"<<endl;
 				ier = ERR_NOTIMPLEMENTED;

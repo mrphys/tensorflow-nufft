@@ -73,7 +73,6 @@ limitations under the License.
 #undef CUSPREAD3D_BLOCKGATHER_PROP
 #undef CUSPREAD3D_BLOCKGATHER
 #undef CUSPREAD3D_SUBPROB_PROP
-#undef CUSPREAD3D_SUBPROB
 /* interp */
 #undef CUINTERP2D
 #undef CUINTERP3D
@@ -115,7 +114,6 @@ limitations under the License.
 #define CUSPREAD3D_BLOCKGATHER_PROP cuspread3df_blockgather_prop
 #define CUSPREAD3D_BLOCKGATHER cuspread3df_blockgather
 #define CUSPREAD3D_SUBPROB_PROP cuspread3df_subprob_prop
-#define CUSPREAD3D_SUBPROB cuspread3df_subprob
 /* interp */
 #define CUINTERP2D cuinterp2df
 #define CUINTERP3D cuinterp3df
@@ -159,7 +157,6 @@ limitations under the License.
 #define CUSPREAD3D_BLOCKGATHER_PROP cuspread3d_blockgather_prop
 #define CUSPREAD3D_BLOCKGATHER cuspread3d_blockgather
 #define CUSPREAD3D_SUBPROB_PROP cuspread3d_subprob_prop
-#define CUSPREAD3D_SUBPROB cuspread3d_subprob
 /* interp */
 #define CUINTERP2D cuinterp2d
 #define CUINTERP3D cuinterp3d

@@ -194,8 +194,6 @@ void Interp_3d_Subprob(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 // Functions for calling different methods of spreading & interpolation
 int CUSPREAD2D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
 int CUINTERP2D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
-int CUSPREAD3D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
-int CUINTERP3D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
 
 // Wrappers for methods of spreading
 int CUSPREAD2D_NUPTSDRIVEN_PROP(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);

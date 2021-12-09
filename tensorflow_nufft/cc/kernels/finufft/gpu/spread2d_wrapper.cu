@@ -768,4 +768,35 @@ int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize) {
   return ier;
 }
 
+int CUINTERP2D(Plan<GPUDevice, FLT>* d_plan, int blksize) {
+
+	int ier;
+	switch (d_plan->options_.spread_method)
+	{
+		case SpreadMethod::NUPTS_DRIVEN:
+			{
+        ier = CUINTERP2D_NUPTSDRIVEN(d_plan, blksize);
+        if (ier != 0 ) {
+          cout<<"error: cnufftspread2d_gpu_nuptsdriven"<<endl;
+          return 1;
+        }
+			}
+			break;
+		case SpreadMethod::SUBPROBLEM:
+			{
+				ier = CUINTERP2D_SUBPROB(d_plan, blksize);
+				if (ier != 0 ) {
+					cout<<"error: cuinterp2d_subprob"<<endl;
+					return 1;
+				}
+			}
+			break;
+		default:
+			cout<<"error: incorrect method, should be 1 or 2"<<endl;
+			return 2;
+	}
+
+	return ier;
+}
+
 #endif // GOOGLE_CUDA

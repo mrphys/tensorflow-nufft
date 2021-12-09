@@ -178,7 +178,7 @@ int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 
 		// Step 3: deconvolve and shuffle
 		cudaEventRecord(start);
-		ier = CUINTERP3D(d_plan, blksize);
+		ier = CUINTERP2D(d_plan, blksize);
 		if (ier != 0 ) {
 			printf("error: cuinterp3d, method(%d)\n", d_plan->options_.spread_method);
 			return ier;
@@ -220,7 +220,7 @@ int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		d_plan->fine_grid_data_ = d_fkstart;
 
 		cudaEventRecord(start);
-		ier = CUINTERP3D(d_plan, blksize);
+		ier = CUINTERP2D(d_plan, blksize);
 		if (ier != 0 ) {
 			printf("error: cuinterp3d, method(%d)\n", d_plan->options_.spread_method);
 			return ier;

@@ -168,12 +168,10 @@ CUFINUFFTOBJS=$(CUFINUFFT_ROOT)/precision_independent.o \
 CUFINUFFTOBJS_64=$(CUFINUFFT_ROOT)/spreadinterp2d.o \
 				 $(CUFINUFFT_ROOT)/cufinufft2d.o \
 				 $(CUFINUFFT_ROOT)/spread2d_wrapper.o \
-				 $(CUFINUFFT_ROOT)/interp2d_wrapper.o \
 				 $(CUFINUFFT_ROOT)/memtransfer_wrapper.o \
 				 $(CUFINUFFT_ROOT)/deconvolve_wrapper.o \
 				 $(CUFINUFFT_ROOT)/cufinufft.o \
 				 $(CUFINUFFT_ROOT)/spreadinterp3d.o \
-				 $(CUFINUFFT_ROOT)/interp3d_wrapper.o \
 				 $(CUFINUFFT_ROOT)/cufinufft3d.o \
 				 $(CONTRIBOBJS)
 CUFINUFFTOBJS_32=$(CUFINUFFTOBJS_64:%.o=%_32.o)

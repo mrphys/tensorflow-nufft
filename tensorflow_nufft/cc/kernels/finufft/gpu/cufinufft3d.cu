@@ -67,7 +67,7 @@ int CUFINUFFT3D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 
     // Step 1: amplify Fourier coeffs fk and copy into upsampled array fw
     cudaEventRecord(start);
-    CUDECONVOLVE3D(d_plan, blksize);
+    CUDECONVOLVE2D(d_plan, blksize);
 #ifdef TIME
     float milliseconds = 0;
     cudaEventRecord(stop);

@@ -67,7 +67,6 @@ limitations under the License.
 #undef CUINTERP2D_SUBPROB
 /* deconvolve */
 #undef CUDECONVOLVE2D
-#undef CUDECONVOLVE3D
 /* structs */
 
 
@@ -92,7 +91,6 @@ limitations under the License.
 #define CUINTERP2D_SUBPROB cuinterp2df_subprob
 /* deconvolve */
 #define CUDECONVOLVE2D cudeconvolve2df
-#define CUDECONVOLVE3D cudeconvolve3df
 /* structs */
 
 #else
@@ -118,7 +116,6 @@ limitations under the License.
 #define CUINTERP2D_SUBPROB cuinterp2d_subprob
 /* deconvolve */
 #define CUDECONVOLVE2D cudeconvolve2d
-#define CUDECONVOLVE3D cudeconvolve3d
 
 
 #endif

@@ -83,7 +83,7 @@ int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
         CUDECONVOLVE2D(d_plan, blksize);
         break;
       case 3:
-        CUDECONVOLVE3D(d_plan, blksize);
+        CUDECONVOLVE2D(d_plan, blksize);
         break;
     }
   }

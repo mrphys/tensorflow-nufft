@@ -80,24 +80,11 @@ Notes: the type FLT means either single or double, matching the
         cudaSetDevice(d_plan->options_.gpu_device_id);
 
 
-	int nf1 = d_plan->nf1;
-	int nf2 = d_plan->nf2;
-	int nf3 = d_plan->nf3;
-	int rank = d_plan->rank_;
-
 	d_plan->M = M;
 	d_plan->num_points_ = M;
-#ifdef INFO
-	printf("[info  ] 2d1: (ms,mt)=(%d,%d) (nf1, nf2, nf3)=(%d,%d,%d) nj=%d, ntransform = %d\n",
-		d_plan->ms, d_plan->mt, d_plan->nf1, d_plan->nf2, nf3, d_plan->M,
-		d_plan->num_transforms_);
-#endif
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
+
 
 	int ier;
-	cudaEventRecord(start);
 	switch(d_plan->rank_)
 	{
 		case 1:
@@ -116,122 +103,21 @@ Notes: the type FLT means either single or double, matching the
 		}
 		break;
 	}
-#ifdef TIME
-	float milliseconds = 0;
-	cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("[time  ] \tAllocate GPU memory NUpts%.3g s\n", milliseconds/1000);
-#endif
 
 	d_plan->kx = d_kx;
-	if (rank > 1)
+	if (d_plan->rank_ > 1)
 		d_plan->ky = d_ky;
-	if (rank > 2)
+	if (d_plan->rank_ > 2)
 		d_plan->kz = d_kz;
 	
 	d_plan->points_[0] = d_kx;
-	if (rank > 1)
+	if (d_plan->rank_ > 1)
 		d_plan->points_[1] = d_ky;
-	if (rank > 2)
+	if (d_plan->rank_ > 2)
 		d_plan->points_[2] = d_kz;
 
-	cudaEventRecord(start);
-	switch(d_plan->rank_)
-	{
-		case 1:
-		{
-			cerr<<"Not implemented yet"<<endl;
-		}
-		break;
-		case 2:
-		{
-			if (d_plan->options_.spread_method == SpreadMethod::NUPTS_DRIVEN) {
-				ier = CUSPREAD2D_NUPTSDRIVEN_PROP(d_plan);
-				if (ier != 0 ) {
-					printf("error: cuspread2d_nupts_prop, method(%d)\n",
-						  d_plan->options_.spread_method);
-
-                                        // Multi-GPU support: reset the device ID
-                                        cudaSetDevice(orig_gpu_device_id);
-
-					return 1;
-				}
-			}
-			if (d_plan->options_.spread_method == SpreadMethod::SUBPROBLEM) {
-				ier = CUSPREAD2D_SUBPROB_PROP(d_plan);
-				if (ier != 0 ) {
-					printf("error: cuspread2d_subprob_prop, method(%d)\n",
-					       d_plan->options_.spread_method);
-
-                                        // Multi-GPU support: reset the device ID
-                                        cudaSetDevice(orig_gpu_device_id);
-
-					return 1;
-				}
-			}
-			if (d_plan->options_.spread_method == SpreadMethod::PAUL) {
-				int ier = CUSPREAD2D_PAUL_PROP(d_plan);
-				if (ier != 0 ) {
-					printf("error: cuspread2d_paul_prop, method(%d)\n",
-						d_plan->options_.spread_method);
-
-                                        // Multi-GPU support: reset the device ID
-                                        cudaSetDevice(orig_gpu_device_id);
-
-					return 1;
-				}
-			}
-		}
-		break;
-		case 3:
-		{
-			if (d_plan->options_.spread_method == SpreadMethod::BLOCK_GATHER) {
-				int ier = CUSPREAD3D_BLOCKGATHER_PROP(d_plan);
-				if (ier != 0 ) {
-					printf("error: cuspread3d_blockgather_prop, method(%d)\n",
-						d_plan->options_.spread_method);
-
-                                        // Multi-GPU support: reset the device ID
-                                        cudaSetDevice(orig_gpu_device_id);
-
-					return ier;
-				}
-			}
-			if (d_plan->options_.spread_method == SpreadMethod::NUPTS_DRIVEN) {
-				ier = CUSPREAD2D_NUPTSDRIVEN_PROP(d_plan);
-				if (ier != 0 ) {
-					printf("error: cuspread3d_nuptsdriven_prop, method(%d)\n",
-						d_plan->options_.spread_method);
-
-                                        // Multi-GPU support: reset the device ID
-                                        cudaSetDevice(orig_gpu_device_id);
-
-					return ier;
-				}
-			}
-			if (d_plan->options_.spread_method == SpreadMethod::SUBPROBLEM) {
-				int ier = CUSPREAD2D_SUBPROB_PROP(d_plan);
-				if (ier != 0 ) {
-					printf("error: cuspread3d_subprob_prop, method(%d)\n",
-						d_plan->options_.spread_method);
-
-                                        // Multi-GPU support: reset the device ID
-                                        cudaSetDevice(orig_gpu_device_id);
-
-					return ier;
-				}
-			}
-		}
-		break;
-	}
-#ifdef TIME
-	cudaEventRecord(stop);
-	cudaEventSynchronize(stop);
-	cudaEventElapsedTime(&milliseconds, start, stop);
-	printf("[time  ] \tSetup Subprob properties %.3g s\n",
-		milliseconds/1000);
-#endif
+	
+		INITSPREAD(d_plan);
 
         // Multi-GPU support: reset the device ID
         cudaSetDevice(orig_gpu_device_id);

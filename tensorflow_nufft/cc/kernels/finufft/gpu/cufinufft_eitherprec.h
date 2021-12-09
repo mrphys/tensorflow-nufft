@@ -68,6 +68,7 @@ limitations under the License.
 #undef CUSPREAD2D_SUBPROB
 #undef CUSPREAD2D_PAUL
 #undef CUSPREAD2D_PAUL_PROP
+#undef INITSPREAD
 /* spreading 3d */
 #undef CUSPREAD3D_BLOCKGATHER_PROP
 #undef CUSPREAD3D_BLOCKGATHER
@@ -104,6 +105,7 @@ limitations under the License.
 #define CUSPREAD2D_SUBPROB cuspread2df_subprob
 #define CUSPREAD2D_PAUL cuspread2df_paul
 #define CUSPREAD2D_PAUL_PROP cuspread2df_paul_prop
+#define INITSPREAD initspreadf
 /* spreading 3d */
 #define CUSPREAD3D_BLOCKGATHER_PROP cuspread3df_blockgather_prop
 #define CUSPREAD3D_BLOCKGATHER cuspread3df_blockgather
@@ -142,6 +144,7 @@ limitations under the License.
 #define CUSPREAD2D_SUBPROB cuspread2d_subprob
 #define CUSPREAD2D_PAUL cuspread2d_paul
 #define CUSPREAD2D_PAUL_PROP cuspread2d_paul_prop
+#define INITSPREAD initspread
 /* spreading 3d */
 #define CUSPREAD3D_BLOCKGATHER_PROP cuspread3d_blockgather_prop
 #define CUSPREAD3D_BLOCKGATHER cuspread3d_blockgather

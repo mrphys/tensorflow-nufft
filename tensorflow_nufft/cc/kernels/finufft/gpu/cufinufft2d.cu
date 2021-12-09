@@ -135,16 +135,8 @@ int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 
 int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 {
-  assert(d_plan->spread_params_.spread_direction == SpreadDirection::INTERP);
-
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-
-  cudaEventRecord(start);
   int blksize;
   int ier;
-  int gridsize = d_plan->ms*d_plan->mt;
   CUCPX* d_fkstart;
   CUCPX* d_cstart;
   
@@ -152,12 +144,11 @@ int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
     blksize = min(d_plan->num_transforms_ - i*d_plan->options_.max_batch_size, 
       d_plan->options_.max_batch_size);
     d_cstart  = d_c  + i*d_plan->options_.max_batch_size*d_plan->num_points_;
-    d_fkstart = d_fk + i*d_plan->options_.max_batch_size*gridsize;
+    d_fkstart = d_fk + i*d_plan->options_.max_batch_size*d_plan->mode_count_;
 
     d_plan->c = d_cstart;
     d_plan->fine_grid_data_ = d_fkstart;
 
-    cudaEventRecord(start);
     ier = CUINTERP2D(d_plan, blksize);
     if (ier != 0 ) {
       printf("error: cuinterp2d, method(%d)\n", d_plan->options_.spread_method);
@@ -175,15 +166,8 @@ int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 
 int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 {
-  assert(d_plan->spread_params_.spread_direction == SpreadDirection::SPREAD);
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-
-  cudaEventRecord(start);
   int blksize;
   int ier;
-  int gridsize = d_plan->ms*d_plan->mt;
   CUCPX* d_fkstart;
   CUCPX* d_cstart;
 
@@ -191,12 +175,11 @@ int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
     blksize = min(d_plan->num_transforms_ - i*d_plan->options_.max_batch_size, 
       d_plan->options_.max_batch_size);
     d_cstart   = d_c + i*d_plan->options_.max_batch_size*d_plan->num_points_;
-    d_fkstart  = d_fk + i*d_plan->options_.max_batch_size*gridsize;
+    d_fkstart  = d_fk + i*d_plan->options_.max_batch_size*d_plan->mode_count_;
     
     d_plan->c  = d_cstart;
     d_plan->fine_grid_data_ = d_fkstart;
 
-    cudaEventRecord(start);
     ier = CUSPREAD2D(d_plan,blksize);
     if (ier != 0 ) {
       printf("error: cuspread2d, method(%d)\n", d_plan->options_.spread_method);
@@ -206,7 +189,7 @@ int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 
   using namespace thrust::placeholders;
   thrust::device_ptr<FLT> dev_ptr((FLT*) d_fk);
-  thrust::transform(dev_ptr, dev_ptr + 2*d_plan->num_transforms_*gridsize,
+  thrust::transform(dev_ptr, dev_ptr + 2*d_plan->num_transforms_*d_plan->mode_count_,
             dev_ptr, _1 * (FLT) d_plan->spread_params_.ES_scale); 
 
   return ier;

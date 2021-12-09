@@ -51,8 +51,6 @@ limitations under the License.
 #undef CUFINUFFT2D2_EXEC
 #undef CUFINUFFT2D_INTERP
 #undef CUFINUFFT2D_SPREAD
-#undef CUFINUFFT3D_INTERP
-#undef CUFINUFFT3D_SPREAD
 /* spreading 2D */
 #undef CUSPREAD2D
 #undef CUSPREAD2D_NUPTSDRIVEN
@@ -100,8 +98,6 @@ limitations under the License.
 #define CUFINUFFT2D2_EXEC cufinufft2d2_exec
 #define CUFINUFFT2D_INTERP cufinufft2d_interp
 #define CUFINUFFT2D_SPREAD cufinufft2d_spread
-#define CUFINUFFT3D_INTERP cufinufft3d_interp
-#define CUFINUFFT3D_SPREAD cufinufft3d_spread
 /* spreading 2D */
 #define CUSPREAD2D cuspread2d
 #define CUSPREAD2D_NUPTSDRIVEN cuspread2d_nuptsdriven
@@ -137,9 +133,5 @@ int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflo
 // 2d
 int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-
-// 3d
-int CUFINUFFT3D_INTERP(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 
 #endif

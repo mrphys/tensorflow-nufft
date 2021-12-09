@@ -122,7 +122,7 @@ int CUFINUFFT_INTERP(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 			ier = CUFINUFFT2D_INTERP(d_c,  d_fk, d_plan);
 			break;
 		case 3:
-			ier = CUFINUFFT3D_INTERP(d_c,  d_fk, d_plan);
+			ier = CUFINUFFT2D_INTERP(d_c,  d_fk, d_plan);
 			break;
 	}
 
@@ -151,7 +151,7 @@ int CUFINUFFT_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 			ier = CUFINUFFT2D_SPREAD(d_c,  d_fk, d_plan);
 			break;
 		case 3:
-			ier = CUFINUFFT3D_SPREAD(d_c,  d_fk, d_plan);
+			ier = CUFINUFFT2D_SPREAD(d_c,  d_fk, d_plan);
 			break;
 	}
 

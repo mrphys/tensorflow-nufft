@@ -311,6 +311,10 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   FloatType* points_[3];
   int num_points_;
 
+  int bin_size_[3];
+  int num_bins_[3];
+  int bin_count_;
+
   int nf1;
   int nf2;
   int nf3;

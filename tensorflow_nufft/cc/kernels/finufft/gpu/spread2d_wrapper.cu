@@ -31,9 +31,9 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/finufft/gpu/memtransfer.h"
 
 using namespace std;
-using namespace tensorflow;
-using namespace tensorflow::nufft;
 
+namespace tensorflow {
+namespace nufft {
 
 __global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_size_x, 
     int bin_size_y, int nbinx, int nbiny, int* bin_size, FLT *x, FLT *y, 
@@ -856,5 +856,8 @@ int INITSPREAD(Plan<GPUDevice, FLT>* d_plan) {
 	}
   return 0;
 }
+
+} // namespace nufft
+} // namespace tensorflow
 
 #endif // GOOGLE_CUDA

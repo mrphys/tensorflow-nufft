@@ -145,10 +145,8 @@ limitations under the License.
 #define CUSPREAD2D_PAUL cuspread2d_paul
 #define CUSPREAD2D_PAUL_PROP cuspread2d_paul_prop
 #define INITSPREAD initspread
-/* spreading 3d */
 #define CUSPREAD3D_BLOCKGATHER_PROP cuspread3d_blockgather_prop
 #define CUSPREAD3D_BLOCKGATHER cuspread3d_blockgather
-/* interp */
 #define CUINTERP2D cuinterp2d
 #define CUINTERP2D_NUPTSDRIVEN cuinterp2d_nuptsdriven
 #define CUINTERP2D_SUBPROB cuinterp2d_subprob

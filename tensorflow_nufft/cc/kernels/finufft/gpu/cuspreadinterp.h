@@ -191,6 +191,10 @@ void Interp_3d_Subprob(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
 	int maxsubprobsize, int nbinx, int nbiny, int nbinz, int* idxnupts,
 	int pirange);
 
+namespace tensorflow {
+namespace nufft
+{
+			
 // Functions for calling different methods of spreading & interpolation
 int CUSPREAD2D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
 int CUINTERP2D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
@@ -218,5 +222,8 @@ int CUINTERP2D_SUBPROB(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_pl
 	int blksize);
 
 int INITSPREAD(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
+
+} // namespace nufft
+} // namespace tensorflow
 
 #endif

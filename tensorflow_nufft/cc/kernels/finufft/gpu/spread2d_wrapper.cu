@@ -297,7 +297,7 @@ int CUSPREAD2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
   dim3 threadsPerBlock;
   dim3 blocks;
 
-  int ns=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
+  int kernel_width=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
   int pirange=d_plan->spread_params_.pirange;
   int *d_idxnupts=d_plan->idxnupts;
   FLT es_c=d_plan->spread_params_.ES_c;
@@ -318,7 +318,7 @@ int CUSPREAD2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Spread_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_plan->points_[0],
             d_plan->points_[1], d_c + t * d_plan->num_points_,
-            d_fw + t * d_plan->grid_count_, d_plan->num_points_, ns,
+            d_fw + t * d_plan->grid_count_, d_plan->num_points_, kernel_width,
             d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma, d_idxnupts, pirange);
         }
       } else {
@@ -326,7 +326,7 @@ int CUSPREAD2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
           Spread_2d_NUptsdriven<<<blocks, threadsPerBlock>>>(
             d_plan->points_[0], d_plan->points_[1],
             d_c + t * d_plan->grid_count_, d_fw + t * d_plan->grid_count_,
-            d_plan->num_points_, ns,
+            d_plan->num_points_, kernel_width,
             d_plan->grid_dims_[0], d_plan->grid_dims_[1], es_c, es_beta, d_idxnupts, pirange);
         }
       }
@@ -336,7 +336,7 @@ int CUSPREAD2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Spread_3d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_plan->points_[0],
             d_plan->points_[1], d_plan->points_[2], d_c+t*d_plan->num_points_,
-            d_fw+t*d_plan->grid_count_, d_plan->num_points_, ns,
+            d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width,
             d_plan->grid_dims_[0], d_plan->grid_dims_[1], d_plan->grid_dims_[2],
             sigma, d_idxnupts,pirange);
         }
@@ -344,7 +344,7 @@ int CUSPREAD2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
         for (int t=0; t<blksize; t++) {
           Spread_3d_NUptsdriven<<<blocks, threadsPerBlock>>>(d_plan->points_[0],
             d_plan->points_[1], d_plan->points_[2],
-            d_c+t*d_plan->num_points_, d_fw+t*d_plan->grid_count_, d_plan->num_points_, ns, d_plan->grid_dims_[0],
+            d_c+t*d_plan->num_points_, d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width, d_plan->grid_dims_[0],
             d_plan->grid_dims_[1], d_plan->grid_dims_[2], es_c, es_beta, 
             d_idxnupts,pirange);
         }
@@ -483,7 +483,7 @@ int CUSPREAD2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
   FLT es_beta=d_plan->spread_params_.ES_beta;
   int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
 
-  // assume that bin_size_x > ns/2;
+  // assume that bin_size_x > kernel_width/2;
   int bin_size[3];
   bin_size[0] = d_plan->options_.gpu_bin_size.x;
   bin_size[1] = d_plan->options_.gpu_bin_size.y;
@@ -586,7 +586,7 @@ int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
 	dim3 threadsPerBlock;
 	dim3 blocks;
 
-	int ns=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
+	int kernel_width=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
 	FLT es_c=d_plan->spread_params_.ES_c;
 	FLT es_beta=d_plan->spread_params_.ES_beta;
 	FLT sigma = d_plan->options_.upsampling_factor;
@@ -606,14 +606,16 @@ int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
 	if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
 		for (int t=0; t<blksize; t++) {
 			Interp_2d_NUptsdriven_Horner<<<blocks, threadsPerBlock>>>(d_kx, 
-				d_ky, d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2, sigma, 
+				d_ky, d_c+t * d_plan->num_points_, d_fw+t*d_plan->grid_count_,
+        d_plan->num_points_, kernel_width, d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma, 
 				d_idxnupts, pirange);
 		}
 	}else{
 		for (int t=0; t<blksize; t++) {
 			Interp_2d_NUptsdriven<<<blocks, threadsPerBlock>>>(d_kx, d_ky, 
-				d_c+t*M, d_fw+t*nf1*nf2, M, ns, nf1, nf2, es_c, es_beta, 
-				d_idxnupts, pirange);
+				d_c+t * d_plan->num_points_, d_fw+t*d_plan->grid_count_,
+        d_plan->num_points_, kernel_width, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
+        es_c, es_beta,  d_idxnupts, pirange);
 		}
 	}
 
@@ -621,17 +623,23 @@ int CUINTERP2D_NUPTSDRIVEN(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan
 }
 
 int CUINTERP2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan, int blksize) {
-	int ns=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
+	int kernel_width=d_plan->spread_params_.nspread;   // psi's support in terms of number of cells
 	FLT es_c=d_plan->spread_params_.ES_c;
 	FLT es_beta=d_plan->spread_params_.ES_beta;
 	int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
 
-	// assume that bin_size_x > ns/2;
-	int bin_size_x=d_plan->options_.gpu_bin_size.x;
-	int bin_size_y=d_plan->options_.gpu_bin_size.y;
-	int numbins[2];
-	numbins[0] = ceil((FLT) nf1/bin_size_x);
-	numbins[1] = ceil((FLT) nf2/bin_size_y);
+	// assume that bin_size_x > kernel_width/2;
+  int bin_size[3];
+  bin_size[0] = d_plan->options_.gpu_bin_size.x;
+  bin_size[1] = d_plan->options_.gpu_bin_size.y;
+  bin_size[2] = d_plan->options_.gpu_bin_size.z;
+
+  int num_bins[3] = {1, 1, 1};
+  int bin_count = 1;
+  for (int i = 0; i < d_plan->rank_; i++) {
+    num_bins[i] = (d_plan->grid_dims_[i] + bin_size[i] - 1) / bin_size[i];
+    bin_count *= num_bins[i];
+  }
 
 	FLT* d_kx = d_plan->kx;
 	FLT* d_ky = d_plan->ky;
@@ -648,35 +656,43 @@ int CUINTERP2D_SUBPROB(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan, in
 	int pirange=d_plan->spread_params_.pirange;
 
 	FLT sigma=d_plan->options_.upsampling_factor;
-	size_t sharedplanorysize = (bin_size_x+2*ceil(ns/2.0))*(bin_size_y+2*
-		ceil(ns/2.0))*sizeof(CUCPX);
-	if (sharedplanorysize > 49152) {
-		cout<<"error: not enough shared memory"<<endl;
-		return 1;
-	}
+
+  // GPU kernel configuration.
+  int num_blocks = totalnumsubprob;
+  int threads_per_block = 256;
+  size_t shared_memory_size = sizeof(CUCPX);
+  for (int i = 0; i < d_plan->rank_; i++) {
+    shared_memory_size *= (bin_size[i] + 2 * ((kernel_width + 1) / 2));
+  }
+  if (shared_memory_size > d_plan->device_.sharedMemPerBlock()) {
+    cout<<"error: not enough shared memory"<<endl;
+    return 1;
+  }
 
 	if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
 		for (int t=0; t<blksize; t++) {
-			Interp_2d_Subprob_Horner<<<totalnumsubprob, 256, sharedplanorysize>>>(
-					d_kx, d_ky, d_c+t*M,
-					d_fw+t*nf1*nf2, M, ns, nf1, nf2, sigma,
+			Interp_2d_Subprob_Horner<<<num_blocks, threads_per_block, shared_memory_size>>>(
+					d_kx, d_ky, d_c+t*d_plan->num_points_,
+					d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width,
+          d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma,
 					d_binstartpts, d_binsize,
-					bin_size_x, bin_size_y,
+					bin_size[0], bin_size[1],
 					d_subprob_to_bin, d_subprobstartpts,
 					d_numsubprob, maxsubprobsize,
-					numbins[0], numbins[1], d_idxnupts, pirange);
+					num_bins[0], num_bins[1], d_idxnupts, pirange);
 		}
 	} else {
 		for (int t=0; t<blksize; t++) {
-			Interp_2d_Subprob<<<totalnumsubprob, 256, sharedplanorysize>>>(
-					d_kx, d_ky, d_c+t*M,
-					d_fw+t*nf1*nf2, M, ns, nf1, nf2,
+			Interp_2d_Subprob<<<num_blocks, threads_per_block, shared_memory_size>>>(
+					d_kx, d_ky, d_c+t*d_plan->num_points_,
+					d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width,
+          d_plan->grid_dims_[0], d_plan->grid_dims_[1],
 					es_c, es_beta, sigma,
 					d_binstartpts, d_binsize,
-					bin_size_x, bin_size_y,
+					bin_size[0], bin_size[1],
 					d_subprob_to_bin, d_subprobstartpts,
 					d_numsubprob, maxsubprobsize,
-					numbins[0], numbins[1], d_idxnupts, pirange);
+					num_bins[0], num_bins[1], d_idxnupts, pirange);
 		}
 	}
 

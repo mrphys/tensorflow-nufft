@@ -159,7 +159,7 @@ Notes: the type FLT means either single or double, matching the
 				}
 			}
 			if (d_plan->options_.spread_method == SpreadMethod::SUBPROBLEM) {
-				ier = CUSPREAD2D_SUBPROB_PROP(nf1,nf2,M,d_plan);
+				ier = CUSPREAD2D_SUBPROB_PROP(d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread2d_subprob_prop, method(%d)\n",
 					       d_plan->options_.spread_method);
@@ -187,7 +187,7 @@ Notes: the type FLT means either single or double, matching the
 		case 3:
 		{
 			if (d_plan->options_.spread_method == SpreadMethod::BLOCK_GATHER) {
-				int ier = CUSPREAD3D_BLOCKGATHER_PROP(nf1,nf2,nf3,M,d_plan);
+				int ier = CUSPREAD3D_BLOCKGATHER_PROP(d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread3d_blockgather_prop, method(%d)\n",
 						d_plan->options_.spread_method);
@@ -211,7 +211,7 @@ Notes: the type FLT means either single or double, matching the
 				}
 			}
 			if (d_plan->options_.spread_method == SpreadMethod::SUBPROBLEM) {
-				int ier = CUSPREAD3D_SUBPROB_PROP(nf1,nf2,nf3,M,d_plan);
+				int ier = CUSPREAD2D_SUBPROB_PROP(d_plan);
 				if (ier != 0 ) {
 					printf("error: cuspread3d_subprob_prop, method(%d)\n",
 						d_plan->options_.spread_method);

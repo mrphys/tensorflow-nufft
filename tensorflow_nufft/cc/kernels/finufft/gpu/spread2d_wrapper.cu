@@ -359,7 +359,7 @@ int CUSPREAD2D_NUPTSDRIVEN(Plan<GPUDevice, FLT>* d_plan, int blksize) {
   return 0;
 }
 
-int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_plan) {
+int CUSPREAD2D_SUBPROB_PROP(Plan<GPUDevice, FLT>* d_plan) {
   int num_blocks = (d_plan->num_points_ + 1024 - 1) / 1024;
   int threads_per_block = 1024;
 
@@ -401,11 +401,17 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_pla
     case 2:
       TF_CHECK_OK(GpuLaunchKernel(
           CalcBinSizeNoGhost2DKernel, num_blocks, threads_per_block, 0,
-          d_plan->device_.stream(), M, nf1, nf2, bin_size[0], bin_size[1],
+          d_plan->device_.stream(), d_plan->num_points_, d_plan->grid_dims_[0],
+          d_plan->grid_dims_[1], bin_size[0], bin_size[1],
           num_bins[0], num_bins[1], d_binsize, d_plan->points_[0],
           d_plan->points_[1], d_sortidx, pirange));
       break;
     case 3:
+      CalcBinSizeNoGhost3DKernel<<<num_blocks, threads_per_block>>>(
+        d_plan->num_points_, d_plan->grid_dims_[0], d_plan->grid_dims_[1],
+        d_plan->grid_dims_[2], bin_size[0],
+        bin_size[1], bin_size[2], num_bins[0], num_bins[1], num_bins[2], d_binsize,
+        d_plan->points_[0], d_plan->points_[1], d_plan->points_[2], d_sortidx, pirange);
       break;
   }
 
@@ -413,16 +419,32 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_pla
   thrust::device_ptr<int> d_result(d_binstartpts);
   thrust::exclusive_scan(d_ptr, d_ptr + bin_count, d_result);
 
-  TF_CHECK_OK(GpuLaunchKernel(
-      CalcInvertofGlobalSortIdx2DKernel, num_blocks, threads_per_block, 0,
-      d_plan->device_.stream(), M, bin_size[0], bin_size[1], num_bins[0],
-      num_bins[1], d_binstartpts, d_sortidx, d_plan->points_[0],
-      d_plan->points_[1], d_idxnupts, pirange, nf1, nf2));
+  switch (d_plan->rank_) {
+    case 2:
+      TF_CHECK_OK(GpuLaunchKernel(
+          CalcInvertofGlobalSortIdx2DKernel, num_blocks, threads_per_block, 0,
+          d_plan->device_.stream(), d_plan->num_points_, bin_size[0], bin_size[1], num_bins[0],
+          num_bins[1], d_binstartpts, d_sortidx, d_plan->points_[0],
+          d_plan->points_[1], d_idxnupts, pirange, d_plan->grid_dims_[0],
+          d_plan->grid_dims_[1]));
 
-  TF_CHECK_OK(GpuLaunchKernel(
-      CalcSubProb_2d, num_blocks, threads_per_block, 0,
-      d_plan->device_.stream(), d_binsize, d_numsubprob, maxsubprobsize,
-      num_bins[0] * num_bins[1]));
+      TF_CHECK_OK(GpuLaunchKernel(
+          CalcSubProb_2d, num_blocks, threads_per_block, 0,
+          d_plan->device_.stream(), d_binsize, d_numsubprob, maxsubprobsize,
+          bin_count));
+      break;
+    case 3:
+      CalcInvertofGlobalSortIdx3DKernel<<<num_blocks, threads_per_block>>>(
+        d_plan->num_points_, bin_size[0],
+        bin_size[1], bin_size[2], num_bins[0], num_bins[1], num_bins[2],
+        d_binstartpts, d_sortidx, d_plan->points_[0], d_plan->points_[1],
+        d_plan->points_[2], d_idxnupts, pirange, d_plan->grid_dims_[0],
+        d_plan->grid_dims_[1], d_plan->grid_dims_[2]);
+    
+      CalcSubProb_3d_v2<<<num_blocks, threads_per_block>>>(d_binsize,d_numsubprob,
+          maxsubprobsize, bin_count);
+      break;
+  }
 
   d_ptr    = thrust::device_pointer_cast(d_numsubprob);
   d_result = thrust::device_pointer_cast(d_subprobstartpts+1);
@@ -436,10 +458,19 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_pla
 
   num_blocks = (bin_count + 1024 - 1) / 1024;
   threads_per_block = 1024;
-  TF_CHECK_OK(GpuLaunchKernel(
-      MapBintoSubProb_2d, num_blocks, threads_per_block, 0,
-      d_plan->device_.stream(), d_subprob_to_bin, d_subprobstartpts,
-      d_numsubprob, bin_count));
+
+  switch (d_plan->rank_) {
+    case 2:
+      TF_CHECK_OK(GpuLaunchKernel(
+          MapBintoSubProb_2d, num_blocks, threads_per_block, 0,
+          d_plan->device_.stream(), d_subprob_to_bin, d_subprobstartpts,
+          d_numsubprob, bin_count));
+      break;
+    case 3:
+      MapBintoSubProb_3d_v2<<<(num_bins[0]*num_bins[1]+1024-1)/1024, 1024>>>(
+          d_subprob_to_bin, d_subprobstartpts, d_numsubprob, bin_count);
+      break;
+  }
 
   assert(d_subprob_to_bin != NULL);
   if (d_plan->subprob_to_bin != NULL) cudaFree(d_plan->subprob_to_bin);
@@ -553,6 +584,20 @@ int CUSPREAD2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
   }
 
   return 0;
+}
+
+int CUSPREAD3D_BLOCKGATHER_PROP(
+  Plan<GPUDevice, FLT>* d_plan)
+{
+  // TODO: raise not implemented error
+  return 1;
+}
+
+int CUSPREAD3D_BLOCKGATHER(
+  Plan<GPUDevice, FLT>* d_plan, int blksize)
+{
+  // TODO: raise not implemented error
+  return 1;
 }
 
 #include "spread3d_wrapper.cu"

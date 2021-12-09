@@ -68,7 +68,7 @@ int CUSPREAD3D(Plan<GPUDevice, FLT>* d_plan, int blksize)
     case SpreadMethod::SUBPROBLEM:
       {
         cudaEventRecord(start);
-        ier = CUSPREAD3D_SUBPROB(nf1, nf2, nf3, M, d_plan, blksize);
+        ier = CUSPREAD2D_SUBPROB(d_plan, blksize);
         if (ier != 0 ) {
           cout<<"error: cnufftspread3d_gpu_subprob"<<endl;
           return 1;

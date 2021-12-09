@@ -451,17 +451,23 @@ int CUSPREAD2D_SUBPROB_PROP(int nf1, int nf2, int M, Plan<GPUDevice, FLT>* d_pla
 }
 
 int CUSPREAD2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
-  int ns=d_plan->spread_params_.nspread;// psi's support in terms of number of cells
+  int kernel_width = d_plan->spread_params_.nspread;// psi's support in terms of number of cells
   FLT es_c=d_plan->spread_params_.ES_c;
   FLT es_beta=d_plan->spread_params_.ES_beta;
   int maxsubprobsize=d_plan->options_.gpu_max_subproblem_size;
 
   // assume that bin_size_x > ns/2;
-  int bin_size_x=d_plan->options_.gpu_bin_size.x;
-  int bin_size_y=d_plan->options_.gpu_bin_size.y;
-  int num_bins[2];
-  num_bins[0] = ceil((FLT) d_plan->grid_dims_[0]/bin_size_x);
-  num_bins[1] = ceil((FLT) d_plan->grid_dims_[1]/bin_size_y);
+  int bin_size[3];
+  bin_size[0] = d_plan->options_.gpu_bin_size.x;
+  bin_size[1] = d_plan->options_.gpu_bin_size.y;
+  bin_size[2] = d_plan->options_.gpu_bin_size.z;
+
+  int num_bins[3] = {1, 1, 1};
+  int bin_count = 1;
+  for (int i = 0; i < d_plan->rank_; i++) {
+    num_bins[i] = (d_plan->grid_dims_[i] + bin_size[i] - 1) / bin_size[i];
+    bin_count *= num_bins[i];
+  }
 
   CUCPX* d_c = d_plan->c;
   CUCPX* d_fw = d_plan->fine_grid_data_;
@@ -479,36 +485,71 @@ int CUSPREAD2D_SUBPROB(Plan<GPUDevice, FLT>* d_plan, int blksize) {
 
   FLT sigma=d_plan->options_.upsampling_factor;
 
-  size_t sharedplanorysize = (bin_size_x+2*(int)ceil(ns/2.0))*
-                 (bin_size_y+2*(int)ceil(ns/2.0))*
-                 sizeof(CUCPX);
-  if (sharedplanorysize > 49152) {
+  // GPU kernel configuration.
+  int num_blocks = totalnumsubprob;
+  int threads_per_block = 256;
+  size_t shared_memory_size = sizeof(CUCPX);
+  for (int i = 0; i < d_plan->rank_; i++) {
+    shared_memory_size *= (bin_size[i] + 2 * ((kernel_width + 1) / 2));
+  }
+  if (shared_memory_size > d_plan->device_.sharedMemPerBlock()) {
     cout<<"error: not enough shared memory"<<endl;
     return 1;
   }
 
-  if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-    for (int t=0; t<blksize; t++) {
-      Spread_2d_Subprob_Horner<<<totalnumsubprob, 256,
-        sharedplanorysize>>>(d_plan->points_[0], d_plan->points_[1],
-          d_c+t*d_plan->num_points_, d_fw+t*d_plan->grid_count_, d_plan->num_points_,
-        ns, d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma, d_binstartpts,
-        d_binsize, bin_size_x,
-        bin_size_y, d_subprob_to_bin, d_subprobstartpts,
-        d_numsubprob, maxsubprobsize,num_bins[0],num_bins[1],
-        d_idxnupts, pirange);
-    }
-  }else{
-    for (int t=0; t<blksize; t++) {
-      Spread_2d_Subprob<<<totalnumsubprob, 256, sharedplanorysize>>>(
-        d_plan->points_[0], d_plan->points_[1], d_c+t*d_plan->num_points_,
-        d_fw+t*d_plan->grid_count_, d_plan->num_points_, ns,
-        d_plan->grid_dims_[0], d_plan->grid_dims_[1],
-        es_c, es_beta, sigma,d_binstartpts, d_binsize, bin_size_x,
-        bin_size_y, d_subprob_to_bin, d_subprobstartpts,
-        d_numsubprob, maxsubprobsize, num_bins[0], num_bins[1],
-        d_idxnupts, pirange);
-    }
+  switch (d_plan->rank_) {
+    case 2:
+      if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+        for (int t=0; t<blksize; t++) {
+          Spread_2d_Subprob_Horner<<<num_blocks, threads_per_block,
+            shared_memory_size>>>(d_plan->points_[0], d_plan->points_[1],
+              d_c+t*d_plan->num_points_, d_fw+t*d_plan->grid_count_, d_plan->num_points_,
+              kernel_width, d_plan->grid_dims_[0], d_plan->grid_dims_[1], sigma, d_binstartpts,
+            d_binsize, bin_size[0],
+            bin_size[1], d_subprob_to_bin, d_subprobstartpts,
+            d_numsubprob, maxsubprobsize,num_bins[0],num_bins[1],
+            d_idxnupts, pirange);
+        }
+      } else {
+        for (int t=0; t<blksize; t++) {
+          Spread_2d_Subprob<<<num_blocks, threads_per_block, shared_memory_size>>>(
+            d_plan->points_[0], d_plan->points_[1], d_c+t*d_plan->num_points_,
+            d_fw+t*d_plan->grid_count_, d_plan->num_points_, kernel_width,
+            d_plan->grid_dims_[0], d_plan->grid_dims_[1],
+            es_c, es_beta, sigma,d_binstartpts, d_binsize, bin_size[0],
+            bin_size[1], d_subprob_to_bin, d_subprobstartpts,
+            d_numsubprob, maxsubprobsize, num_bins[0], num_bins[1],
+            d_idxnupts, pirange);
+        }
+      }
+      break;
+    case 3:
+      for (int t=0; t<blksize; t++) {
+        if (d_plan->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+          Spread_3d_Subprob_Horner<<<num_blocks, threads_per_block,
+            shared_memory_size>>>(d_plan->points_[0], d_plan->points_[1],
+              d_plan->points_[2], d_c+t*d_plan->num_points_,
+              d_fw+t*d_plan->grid_count_, 
+              d_plan->num_points_, kernel_width, d_plan->grid_dims_[0],
+              d_plan->grid_dims_[1], d_plan->grid_dims_[2], sigma,
+              d_binstartpts, d_binsize, bin_size[0],
+              bin_size[1], bin_size[2], d_subprob_to_bin, d_subprobstartpts,
+            d_numsubprob, maxsubprobsize,num_bins[0], num_bins[1], num_bins[2],
+            d_idxnupts,pirange);
+        } else {
+          Spread_3d_Subprob<<<num_blocks, threads_per_block,
+            shared_memory_size>>>(d_plan->points_[0], d_plan->points_[1],
+              d_plan->points_[2], d_c+t*d_plan->num_points_,
+              d_fw+t*d_plan->grid_count_, 
+              d_plan->num_points_, kernel_width, d_plan->grid_dims_[0],
+              d_plan->grid_dims_[1], d_plan->grid_dims_[2], es_c, es_beta,
+              d_binstartpts, d_binsize, 
+              bin_size[0], bin_size[1], bin_size[2], d_subprob_to_bin, 
+            d_subprobstartpts,d_numsubprob, maxsubprobsize,num_bins[0], 
+            num_bins[1], num_bins[2],d_idxnupts,pirange);
+        }
+      }
+      break;
   }
 
   return 0;

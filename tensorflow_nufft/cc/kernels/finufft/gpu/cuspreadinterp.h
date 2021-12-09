@@ -218,8 +218,5 @@ int CUINTERP2D_NUPTSDRIVEN(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* 
 	int blksize);
 int CUINTERP2D_SUBPROB(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
 	int blksize);
-int CUINTERP3D_NUPTSDRIVEN(int nf1, int nf2, int nf3, int M,
-	tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
-int CUINTERP3D_SUBPROB(int nf1, int nf2, int nf3, int M, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
-	int blksize);
+
 #endif

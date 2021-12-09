@@ -78,7 +78,7 @@ int CUFINUFFT3D1_EXEC(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 #endif
 		// Step 1: Spread
 		cudaEventRecord(start);
-		ier = CUSPREAD3D(d_plan, blksize);
+		ier = CUSPREAD2D(d_plan, blksize);
 		if (ier != 0 ) {
 			printf("error: cuspread3d, method(%d)\n", d_plan->options_.spread_method);
 			return ier;
@@ -258,7 +258,7 @@ int CUFINUFFT3D_SPREAD(CUCPX* d_c, CUCPX* d_fk, Plan<GPUDevice, FLT>* d_plan)
 		d_plan->fine_grid_data_ = d_fkstart;
 
 		cudaEventRecord(start);
-		ier = CUSPREAD3D(d_plan,blksize);
+		ier = CUSPREAD2D(d_plan,blksize);
 		if (ier != 0 ) {
 			printf("error: cuspread3d, method(%d)\n", d_plan->options_.spread_method);
 			return ier;

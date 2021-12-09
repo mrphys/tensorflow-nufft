@@ -69,7 +69,6 @@ limitations under the License.
 #undef CUSPREAD2D_PAUL
 #undef CUSPREAD2D_PAUL_PROP
 /* spreading 3d */
-#undef CUSPREAD3D
 #undef CUSPREAD3D_BLOCKGATHER_PROP
 #undef CUSPREAD3D_BLOCKGATHER
 /* interp */
@@ -78,7 +77,6 @@ limitations under the License.
 #undef CUINTERP2D_NUPTSDRIVEN
 #undef CUINTERP2D_SUBPROB
 #undef CUINTERP3D_NUPTSDRIVEN
-#undef CUINTERP3D_SUBPROB
 /* deconvolve */
 #undef CUDECONVOLVE2D
 #undef CUDECONVOLVE3D
@@ -109,7 +107,6 @@ limitations under the License.
 #define CUSPREAD2D_PAUL cuspread2df_paul
 #define CUSPREAD2D_PAUL_PROP cuspread2df_paul_prop
 /* spreading 3d */
-#define CUSPREAD3D cuspread3df
 #define CUSPREAD3D_BLOCKGATHER_PROP cuspread3df_blockgather_prop
 #define CUSPREAD3D_BLOCKGATHER cuspread3df_blockgather
 /* interp */
@@ -118,7 +115,6 @@ limitations under the License.
 #define CUINTERP2D_NUPTSDRIVEN cuinterp2df_nuptsdriven
 #define CUINTERP2D_SUBPROB cuinterp2df_subprob
 #define CUINTERP3D_NUPTSDRIVEN cuinterp3df_nuptsdriven
-#define CUINTERP3D_SUBPROB cuinterp3df_subprob
 /* deconvolve */
 #define CUDECONVOLVE2D cudeconvolve2df
 #define CUDECONVOLVE3D cudeconvolve3df
@@ -151,7 +147,6 @@ limitations under the License.
 #define CUSPREAD2D_PAUL cuspread2d_paul
 #define CUSPREAD2D_PAUL_PROP cuspread2d_paul_prop
 /* spreading 3d */
-#define CUSPREAD3D cuspread3d
 #define CUSPREAD3D_BLOCKGATHER_PROP cuspread3d_blockgather_prop
 #define CUSPREAD3D_BLOCKGATHER cuspread3d_blockgather
 /* interp */
@@ -160,7 +155,6 @@ limitations under the License.
 #define CUINTERP2D_NUPTSDRIVEN cuinterp2d_nuptsdriven
 #define CUINTERP2D_SUBPROB cuinterp2d_subprob
 #define CUINTERP3D_NUPTSDRIVEN cuinterp3d_nuptsdriven
-#define CUINTERP3D_SUBPROB cuinterp3d_subprob
 /* deconvolve */
 #define CUDECONVOLVE2D cudeconvolve2d
 #define CUDECONVOLVE3D cudeconvolve3d

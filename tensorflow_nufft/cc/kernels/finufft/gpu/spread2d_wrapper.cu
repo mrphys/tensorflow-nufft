@@ -145,70 +145,6 @@ __global__ void TrivialGlobalSortIdxKernel(int M, int* index) {
 	}
 }
 
-
-int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize)
-/*
-  A wrapper for different spreading methods.
-
-  Methods available:
-  (1) Non-uniform points driven
-  (2) Subproblem
-  (3) Paul
-
-  Melody Shih 07/25/19
-*/
-{
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-
-  int ier;
-  switch(d_plan->options_.spread_method)
-  {
-    case SpreadMethod::NUPTS_DRIVEN:
-      {
-        cudaEventRecord(start);
-        ier = CUSPREAD2D_NUPTSDRIVEN(d_plan, blksize);
-        if (ier != 0 ) {
-          cout<<"error: cnufftspread2d_gpu_nuptsdriven"<<endl;
-          return 1;
-        }
-      }
-      break;
-    case SpreadMethod::SUBPROBLEM:
-      {
-        cudaEventRecord(start);
-        ier = CUSPREAD2D_SUBPROB(d_plan, blksize);
-        if (ier != 0 ) {
-          cout<<"error: cnufftspread2d_gpu_subprob"<<endl;
-          return 1;
-        }
-      }
-      break;
-    case SpreadMethod::PAUL:
-      {
-        cudaEventRecord(start);
-        ier = CUSPREAD2D_PAUL(d_plan, blksize);
-        if (ier != 0 ) {
-          cout<<"error: cnufftspread2d_gpu_paul"<<endl;
-          return 1;
-        }
-      }
-      break;
-    default:
-      cout<<"error: incorrect method, should be 1,2,3"<<endl;
-      return 2;
-  }
-#ifdef SPREADTIME
-  float milliseconds = 0;
-  cudaEventRecord(stop);
-  cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&milliseconds, start, stop);
-  cout<<"[time  ]"<< " Spread " << milliseconds <<" ms"<<endl;
-#endif
-  return ier;
-}
-
 int CUSPREAD2D_NUPTSDRIVEN_PROP(Plan<GPUDevice, FLT>* d_plan) {
   
   int num_blocks = (d_plan->num_points_ + 1024 - 1) / 1024;
@@ -785,6 +721,51 @@ int CUSPREAD3D_BLOCKGATHER(
   return 1;
 }
 
-#include "spread3d_wrapper.cu"
+int CUSPREAD2D(Plan<GPUDevice, FLT>* d_plan, int blksize) {
+  int ier;
+  switch(d_plan->options_.spread_method)
+  {
+    case SpreadMethod::NUPTS_DRIVEN:
+      {
+        ier = CUSPREAD2D_NUPTSDRIVEN(d_plan, blksize);
+        if (ier != 0 ) {
+          cout<<"error: cnufftspread2d_gpu_nuptsdriven"<<endl;
+          return 1;
+        }
+      }
+      break;
+    case SpreadMethod::SUBPROBLEM:
+      {
+        ier = CUSPREAD2D_SUBPROB(d_plan, blksize);
+        if (ier != 0 ) {
+          cout<<"error: cnufftspread2d_gpu_subprob"<<endl;
+          return 1;
+        }
+      }
+      break;
+    case SpreadMethod::PAUL:
+      {
+        ier = CUSPREAD2D_PAUL(d_plan, blksize);
+        if (ier != 0 ) {
+          cout<<"error: cnufftspread2d_gpu_paul"<<endl;
+          return 1;
+        }
+      }
+      break;
+    case SpreadMethod::BLOCK_GATHER:
+      {
+        ier = CUSPREAD3D_BLOCKGATHER(d_plan, blksize);
+        if (ier != 0) {
+          cout<<"error: cnufftspread2d_gpu_blockgather"<<endl;
+          return 1;
+        }
+      }
+    default:
+      cout<<"error: incorrect method, should be 1,2,3"<<endl;
+      return 2;
+  }
+
+  return ier;
+}
 
 #endif // GOOGLE_CUDA

@@ -305,10 +305,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
   Status init_spreader_subproblem();
 
-  Status init_spreader_paul();
-
-  Status init_spreader_block_gather();
-
   /*  
     2D Type-1 NUFFT
 

@@ -2062,8 +2062,8 @@ Status Plan<GPUDevice, FloatType>::interp_batch(int blksize) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
-  dim3 threadsPerBlock;
-  dim3 blocks;
+  dim3 threads_per_block;
+  dim3 num_blocks;
 
   int kernel_width=this->spread_params_.nspread;   // psi's support in terms of number of cells
   int pirange=this->spread_params_.pirange;
@@ -2074,49 +2074,74 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
   GpuComplex<FloatType>* d_c = this->c_;
   GpuComplex<FloatType>* d_fw = this->grid_data_;
 
-  threadsPerBlock.x = 16;
-  threadsPerBlock.y = 1;
-  blocks.x = (this->num_points_ + threadsPerBlock.x - 1)/threadsPerBlock.x;
-  blocks.y = 1;
+  threads_per_block.x = 16;
+  threads_per_block.y = 1;
+  num_blocks.x = (this->num_points_ + threads_per_block.x - 1)/threads_per_block.x;
+  num_blocks.y = 1;
 
   switch (this->rank_) {
     case 2:
-      if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-        for (int t = 0; t < blksize; t++) {
-          SpreadNuptsDrivenHorner2DKernel<<<blocks, threadsPerBlock>>>(this->points_[0],
-            this->points_[1], d_c + t * this->num_points_,
-            d_fw + t * this->grid_size_, this->num_points_, kernel_width,
-            this->grid_dims_[0], this->grid_dims_[1], sigma, this->idx_nupts_, pirange);
-        }
-      } else {
-        for (int t = 0; t < blksize; t++) {
-          SpreadNuptsDriven2DKernel<<<blocks, threadsPerBlock>>>(
-            this->points_[0], this->points_[1],
-            d_c + t * this->grid_size_, d_fw + t * this->grid_size_,
-            this->num_points_, kernel_width,
-            this->grid_dims_[0], this->grid_dims_[1], es_c, es_beta, this->idx_nupts_, pirange);
-        }
+      switch (this->options_.kernel_evaluation_method) {
+        case KernelEvaluationMethod::DIRECT:
+          for (int t = 0; t < blksize; t++) {
+            TF_CHECK_OK(GpuLaunchKernel(
+                SpreadNuptsDriven2DKernel<FloatType>, num_blocks,
+                threads_per_block, 0, this->device_.stream(), this->points_[0],
+                this->points_[1], d_c + t * this->grid_size_,
+                d_fw + t * this->grid_size_, this->num_points_, kernel_width,
+                this->grid_dims_[0], this->grid_dims_[1], es_c, es_beta,
+                this->idx_nupts_, pirange));
+          }
+          break;
+        case KernelEvaluationMethod::HORNER:
+          for (int t = 0; t < blksize; t++) {
+            TF_CHECK_OK(GpuLaunchKernel(
+                SpreadNuptsDrivenHorner2DKernel<FloatType>, num_blocks,
+                threads_per_block, 0, this->device_.stream(), this->points_[0],
+                this->points_[1], d_c + t * this->num_points_,
+                d_fw + t * this->grid_size_, this->num_points_, kernel_width,
+                this->grid_dims_[0], this->grid_dims_[1], sigma,
+                this->idx_nupts_, pirange));
+          }
+          break;
+        default:
+          return errors::Internal(
+              "Invalid kernel evaluation method: ", static_cast<int>(
+                  this->options_.kernel_evaluation_method));
       }
       break;
     case 3:
-      if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-        for (int t = 0; t < blksize; t++) {
-          SpreadNuptsDrivenHorner3DKernel<<<blocks, threadsPerBlock>>>(this->points_[0],
-            this->points_[1], this->points_[2], d_c+t*this->num_points_,
-            d_fw+t*this->grid_size_, this->num_points_, kernel_width,
-            this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
-            sigma, this->idx_nupts_,pirange);
-        }
-      } else {
-        for (int t = 0; t < blksize; t++) {
-          SpreadNuptsDriven3DKernel<<<blocks, threadsPerBlock>>>(this->points_[0],
-            this->points_[1], this->points_[2],
-            d_c+t*this->num_points_, d_fw+t*this->grid_size_, this->num_points_, kernel_width, this->grid_dims_[0],
-            this->grid_dims_[1], this->grid_dims_[2], es_c, es_beta, 
-            this->idx_nupts_,pirange);
-        }
+      switch (this->options_.kernel_evaluation_method) {
+        case KernelEvaluationMethod::DIRECT:
+          for (int t = 0; t < blksize; t++) {
+            TF_CHECK_OK(GpuLaunchKernel(
+                SpreadNuptsDriven3DKernel<FloatType>, num_blocks,
+                threads_per_block, 0, this->device_.stream(), this->points_[0],
+                this->points_[1], this->points_[2], d_c + t * this->num_points_,
+                d_fw + t * this->grid_size_, this->num_points_, kernel_width,
+                this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
+                es_c, es_beta, this->idx_nupts_, pirange));
+          }
+          break;
+        case KernelEvaluationMethod::HORNER:
+          for (int t = 0; t < blksize; t++) {
+            TF_CHECK_OK(GpuLaunchKernel(
+                SpreadNuptsDrivenHorner3DKernel<FloatType>, num_blocks,
+                threads_per_block, 0, this->device_.stream(), this->points_[0],
+                this->points_[1], this->points_[2], d_c + t * this->num_points_,
+                d_fw + t * this->grid_size_, this->num_points_, kernel_width,
+                this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
+                sigma, this->idx_nupts_, pirange));
+          }
+          break;
+        default:
+          return errors::Internal(
+              "Invalid kernel evaluation method: ", static_cast<int>(
+                  this->options_.kernel_evaluation_method));
       }
       break;
+    default:
+      return errors::Unimplemented("Invalid rank: ", this->rank_);
   }
 
   return Status::OK();
@@ -2212,8 +2237,8 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
-	dim3 threadsPerBlock;
-	dim3 blocks;
+	dim3 threads_per_block;
+	dim3 num_blocks;
 
 	int kernel_width=this->spread_params_.nspread;   // psi's support in terms of number of cells
 	FloatType es_c=this->spread_params_.ES_c;
@@ -2226,14 +2251,14 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
 
   switch (this->rank_) {
     case 2:
-      threadsPerBlock.x = 32;
-      threadsPerBlock.y = 1;
-      blocks.x = (this->num_points_ + threadsPerBlock.x - 1)/threadsPerBlock.x;
-      blocks.y = 1;
+      threads_per_block.x = 32;
+      threads_per_block.y = 1;
+      num_blocks.x = (this->num_points_ + threads_per_block.x - 1)/threads_per_block.x;
+      num_blocks.y = 1;
 
       if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
         for (int t = 0; t < blksize; t++) {
-          InterpNuptsDrivenHorner2DKernel<<<blocks, threadsPerBlock>>>(
+          InterpNuptsDrivenHorner2DKernel<<<num_blocks, threads_per_block>>>(
             this->points_[0], this->points_[1], d_c+t * this->num_points_,
             d_fw+t*this->grid_size_, this->num_points_, kernel_width,
             this->grid_dims_[0], this->grid_dims_[1], sigma,  this->idx_nupts_,
@@ -2241,7 +2266,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
         }
       } else {
         for (int t = 0; t < blksize; t++) {
-          InterpNuptsDriven2DKernel<<<blocks, threadsPerBlock>>>(
+          InterpNuptsDriven2DKernel<<<num_blocks, threads_per_block>>>(
             this->points_[0], this->points_[1], 
             d_c+t * this->num_points_, d_fw+t*this->grid_size_,
             this->num_points_, kernel_width, this->grid_dims_[0], this->grid_dims_[1],
@@ -2250,14 +2275,14 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
       }
       break;
     case 3:
-      threadsPerBlock.x = 16;
-      threadsPerBlock.y = 1;
-      blocks.x = (this->num_points_ + threadsPerBlock.x - 1)/threadsPerBlock.x;
-      blocks.y = 1;
+      threads_per_block.x = 16;
+      threads_per_block.y = 1;
+      num_blocks.x = (this->num_points_ + threads_per_block.x - 1) / threads_per_block.x;
+      num_blocks.y = 1;
 
       if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
         for (int t = 0; t < blksize; t++) {
-          InterpNuptsDrivenHorner3DKernel<<<blocks, threadsPerBlock, 0, 0>>>(
+          InterpNuptsDrivenHorner3DKernel<<<num_blocks, threads_per_block, 0, 0>>>(
               this->points_[0], this->points_[1], this->points_[2],
               d_c + t * this->num_points_, d_fw+t*this->grid_size_,
               this->num_points_, kernel_width, this->grid_dims_[0],
@@ -2266,7 +2291,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
         }
       } else {
         for (int t = 0; t < blksize; t++) {
-          InterpNuptsDriven3DKernel<<<blocks, threadsPerBlock, 0, 0>>>(
+          InterpNuptsDriven3DKernel<<<num_blocks, threads_per_block, 0, 0>>>(
               this->points_[0], this->points_[1], this->points_[2],
               d_c + t * this->num_points_, d_fw + t * this->grid_size_,
               this->num_points_, kernel_width, 
@@ -2355,15 +2380,18 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
               max_subprob_size, this->num_bins_[0], this->num_bins_[1], this->num_bins_[2],
               this->idx_nupts_, pirange));
         } else {
-          InterpSubproblem3DKernel<<<num_blocks, threads_per_block,
-            shared_memory_size>>>(
+          TF_CHECK_OK(GpuLaunchKernel(
+              InterpSubproblem3DKernel<FloatType>, num_blocks,
+              threads_per_block, shared_memory_size, this->device_.stream(),
               this->points_[0], this->points_[1], this->points_[2],
               d_c + t * this->num_points_, d_fw + t * this->grid_size_, 
-            this->num_points_, kernel_width, this->grid_dims_[0], this->grid_dims_[1],
-            this->grid_dims_[2], es_c, es_beta, this->bin_start_pts_, this->bin_sizes_, 
-            this->bin_dims_[0], this->bin_dims_[1], this->bin_dims_[2], this->subprob_bins_, 
-            this->subprob_start_pts_, this->num_subprob_, max_subprob_size,this->num_bins_[0], 
-            this->num_bins_[1], this->num_bins_[2], this->idx_nupts_, pirange);
+              this->num_points_, kernel_width, this->grid_dims_[0],
+              this->grid_dims_[1], this->grid_dims_[2], es_c, es_beta,
+              this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0],
+              this->bin_dims_[1], this->bin_dims_[2], this->subprob_bins_, 
+              this->subprob_start_pts_, this->num_subprob_, max_subprob_size,
+              this->num_bins_[0], this->num_bins_[1], this->num_bins_[2],
+              this->idx_nupts_, pirange));
         }
       }
       break;
@@ -2445,11 +2473,8 @@ Status Plan<GPUDevice, FloatType>::init_spreader() {
       TF_RETURN_IF_ERROR(this->init_spreader_subproblem());
       break;
     case SpreadMethod::PAUL:
-      TF_RETURN_IF_ERROR(this->init_spreader_paul());
-      break;
     case SpreadMethod::BLOCK_GATHER:
-      TF_RETURN_IF_ERROR(this->init_spreader_block_gather());
-		  break;
+      return errors::Unimplemented("Invalid spread method");
 	}
   return Status::OK();
 }
@@ -2622,16 +2647,6 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
   this->subprob_count_ = subprob_count;
 
   return Status::OK();
-}
-
-template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::init_spreader_paul() {
-	return errors::Unimplemented("init_spreader_paul");
-}
-
-template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::init_spreader_block_gather() {
-  return errors::Unimplemented("init_spreader_block_gather");
 }
 
 namespace {

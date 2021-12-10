@@ -33,3 +33,5 @@ Bug Fixes and Other Changes
   intra-op parallelism setting. From now on, the number of intra-op threads used
   by the CPU kernel can be specified by the user with
   `tf.config.threading.set_intra_op_parallelism_threads`.
+* GPU kernel launches, memory allocations and data copies will now be enqueued
+  to the correct devices and streams as requested by the TensorFlow framework.

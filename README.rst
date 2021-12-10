@@ -23,10 +23,11 @@ TensorFlow. It provides:
 * Gradient definitions for automatic differentiation.
 * Shape functions to support static shape inference.
 
-The underlying NUFFT implementation is that of the Flatiron Institute. Please
-refer to the `FINUFFT <https://github.com/flatironinstitute/finufft/>`_ and
-`cuFINUFFT <https://github.com/flatironinstitute/cufinufft/>`_ repositories for
-details.
+The underlying algorithm is based on the NUFFT implementation by the Flatiron
+Institute. Please refer to
+`FINUFFT <https://github.com/flatironinstitute/finufft/>`_ and
+`cuFINUFFT <https://github.com/flatironinstitute/cufinufft/>`_ for
+more details.
 
 .. end-intro
 
@@ -50,12 +51,15 @@ Each TensorFlow NUFFT release is compiled against a specific version of
 TensorFlow. Please see the compatibility table below to see what versions of
 each package you can expect to work together.
 
-================  ==========
-TensorFlow NUFFT  TensorFlow
-================  ==========
-v0.3              v2.6
-v0.4              v2.7
-================  ==========
+======================  ========================  ============
+TensorFlow MRI Version  TensorFlow Compatibility  Release Date
+======================  ========================  ============
+v0.5.0                  v2.7.x
+v0.4.0                  v2.7.x                    Nov 8, 2021
+v0.3.2                  v2.6.x                    Aug 18, 2021
+v0.3.1                  v2.6.x                    Aug 18, 2021
+v0.3.0                  v2.6.x                    Aug 13, 2021
+======================  ========================  ============
 
 .. end-install
 

@@ -351,7 +351,7 @@ static __inline__ __device__ void eval_kernel_vec_Horner(
 	FloatType z = 2*x + w - 1.0;         // scale so local grid offset z in [-1,1]
 	// insert the auto-generated code which expects z, w args, writes to ker...
 	if (upsampling_factor == 2.0) {     // floating point equality is fine here
-    #include "tensorflow_nufft/cc/kernels/kernel_horner_sigma2.c"
+    #include "tensorflow_nufft/cc/kernels/kernel_horner_sigma2.inc"
 	}
 }
 

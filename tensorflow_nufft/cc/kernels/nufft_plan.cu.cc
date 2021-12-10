@@ -1917,9 +1917,11 @@ Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
   }
   
   using namespace thrust::placeholders;
-  thrust::device_ptr<FloatType> dev_ptr((FloatType*) d_c);
-  thrust::transform(dev_ptr, dev_ptr + 2*this->num_transforms_*this->num_points_,
-            dev_ptr, _1 * (FloatType) this->spread_params_.ES_scale); 
+  thrust::device_ptr<FloatType> dev_ptr(reinterpret_cast<FloatType*>(d_c));
+  thrust::transform(thrust::cuda::par.on(this->device_.stream()), dev_ptr,
+                    dev_ptr + 2 * this->num_transforms_ * this->num_points_,
+                    dev_ptr, _1 * static_cast<FloatType>(
+                        this->spread_params_.ES_scale));
   
 	// Multi-GPU support: reset the device ID
 	cudaSetDevice(orig_gpu_device_id);
@@ -1941,8 +1943,8 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
   for (int i=0; i*this->options_.max_batch_size < this->num_transforms_; i++) {
     blksize = min(this->num_transforms_ - i*this->options_.max_batch_size, 
       this->options_.max_batch_size);
-    d_cstart   = d_c + i*this->options_.max_batch_size*this->num_points_;
-    d_fkstart  = d_fk + i*this->options_.max_batch_size*this->mode_count_;
+    d_cstart   = d_c + i * this->options_.max_batch_size * this->num_points_;
+    d_fkstart  = d_fk + i * this->options_.max_batch_size * this->mode_count_;
     
     this->c_  = d_cstart;
     this->grid_data_ = d_fkstart;
@@ -1951,9 +1953,11 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
   }
 
   using namespace thrust::placeholders;
-  thrust::device_ptr<FloatType> dev_ptr((FloatType*) d_fk);
-  thrust::transform(dev_ptr, dev_ptr + 2*this->num_transforms_*this->mode_count_,
-            dev_ptr, _1 * (FloatType) this->spread_params_.ES_scale); 
+  thrust::device_ptr<FloatType> dev_ptr(reinterpret_cast<FloatType*>(d_fk));
+  thrust::transform(thrust::cuda::par.on(this->device_.stream()), dev_ptr,
+                    dev_ptr + 2 * this->num_transforms_ * this->mode_count_,
+                    dev_ptr, _1 * static_cast<FloatType>(
+                        this->spread_params_.ES_scale));
 
 	// Multi-GPU support: reset the device ID
 	cudaSetDevice(orig_gpu_device_id);
@@ -2563,7 +2567,8 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
 
     thrust::device_ptr<int> d_bin_sizes(this->bin_sizes_);
     thrust::device_ptr<int> d_bin_start_points(this->bin_start_pts_);
-    thrust::exclusive_scan(d_bin_sizes, d_bin_sizes + this->bin_count_,
+    thrust::exclusive_scan(thrust::cuda::par.on(this->device_.stream()),
+                           d_bin_sizes, d_bin_sizes + this->bin_count_,
                            d_bin_start_points);
 
     switch (this->rank_) {
@@ -2640,9 +2645,11 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
       return errors::Unimplemented("Invalid rank: ", this->rank_);
   }
 
-  thrust::device_ptr<int> d_ptr(this->bin_sizes_);
-  thrust::device_ptr<int> d_result(this->bin_start_pts_);
-  thrust::exclusive_scan(d_ptr, d_ptr + this->bin_count_, d_result);
+  thrust::device_ptr<int> d_bin_sizes(this->bin_sizes_);
+  thrust::device_ptr<int> d_bin_start_pts(this->bin_start_pts_);
+  thrust::exclusive_scan(thrust::cuda::par.on(this->device_.stream()),
+                         d_bin_sizes, d_bin_sizes + this->bin_count_,
+                         d_bin_start_pts);
 
   switch (this->rank_) {
     case 2:
@@ -2673,9 +2680,11 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
       this->device_.stream(), this->bin_sizes_, this->num_subprob_, max_subprob_size,
       this->bin_count_));
 
-  d_ptr    = thrust::device_pointer_cast(this->num_subprob_);
-  d_result = thrust::device_pointer_cast(this->subprob_start_pts_ + 1);
-  thrust::inclusive_scan(d_ptr, d_ptr + this->bin_count_, d_result);
+  thrust::device_ptr<int> d_num_subprob(this->num_subprob_);
+  thrust::device_ptr<int> d_subprob_start_pts(this->subprob_start_pts_ + 1);
+  thrust::inclusive_scan(thrust::cuda::par.on(this->device_.stream()),
+                         d_num_subprob, d_num_subprob + this->bin_count_,
+                         d_subprob_start_pts);
   checkCudaErrors(cudaMemset(this->subprob_start_pts_, 0, sizeof(int)));
 
   int subprob_count;

@@ -401,8 +401,11 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
   int totalnumsubprob;
   
-  typename ComplexType<GPUDevice, FloatType>::Type* c;
-  typename ComplexType<GPUDevice, FloatType>::Type* fk;
+  // Internal pointer to non-uniform data.
+  DType* c_;
+
+  // Internal pointer to uniform data.
+  DType* f_;
 
   // Arrays that used in subprob method
   int *idxnupts;//length: #nupts, index of the nupts in the bin-sorted order

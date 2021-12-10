@@ -1501,8 +1501,8 @@ Plan<GPUDevice, FloatType>::Plan(
   this->mt = 0;
   this->mu = 0;
   this->totalnumsubprob = 0;
-  this->c = nullptr;
-  this->fk = nullptr;
+  this->c_ = nullptr;
+  this->f_ = nullptr;
   this->idxnupts = nullptr;
   this->sortidx = nullptr;
   this->numsubprob = nullptr;
@@ -1908,7 +1908,7 @@ Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
     d_cstart  = d_c  + i*this->options_.max_batch_size*this->num_points_;
     d_fkstart = d_fk + i*this->options_.max_batch_size*this->mode_count_;
 
-    this->c = d_cstart;
+    this->c_ = d_cstart;
     this->grid_data_ = d_fkstart;
 
     TF_RETURN_IF_ERROR(this->interp_batch(blksize));
@@ -1942,7 +1942,7 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
     d_cstart   = d_c + i*this->options_.max_batch_size*this->num_points_;
     d_fkstart  = d_fk + i*this->options_.max_batch_size*this->mode_count_;
     
-    this->c  = d_cstart;
+    this->c_  = d_cstart;
     this->grid_data_ = d_fkstart;
 
     TF_RETURN_IF_ERROR(this->spread_batch(blksize));
@@ -1969,8 +1969,8 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
       this->options_.max_batch_size);
     d_cstart   = d_c + i*this->options_.max_batch_size*this->num_points_;
     d_fkstart  = d_fk + i*this->options_.max_batch_size*this->mode_count_;
-    this->c  = d_cstart;
-    this->fk = d_fkstart;
+    this->c_  = d_cstart;
+    this->f_ = d_fkstart;
 
     checkCudaErrors(cudaMemset(this->grid_data_,0,this->options_.max_batch_size*
         this->grid_size_ * sizeof(DType)));
@@ -2003,8 +2003,8 @@ Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
     d_cstart  = d_c  + i*this->options_.max_batch_size*this->num_points_;
     d_fkstart = d_fk + i*this->options_.max_batch_size*this->mode_count_;
 
-    this->c = d_cstart;
-    this->fk = d_fkstart;
+    this->c_ = d_cstart;
+    this->f_ = d_fkstart;
 
     // Step 1: amplify Fourier coeffs fk and copy into upsampled array fw
     TF_RETURN_IF_ERROR(this->deconvolve_batch(blksize));
@@ -2070,7 +2070,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
   FloatType es_beta=this->spread_params_.ES_beta;
   FloatType sigma=this->spread_params_.upsampling_factor;
 
-  GpuComplex<FloatType>* d_c = this->c;
+  GpuComplex<FloatType>* d_c = this->c_;
   GpuComplex<FloatType>* d_fw = this->grid_data_;
 
   threadsPerBlock.x = 16;
@@ -2081,14 +2081,14 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
   switch (this->rank_) {
     case 2:
       if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           SpreadNuptsDrivenHorner2DKernel<<<blocks, threadsPerBlock>>>(this->points_[0],
             this->points_[1], d_c + t * this->num_points_,
             d_fw + t * this->grid_size_, this->num_points_, kernel_width,
             this->grid_dims_[0], this->grid_dims_[1], sigma, d_idxnupts, pirange);
         }
       } else {
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           SpreadNuptsDriven2DKernel<<<blocks, threadsPerBlock>>>(
             this->points_[0], this->points_[1],
             d_c + t * this->grid_size_, d_fw + t * this->grid_size_,
@@ -2099,7 +2099,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
       break;
     case 3:
       if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           SpreadNuptsDrivenHorner3DKernel<<<blocks, threadsPerBlock>>>(this->points_[0],
             this->points_[1], this->points_[2], d_c+t*this->num_points_,
             d_fw+t*this->grid_size_, this->num_points_, kernel_width,
@@ -2107,7 +2107,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
             sigma, d_idxnupts,pirange);
         }
       } else {
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           SpreadNuptsDriven3DKernel<<<blocks, threadsPerBlock>>>(this->points_[0],
             this->points_[1], this->points_[2],
             d_c+t*this->num_points_, d_fw+t*this->grid_size_, this->num_points_, kernel_width, this->grid_dims_[0],
@@ -2141,7 +2141,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
     bin_count *= num_bins[i];
   }
 
-  GpuComplex<FloatType>* d_c = this->c;
+  GpuComplex<FloatType>* d_c = this->c_;
   GpuComplex<FloatType>* d_fw = this->grid_data_;
 
   int *d_binsize = this->binsize;
@@ -2174,7 +2174,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
   switch (this->rank_) {
     case 2:
       if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           SpreadSubproblemHorner2DKernel<<<num_blocks, threads_per_block,
             shared_memory_size>>>(this->points_[0], this->points_[1],
               d_c+t*this->num_points_, d_fw+t*this->grid_size_, this->num_points_,
@@ -2185,7 +2185,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
             d_idxnupts, pirange);
         }
       } else {
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           SpreadSubproblem2DKernel<<<num_blocks, threads_per_block, shared_memory_size>>>(
             this->points_[0], this->points_[1], d_c+t*this->num_points_,
             d_fw+t*this->grid_size_, this->num_points_, kernel_width,
@@ -2198,7 +2198,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
       }
       break;
     case 3:
-      for (int t=0; t<blksize; t++) {
+      for (int t = 0; t < blksize; t++) {
         if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
           SpreadSubproblemHorner3DKernel<<<num_blocks, threads_per_block,
             shared_memory_size>>>(this->points_[0], this->points_[1],
@@ -2241,7 +2241,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
 	int pirange=this->spread_params_.pirange;
 	int *d_idxnupts=this->idxnupts;
 
-	GpuComplex<FloatType>* d_c = this->c;
+	GpuComplex<FloatType>* d_c = this->c_;
 	GpuComplex<FloatType>* d_fw = this->grid_data_;
 
   switch (this->rank_) {
@@ -2252,7 +2252,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
       blocks.y = 1;
 
       if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           InterpNuptsDrivenHorner2DKernel<<<blocks, threadsPerBlock>>>(
             this->points_[0], this->points_[1], d_c+t * this->num_points_,
             d_fw+t*this->grid_size_, this->num_points_, kernel_width,
@@ -2260,7 +2260,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
             pirange);
         }
       } else {
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           InterpNuptsDriven2DKernel<<<blocks, threadsPerBlock>>>(
             this->points_[0], this->points_[1], 
             d_c+t * this->num_points_, d_fw+t*this->grid_size_,
@@ -2276,7 +2276,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
       blocks.y = 1;
 
       if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           InterpNuptsDrivenHorner3DKernel<<<blocks, threadsPerBlock, 0, 0>>>(
               this->points_[0], this->points_[1], this->points_[2],
               d_c + t * this->num_points_, d_fw+t*this->grid_size_,
@@ -2285,7 +2285,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
               pirange);
         }
       } else {
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           InterpNuptsDriven3DKernel<<<blocks, threadsPerBlock, 0, 0>>>(
               this->points_[0], this->points_[1], this->points_[2],
               d_c + t * this->num_points_, d_fw + t * this->grid_size_,
@@ -2320,7 +2320,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
     bin_count *= num_bins[i];
   }
 
-	GpuComplex<FloatType>* d_c = this->c;
+	GpuComplex<FloatType>* d_c = this->c_;
 	GpuComplex<FloatType>* d_fw = this->grid_data_;
 
 	int *d_binsize = this->binsize;
@@ -2351,7 +2351,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
   switch (this->rank_) {
     case 2:
       if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           InterpSubproblemHorner2DKernel<<<num_blocks, threads_per_block, shared_memory_size>>>(
               this->points_[0], this->points_[1], d_c+t*this->num_points_,
               d_fw+t*this->grid_size_, this->num_points_, kernel_width,
@@ -2363,7 +2363,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
               num_bins[0], num_bins[1], d_idxnupts, pirange);
         }
       } else {
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           InterpSubproblem2DKernel<<<num_blocks, threads_per_block, shared_memory_size>>>(
               this->points_[0], this->points_[1], d_c + t * this->num_points_,
               d_fw + t * this->grid_size_, this->num_points_, kernel_width,
@@ -2378,7 +2378,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
       }
       break;
     case 3:
-      for (int t=0; t<blksize; t++) {
+      for (int t = 0; t < blksize; t++) {
         if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
           InterpSubproblemHorner3DKernel<<<num_blocks, threads_per_block,
             shared_memory_size>>>(
@@ -2417,23 +2417,25 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
     
     switch (this->rank_) {
       case 2:
-        for (int t=0; t<blksize; t++) {
-          Deconvolve2DKernel<<<num_blocks, threads_per_block>>>(
-            this->num_modes_[0], this->num_modes_[1],
-            this->grid_dims_[0], this->grid_dims_[1], 
-            this->grid_data_ + t * this->grid_size_,
-            this->fk + t * this->mode_count_, this->kernel_fseries_data_[0], 
-            this->kernel_fseries_data_[1]);
+        for (int t = 0; t < blksize; t++) {
+          TF_CHECK_OK(GpuLaunchKernel(
+              Deconvolve2DKernel<FloatType>, num_blocks, threads_per_block, 0,
+              this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
+              this->grid_dims_[0], this->grid_dims_[1],
+              this->grid_data_ + t * this->grid_size_,
+              this->f_ + t * this->mode_count_, this->kernel_fseries_data_[0], 
+              this->kernel_fseries_data_[1]));
         }
         break;
       case 3:
-        for (int t=0; t<blksize; t++) {
-          Deconvolve3DKernel<<<num_blocks, threads_per_block>>>(
-            this->num_modes_[0], this->num_modes_[1], this->num_modes_[2],
-            this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
-            this->grid_data_ + t * this->grid_size_,
-            this->fk + t * this->mode_count_, 
-            this->kernel_fseries_data_[0], this->kernel_fseries_data_[1], this->kernel_fseries_data_[2]);
+        for (int t = 0; t < blksize; t++) {
+          TF_CHECK_OK(GpuLaunchKernel(
+              Deconvolve3DKernel<FloatType>, num_blocks, threads_per_block, 0,
+              this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
+              this->num_modes_[2], this->grid_dims_[0], this->grid_dims_[1],
+              this->grid_dims_[2], this->grid_data_ + t * this->grid_size_,
+              this->f_ + t * this->mode_count_, this->kernel_fseries_data_[0],
+              this->kernel_fseries_data_[1], this->kernel_fseries_data_[2]));
         }
         break;
     }
@@ -2442,24 +2444,25 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
       sizeof(GpuComplex<FloatType>)));
     switch (this->rank_) {
       case 2:
-        for (int t=0; t<blksize; t++) {
-          Amplify2DKernel<<<num_blocks, threads_per_block>>>(this->num_modes_[0], 
-            this->num_modes_[1], this->grid_dims_[0], this->grid_dims_[1],
-            this->grid_data_ + t * this->grid_size_,
-            this->fk + t * this->mode_count_,
-            this->kernel_fseries_data_[0], this->kernel_fseries_data_[1]);
+        for (int t = 0; t < blksize; t++) {
+          TF_CHECK_OK(GpuLaunchKernel(
+              Amplify2DKernel<FloatType>, num_blocks, threads_per_block, 0,
+              this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
+              this->grid_dims_[0], this->grid_dims_[1],
+              this->grid_data_ + t * this->grid_size_,
+              this->f_ + t * this->mode_count_, this->kernel_fseries_data_[0],
+              this->kernel_fseries_data_[1]));
         }
         break;
       case 3:
-        for (int t=0; t<blksize; t++) {
+        for (int t = 0; t < blksize; t++) {
           TF_CHECK_OK(GpuLaunchKernel(
-            Amplify3DKernel<FloatType>, num_blocks, threads_per_block, 0,
-            this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
-            this->num_modes_[2], this->grid_dims_[0], this->grid_dims_[1],
-            this->grid_dims_[2], this->grid_data_ + t * this->grid_size_,
-            this->fk + t * this->mode_count_, 
-            this->kernel_fseries_data_[0], this->kernel_fseries_data_[1],
-            this->kernel_fseries_data_[2]));
+              Amplify3DKernel<FloatType>, num_blocks, threads_per_block, 0,
+              this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
+              this->num_modes_[2], this->grid_dims_[0], this->grid_dims_[1],
+              this->grid_dims_[2], this->grid_data_ + t * this->grid_size_,
+              this->f_ + t * this->mode_count_, this->kernel_fseries_data_[0],
+              this->kernel_fseries_data_[1], this->kernel_fseries_data_[2]));
         }
         break;
     }

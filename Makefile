@@ -46,9 +46,12 @@ ifeq ($(CUDA), 1)
 CXXFLAGS += -I$(CUDA_INCLUDE)
 endif
 
-FINUFFT_CFLAGS = -DFFTW_PLAN_SAFE -funroll-loops -fcx-limited-range
-CUFINUFFT_CFLAGS = -funroll-loops
+# As of TensorFlow 2.7, a deprecated-declarations is triggered by TensorFlow's
+# header files, which we can't do anything about. Therefore, disable these
+# warnings.
+CXXFLAGS += -Wno-deprecated-declarations
 
+FINUFFT_CFLAGS = -DFFTW_PLAN_SAFE -funroll-loops -fcx-limited-range
 
 # ==============================================================================
 # NVCC options

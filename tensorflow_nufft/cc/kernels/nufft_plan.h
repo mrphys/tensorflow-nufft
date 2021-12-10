@@ -367,11 +367,11 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
   // Tensors in device memory. Used for deconvolution. Empty in spread/interp
   // mode. Only the first `rank` tensors are allocated.
-  Tensor kernel_fseries_[3];
+  Tensor fseries_tensor_[3];
 
   // Convenience raw pointers to above tensors. These are device pointers. Only
   // the first `rank` pointers are valid.
-  FloatType* kernel_fseries_data_[3];
+  FloatType* fseries_data_[3];
 
   // The cuFFT plan.
   cufftHandle fft_plan_;
@@ -407,23 +407,27 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // Internal pointer to uniform data.
   DType* f_;
 
-  // Arrays that used in subprob method
-  int *idxnupts;//length: #nupts, index of the nupts in the bin-sorted order
-  int *sortidx; //length: #nupts, order inside the bin the nupt belongs to
-  int *numsubprob; //length: #bins,  number of subproblems in each bin
-  int *binsize; //length: #bins, number of nonuniform ponits in each bin
-  int *binstartpts; //length: #bins, exclusive scan of array binsize
-  int *subprob_to_bin;//length: #subproblems, the bin the subproblem works on 
-  int *subprobstartpts;//length: #bins, exclusive scan of array numsubprob
-
-  // Extra arrays for Paul's method
-  int *finegridsize;
-  int *fgstartpts;
-
-  // Arrays for 3d (need to sort out)
-  int *numnupts;
-  int *subprob_to_nupts;
-  
+  // Indices of the non-uniform points in the bin-sorted order. When allocated,
+  // it has length equal to num_points_. This is a device pointer.
+  int* idx_nupts_;
+  // Sort indices of non-uniform points within their corresponding bins. When
+  // allocated, it has length equal to num_points_. This is a device pointer.
+  int* sort_idx_;
+  // Number of subproblems in each bin. When allocated, it has length equal to
+  // bin_count_. This is a device pointer.
+  int* num_subprob_;
+  // Number of non-uniform points in each bin. When allocated, it has length
+  // equal to bin_count_. This is a device pointer.
+  int* bin_sizes_;
+  // The start points for each bin. When allocated, it has length equal to
+  // bin_count_. This is a device pointer.
+  int* bin_start_pts_;
+  // The bin each subproblem works on. When allocated, it has length equal to
+  // the number of subproblems. This is a device pointer.
+  int* subprob_bins_;
+  // The start points for each subproblem. When allocated, it has length equal
+  // to the bin_count_. This is a device pointer.
+  int* subprob_start_pts_;
 };
 #endif // GOOGLE_CUDA
 

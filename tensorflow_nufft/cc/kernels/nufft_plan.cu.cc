@@ -1454,7 +1454,14 @@ Plan<GPUDevice, FloatType>::Plan(
     int num_transforms,
     FloatType tol,
     const Options& options) 
-    : PlanBase<GPUDevice, FloatType>(context) {
+    : PlanBase<GPUDevice, FloatType>(context),
+      idx_nupts_(nullptr),
+      sort_idx_(nullptr),
+      num_subprob_(nullptr),
+      bin_sizes_(nullptr),
+      bin_start_pts_(nullptr),
+      subprob_bins_(nullptr),
+      subprob_start_pts_(nullptr) {
 
   OP_REQUIRES(context,
               type != TransformType::TYPE_3,
@@ -1503,17 +1510,13 @@ Plan<GPUDevice, FloatType>::Plan(
   this->totalnumsubprob = 0;
   this->c_ = nullptr;
   this->f_ = nullptr;
-  this->idxnupts = nullptr;
-  this->sortidx = nullptr;
-  this->numsubprob = nullptr;
-  this->binsize = nullptr;
-  this->binstartpts = nullptr;
-  this->subprob_to_bin = nullptr;
-  this->subprobstartpts = nullptr;
-  this->finegridsize = nullptr;
-  this->fgstartpts = nullptr;
-  this->numnupts = nullptr;
-  this->subprob_to_nupts = nullptr;
+  this->idx_nupts_ = nullptr;
+  this->sort_idx_ = nullptr;
+  this->num_subprob_ = nullptr;
+  this->bin_sizes_ = nullptr;
+  this->bin_start_pts_ = nullptr;
+  this->subprob_bins_ = nullptr;
+  this->subprob_start_pts_ = nullptr;
 
   // Copy options.
   this->options_ = options;
@@ -1630,15 +1633,15 @@ Plan<GPUDevice, FloatType>::Plan(
   switch (this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
       if (this->spread_params_.sort_points == SortPoints::YES) {
-        checkCudaErrors(cudaMalloc(&this->binsize, bin_bytes));
-        checkCudaErrors(cudaMalloc(&this->binstartpts, bin_bytes));
+        checkCudaErrors(cudaMalloc(&this->bin_sizes_, bin_bytes));
+        checkCudaErrors(cudaMalloc(&this->bin_start_pts_, bin_bytes));
       }
       break;
     case SpreadMethod::SUBPROBLEM:
-      checkCudaErrors(cudaMalloc(&this->numsubprob, bin_bytes));
-      checkCudaErrors(cudaMalloc(&this->binsize, bin_bytes));
-      checkCudaErrors(cudaMalloc(&this->binstartpts, bin_bytes));
-      checkCudaErrors(cudaMalloc(&this->subprobstartpts,
+      checkCudaErrors(cudaMalloc(&this->num_subprob_, bin_bytes));
+      checkCudaErrors(cudaMalloc(&this->bin_sizes_, bin_bytes));
+      checkCudaErrors(cudaMalloc(&this->bin_start_pts_, bin_bytes));
+      checkCudaErrors(cudaMalloc(&this->subprob_start_pts_,
           sizeof(int) * (this->bin_count_ + 1)));
       break;
     case SpreadMethod::PAUL:
@@ -1688,14 +1691,14 @@ Plan<GPUDevice, FloatType>::Plan(
       OP_REQUIRES_OK(context, context->allocate_temp(
                                   DataTypeToEnum<FloatType>::value,
                                   TensorShape({num_coeffs}),
-                                  &this->kernel_fseries_[i]));
-      this->kernel_fseries_data_[i] = reinterpret_cast<FloatType*>(
-          this->kernel_fseries_[i].flat<FloatType>().data());
+                                  &this->fseries_tensor_[i]));
+      this->fseries_data_[i] = reinterpret_cast<FloatType*>(
+          this->fseries_tensor_[i].flat<FloatType>().data());
 
       // Now copy coefficients to device.
       size_t num_bytes = sizeof(FloatType) * num_coeffs;
       device.memcpyHostToDevice(
-          reinterpret_cast<void*>(this->kernel_fseries_data_[i]),
+          reinterpret_cast<void*>(this->fseries_data_[i]),
           reinterpret_cast<void*>(kernel_fseries_host_data[i]),
           num_bytes);
     }
@@ -1761,56 +1764,55 @@ Plan<GPUDevice, FloatType>::~Plan() {
     case SpreadMethod::NUPTS_DRIVEN:
       {
         if (this->spread_params_.sort_points == SortPoints::YES) {
-          if (this->idxnupts)
-            checkCudaErrors(cudaFree(this->idxnupts));
-          if (this->sortidx)
-            checkCudaErrors(cudaFree(this->sortidx));
-          checkCudaErrors(cudaFree(this->binsize));
-          checkCudaErrors(cudaFree(this->binstartpts));
+          if (this->idx_nupts_)
+            checkCudaErrors(cudaFree(this->idx_nupts_));
+          if (this->sort_idx_)
+            checkCudaErrors(cudaFree(this->sort_idx_));
+          checkCudaErrors(cudaFree(this->bin_sizes_));
+          checkCudaErrors(cudaFree(this->bin_start_pts_));
         }else{
-          if (this->idxnupts)
-            checkCudaErrors(cudaFree(this->idxnupts));
+          if (this->idx_nupts_)
+            checkCudaErrors(cudaFree(this->idx_nupts_));
         }
       }
       break;
     case SpreadMethod::SUBPROBLEM:
       {
-        if (this->idxnupts)
-          checkCudaErrors(cudaFree(this->idxnupts));
-        if (this->sortidx)
-          checkCudaErrors(cudaFree(this->sortidx));
-        checkCudaErrors(cudaFree(this->numsubprob));
-        checkCudaErrors(cudaFree(this->binsize));
-        checkCudaErrors(cudaFree(this->binstartpts));
-        checkCudaErrors(cudaFree(this->subprobstartpts));
-        checkCudaErrors(cudaFree(this->subprob_to_bin));
+        if (this->idx_nupts_)
+          checkCudaErrors(cudaFree(this->idx_nupts_));
+        if (this->sort_idx_)
+          checkCudaErrors(cudaFree(this->sort_idx_));
+        checkCudaErrors(cudaFree(this->num_subprob_));
+        checkCudaErrors(cudaFree(this->bin_sizes_));
+        checkCudaErrors(cudaFree(this->bin_start_pts_));
+        checkCudaErrors(cudaFree(this->subprob_start_pts_));
+        checkCudaErrors(cudaFree(this->subprob_bins_));
       }
       break;
     case SpreadMethod::PAUL:
       {
-        if (this->idxnupts)
-          checkCudaErrors(cudaFree(this->idxnupts));
-        if (this->sortidx)
-          checkCudaErrors(cudaFree(this->sortidx));
-        checkCudaErrors(cudaFree(this->numsubprob));
-        checkCudaErrors(cudaFree(this->binsize));
-        checkCudaErrors(cudaFree(this->finegridsize));
-        checkCudaErrors(cudaFree(this->binstartpts));
-        checkCudaErrors(cudaFree(this->subprobstartpts));
-        checkCudaErrors(cudaFree(this->subprob_to_bin));
+        if (this->idx_nupts_)
+          checkCudaErrors(cudaFree(this->idx_nupts_));
+        if (this->sort_idx_)
+          checkCudaErrors(cudaFree(this->sort_idx_));
+        checkCudaErrors(cudaFree(this->num_subprob_));
+        checkCudaErrors(cudaFree(this->bin_sizes_));
+        checkCudaErrors(cudaFree(this->bin_start_pts_));
+        checkCudaErrors(cudaFree(this->subprob_start_pts_));
+        checkCudaErrors(cudaFree(this->subprob_bins_));
       }
       break;
     case SpreadMethod::BLOCK_GATHER:
       {
-        if (this->idxnupts)
-          checkCudaErrors(cudaFree(this->idxnupts));
-        if (this->sortidx)
-          checkCudaErrors(cudaFree(this->sortidx));
-        checkCudaErrors(cudaFree(this->numsubprob));
-        checkCudaErrors(cudaFree(this->binsize));
-        checkCudaErrors(cudaFree(this->binstartpts));
-        checkCudaErrors(cudaFree(this->subprobstartpts));
-        checkCudaErrors(cudaFree(this->subprob_to_bin));
+        if (this->idx_nupts_)
+          checkCudaErrors(cudaFree(this->idx_nupts_));
+        if (this->sort_idx_)
+          checkCudaErrors(cudaFree(this->sort_idx_));
+        checkCudaErrors(cudaFree(this->num_subprob_));
+        checkCudaErrors(cudaFree(this->bin_sizes_));
+        checkCudaErrors(cudaFree(this->bin_start_pts_));
+        checkCudaErrors(cudaFree(this->subprob_start_pts_));
+        checkCudaErrors(cudaFree(this->subprob_bins_));
       }
       break;
   }
@@ -1836,26 +1838,26 @@ Status Plan<GPUDevice, FloatType>::set_points(
   this->points_[1] = this->rank_ > 1 ? points_y : nullptr;
   this->points_[2] = this->rank_ > 2 ? points_z : nullptr;
 
-  if (this->sortidx ) checkCudaErrors(cudaFree(this->sortidx));
-  if (this->idxnupts) checkCudaErrors(cudaFree(this->idxnupts));
+  if (this->sort_idx_ ) checkCudaErrors(cudaFree(this->sort_idx_));
+  if (this->idx_nupts_) checkCudaErrors(cudaFree(this->idx_nupts_));
 
   size_t num_bytes = sizeof(int) * this->num_points_;
   switch (this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
-      checkCudaErrors(cudaMalloc(&this->idxnupts, num_bytes));
+      checkCudaErrors(cudaMalloc(&this->idx_nupts_, num_bytes));
       if (this->spread_params_.sort_points == SortPoints::YES)
-        checkCudaErrors(cudaMalloc(&this->sortidx, num_bytes));
+        checkCudaErrors(cudaMalloc(&this->sort_idx_, num_bytes));
       break;
     case SpreadMethod::SUBPROBLEM:
-      checkCudaErrors(cudaMalloc(&this->idxnupts, num_bytes));
-      checkCudaErrors(cudaMalloc(&this->sortidx, num_bytes));
+      checkCudaErrors(cudaMalloc(&this->idx_nupts_, num_bytes));
+      checkCudaErrors(cudaMalloc(&this->sort_idx_, num_bytes));
       break;
     case SpreadMethod::PAUL:
-      checkCudaErrors(cudaMalloc(&this->idxnupts, num_bytes));
-      checkCudaErrors(cudaMalloc(&this->sortidx, num_bytes));
+      checkCudaErrors(cudaMalloc(&this->idx_nupts_, num_bytes));
+      checkCudaErrors(cudaMalloc(&this->sort_idx_, num_bytes));
       break;
     case SpreadMethod::BLOCK_GATHER:
-      checkCudaErrors(cudaMalloc(&this->sortidx, num_bytes));
+      checkCudaErrors(cudaMalloc(&this->sort_idx_, num_bytes));
       break;
   }
   
@@ -1967,9 +1969,9 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
   for (int i=0; i*this->options_.max_batch_size < this->num_transforms_; i++) {
     blksize = min(this->num_transforms_ - i*this->options_.max_batch_size, 
       this->options_.max_batch_size);
-    d_cstart   = d_c + i*this->options_.max_batch_size*this->num_points_;
-    d_fkstart  = d_fk + i*this->options_.max_batch_size*this->mode_count_;
-    this->c_  = d_cstart;
+    d_cstart = d_c + i*this->options_.max_batch_size*this->num_points_;
+    d_fkstart = d_fk + i*this->options_.max_batch_size*this->mode_count_;
+    this->c_ = d_cstart;
     this->f_ = d_fkstart;
 
     checkCudaErrors(cudaMemset(this->grid_data_,0,this->options_.max_batch_size*
@@ -2065,7 +2067,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
 
   int kernel_width=this->spread_params_.nspread;   // psi's support in terms of number of cells
   int pirange=this->spread_params_.pirange;
-  int *d_idxnupts=this->idxnupts;
+  int *d_idxnupts=this->idx_nupts_;
   FloatType es_c=this->spread_params_.ES_c;
   FloatType es_beta=this->spread_params_.ES_beta;
   FloatType sigma=this->spread_params_.upsampling_factor;
@@ -2144,14 +2146,14 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
   GpuComplex<FloatType>* d_c = this->c_;
   GpuComplex<FloatType>* d_fw = this->grid_data_;
 
-  int *d_binsize = this->binsize;
-  int *d_binstartpts = this->binstartpts;
-  int *d_numsubprob = this->numsubprob;
-  int *d_subprobstartpts = this->subprobstartpts;
-  int *d_idxnupts = this->idxnupts;
+  int *d_binsize = this->bin_sizes_;
+  int *d_binstartpts = this->bin_start_pts_;
+  int *d_numsubprob = this->num_subprob_;
+  int *d_subprobstartpts = this->subprob_start_pts_;
+  int *d_idxnupts = this->idx_nupts_;
 
   int totalnumsubprob=this->totalnumsubprob;
-  int *d_subprob_to_bin = this->subprob_to_bin;
+  int *d_subprob_to_bin = this->subprob_bins_;
 
   int pirange=this->spread_params_.pirange;
 
@@ -2239,7 +2241,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
 	FloatType es_beta=this->spread_params_.ES_beta;
 	FloatType sigma = this->options_.upsampling_factor;
 	int pirange=this->spread_params_.pirange;
-	int *d_idxnupts=this->idxnupts;
+	int *d_idxnupts=this->idx_nupts_;
 
 	GpuComplex<FloatType>* d_c = this->c_;
 	GpuComplex<FloatType>* d_fw = this->grid_data_;
@@ -2323,12 +2325,12 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
 	GpuComplex<FloatType>* d_c = this->c_;
 	GpuComplex<FloatType>* d_fw = this->grid_data_;
 
-	int *d_binsize = this->binsize;
-	int *d_binstartpts = this->binstartpts;
-	int *d_numsubprob = this->numsubprob;
-	int *d_subprobstartpts = this->subprobstartpts;
-	int *d_idxnupts = this->idxnupts;
-	int *d_subprob_to_bin = this->subprob_to_bin;
+	int *d_binsize = this->bin_sizes_;
+	int *d_binstartpts = this->bin_start_pts_;
+	int *d_numsubprob = this->num_subprob_;
+	int *d_subprobstartpts = this->subprob_start_pts_;
+	int *d_idxnupts = this->idx_nupts_;
+	int *d_subprob_to_bin = this->subprob_bins_;
 	int totalnumsubprob=this->totalnumsubprob;
 	int pirange=this->spread_params_.pirange;
 
@@ -2423,8 +2425,8 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
               this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
               this->grid_dims_[0], this->grid_dims_[1],
               this->grid_data_ + t * this->grid_size_,
-              this->f_ + t * this->mode_count_, this->kernel_fseries_data_[0], 
-              this->kernel_fseries_data_[1]));
+              this->f_ + t * this->mode_count_, this->fseries_data_[0], 
+              this->fseries_data_[1]));
         }
         break;
       case 3:
@@ -2434,8 +2436,8 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
               this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
               this->num_modes_[2], this->grid_dims_[0], this->grid_dims_[1],
               this->grid_dims_[2], this->grid_data_ + t * this->grid_size_,
-              this->f_ + t * this->mode_count_, this->kernel_fseries_data_[0],
-              this->kernel_fseries_data_[1], this->kernel_fseries_data_[2]));
+              this->f_ + t * this->mode_count_, this->fseries_data_[0],
+              this->fseries_data_[1], this->fseries_data_[2]));
         }
         break;
     }
@@ -2450,8 +2452,8 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
               this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
               this->grid_dims_[0], this->grid_dims_[1],
               this->grid_data_ + t * this->grid_size_,
-              this->f_ + t * this->mode_count_, this->kernel_fseries_data_[0],
-              this->kernel_fseries_data_[1]));
+              this->f_ + t * this->mode_count_, this->fseries_data_[0],
+              this->fseries_data_[1]));
         }
         break;
       case 3:
@@ -2461,8 +2463,8 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
               this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
               this->num_modes_[2], this->grid_dims_[0], this->grid_dims_[1],
               this->grid_dims_[2], this->grid_data_ + t * this->grid_size_,
-              this->f_ + t * this->mode_count_, this->kernel_fseries_data_[0],
-              this->kernel_fseries_data_[1], this->kernel_fseries_data_[2]));
+              this->f_ + t * this->mode_count_, this->fseries_data_[0],
+              this->fseries_data_[1], this->fseries_data_[2]));
         }
         break;
     }
@@ -2518,7 +2520,7 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
     this->device_.synchronize();
 
     // Calculate bin sizes.
-    this->device_.memset(this->binsize, 0, bin_count * sizeof(int));
+    this->device_.memset(this->bin_sizes_, 0, bin_count * sizeof(int));
     switch (this->rank_) {
       case 2:
         TF_CHECK_OK(GpuLaunchKernel(
@@ -2526,7 +2528,7 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
             num_blocks, threads_per_block, 0, this->device_.stream(),
             this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
             bin_size[0], bin_size[1], num_bins[0], num_bins[1],
-            this->binsize, this->points_[0], this->points_[1], this->sortidx,
+            this->bin_sizes_, this->points_[0], this->points_[1], this->sort_idx_,
             this->spread_params_.pirange));
         break;
       case 3:
@@ -2536,15 +2538,15 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
             this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
             this->grid_dims_[2],
             bin_size[0],bin_size[1],bin_size[2],num_bins[0],num_bins[1],num_bins[2],
-            this->binsize,this->points_[0],this->points_[1],this->points_[2],
-            this->sortidx,this->spread_params_.pirange));
+            this->bin_sizes_,this->points_[0],this->points_[1],this->points_[2],
+            this->sort_idx_,this->spread_params_.pirange));
         break;
       default:
         return errors::Unimplemented("Invalid rank: ", this->rank_);
     }
 
-    thrust::device_ptr<int> d_bin_sizes(this->binsize);
-    thrust::device_ptr<int> d_bin_start_points(this->binstartpts);
+    thrust::device_ptr<int> d_bin_sizes(this->bin_sizes_);
+    thrust::device_ptr<int> d_bin_start_points(this->bin_start_pts_);
     thrust::exclusive_scan(d_bin_sizes, d_bin_sizes + bin_count,
                            d_bin_start_points);
 
@@ -2554,8 +2556,8 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
             CalcInvertofGlobalSortIdx2DKernel<FloatType>,
             num_blocks, threads_per_block, 0, this->device_.stream(),
             this->num_points_, bin_size[0], bin_size[1], num_bins[0],
-            num_bins[1], this->binstartpts, this->sortidx,
-            this->points_[0], this->points_[1], this->idxnupts,
+            num_bins[1], this->bin_start_pts_, this->sort_idx_,
+            this->points_[0], this->points_[1], this->idx_nupts_,
             this->spread_params_.pirange, this->grid_dims_[0],
             this->grid_dims_[1]));
         break;
@@ -2563,9 +2565,9 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
         CalcInvertofGlobalSortIdx3DKernel<FloatType><<<num_blocks, threads_per_block>>>(
           this->num_points_,bin_size[0],
           bin_size[1],bin_size[2],num_bins[0],num_bins[1],num_bins[2],
-          this->binstartpts,
-          this->sortidx,this->points_[0],this->points_[1],this->points_[2],
-          this->idxnupts, this->spread_params_.pirange, this->grid_dims_[0],
+          this->bin_start_pts_,
+          this->sort_idx_,this->points_[0],this->points_[1],this->points_[2],
+          this->idx_nupts_, this->spread_params_.pirange, this->grid_dims_[0],
           this->grid_dims_[1], this->grid_dims_[2]);
         break;
       default:
@@ -2575,7 +2577,7 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
     TF_CHECK_OK(GpuLaunchKernel(
         TrivialGlobalSortIdxKernel,
         num_blocks, threads_per_block, 0, this->device_.stream(),
-        this->num_points_, this->idxnupts));
+        this->num_points_, this->idx_nupts_));
   }
 
   return Status::OK();
@@ -2605,12 +2607,12 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
     bin_count *= num_bins[i];
   }
 
-  int *d_binsize = this->binsize;
-  int *d_binstartpts = this->binstartpts;
-  int *d_sortidx = this->sortidx;
-  int *d_numsubprob = this->numsubprob;
-  int *d_subprobstartpts = this->subprobstartpts;
-  int *d_idxnupts = this->idxnupts;
+  int *d_binsize = this->bin_sizes_;
+  int *d_binstartpts = this->bin_start_pts_;
+  int *d_sortidx = this->sort_idx_;
+  int *d_numsubprob = this->num_subprob_;
+  int *d_subprobstartpts = this->subprob_start_pts_;
+  int *d_idxnupts = this->idx_nupts_;
 
   int *d_subprob_to_bin = NULL;
 
@@ -2620,7 +2622,7 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
   this->device_.synchronize();
 
   // Calculate bin sizes.
-  this->device_.memset(this->binsize, 0, bin_count * sizeof(int));
+  this->device_.memset(this->bin_sizes_, 0, bin_count * sizeof(int));
   switch (this->rank_) {
     case 2:
       TF_CHECK_OK(GpuLaunchKernel(
@@ -2696,9 +2698,9 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
       d_numsubprob, bin_count));
 
   assert(d_subprob_to_bin != NULL);
-  if (this->subprob_to_bin != NULL) cudaFree(this->subprob_to_bin);
-  this->subprob_to_bin = d_subprob_to_bin;
-  assert(this->subprob_to_bin != NULL);
+  if (this->subprob_bins_ != NULL) cudaFree(this->subprob_bins_);
+  this->subprob_bins_ = d_subprob_to_bin;
+  assert(this->subprob_bins_ != NULL);
   this->totalnumsubprob = totalnumsubprob;
 
   return Status::OK();

@@ -108,7 +108,7 @@ __device__ int CalcGlobalIdxV2(int xidx, int yidx, int zidx, int nbinx, int nbin
 
 template<typename FloatType>
 __global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_size_x, 
-    int bin_size_y, int nbinx, int nbiny, int* bin_size, FloatType *x, FloatType *y, 
+    int bin_size_y, int nbinx, int nbiny, int* bin_sizes, FloatType *x, FloatType *y, 
     int* sortidx, int pirange) {
 	int binidx, binx, biny;
 	int oldidx;
@@ -123,7 +123,7 @@ __global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_siz
 		biny = biny >= nbiny ? biny-1 : biny;
 		biny = biny < 0 ? 0 : biny;
 		binidx = binx+biny*nbinx;
-		oldidx = atomicAdd(&bin_size[binidx], 1);
+		oldidx = atomicAdd(&bin_sizes[binidx], 1);
 		sortidx[i] = oldidx;
 		if (binx >= nbinx || biny >= nbiny) {
 			sortidx[i] = -biny;
@@ -134,7 +134,7 @@ __global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_siz
 template<typename FloatType>
 __global__ void CalcBinSizeNoGhost3DKernel(int M, int nf1, int nf2, int nf3,
     int bin_size_x, int bin_size_y, int bin_size_z,
-    int nbinx, int nbiny, int nbinz, int* bin_size, FloatType *x, FloatType *y, FloatType *z,
+    int nbinx, int nbiny, int nbinz, int* bin_sizes, FloatType *x, FloatType *y, FloatType *z,
     int* sortidx, int pirange) {
 	int binidx, binx, biny, binz;
 	int oldidx;
@@ -155,7 +155,7 @@ __global__ void CalcBinSizeNoGhost3DKernel(int M, int nf1, int nf2, int nf3,
 		binz = binz >= nbinz ? binz-1 : binz;
 		binz = binz < 0 ? 0 : binz;
 		binidx = binx+biny*nbinx+binz*nbinx*nbiny;
-		oldidx = atomicAdd(&bin_size[binidx], 1);
+		oldidx = atomicAdd(&bin_sizes[binidx], 1);
 		sortidx[i] = oldidx;
 	}
 }
@@ -215,20 +215,20 @@ __global__ void TrivialGlobalSortIdxKernel(int M, int* index) {
 	}
 }
 
-__global__ void CalcSubproblemKernel(int* bin_size, int* num_subprob, int maxsubprobsize,
+__global__ void CalcSubproblemKernel(int* bin_sizes, int* num_subprob, int max_subprob_size,
 	  int numbins) {
 	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<numbins;
 		i+=gridDim.x*blockDim.x) {
-		num_subprob[i]=ceil(bin_size[i]/(float) maxsubprobsize);
+		num_subprob[i]=ceil(bin_sizes[i]/(float) max_subprob_size);
 	}
 }
 
-__global__ void MapBinToSubproblemKernel(int* d_subprob_to_bin,int* d_subprobstartpts,
-	  int* d_numsubprob,int numbins) {
-	for (int i=threadIdx.x+blockIdx.x*blockDim.x; i<numbins;
-		i+=gridDim.x*blockDim.x) {
-		for (int j=0; j<d_numsubprob[i]; j++) {
-			d_subprob_to_bin[d_subprobstartpts[i]+j]=i;
+__global__ void MapBinToSubproblemKernel(
+    int* subprob_bins, int* subprob_start_pts, int* num_subprob, int numbins) {
+	for (int i = threadIdx.x + blockIdx.x * blockDim.x; i < numbins;
+		   i += gridDim.x*blockDim.x) {
+		for (int j=0; j < num_subprob[i]; j++) {
+			subprob_bins[subprob_start_pts[i] + j] = i;
 		}
 	}
 }
@@ -443,8 +443,8 @@ __global__ void SpreadNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
 template<typename FloatType>
 __global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, const int ns,
 	int nf1, int nf2, FloatType es_c, FloatType es_beta, FloatType sigma, int* binstartpts,
-	int* bin_size, int bin_size_x, int bin_size_y, int* subprob_to_bin,
-	int* subprobstartpts, int* numsubprob, int maxsubprobsize, int nbinx, 
+	int* bin_sizes, int bin_size_x, int bin_size_y, int* subprob_bins,
+	int* subprob_start_pts, int* num_subprob, int max_subprob_size, int nbinx, 
 	int nbiny, int* idxnupts, int pirange)
 {
   // Shared memory pointers cannot be declared with a type template because
@@ -460,12 +460,12 @@ __global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
 
 	int xstart,ystart,xend,yend;
 	int subpidx=blockIdx.x;
-	int bidx=subprob_to_bin[subpidx];
-	int binsubp_idx=subpidx-subprobstartpts[bidx];
+	int bidx=subprob_bins[subpidx];
+	int binsubp_idx=subpidx-subprob_start_pts[bidx];
 	int ix, iy;
 	int outidx;
-	int ptstart=binstartpts[bidx]+binsubp_idx*maxsubprobsize;
-	int nupts=min(maxsubprobsize, bin_size[bidx]-binsubp_idx*maxsubprobsize);
+	int ptstart=binstartpts[bidx]+binsubp_idx*max_subprob_size;
+	int nupts=min(max_subprob_size, bin_sizes[bidx]-binsubp_idx*max_subprob_size);
 
 	int xoffset=(bidx % nbinx)*bin_size_x;
 	int yoffset=(bidx / nbinx)*bin_size_y;
@@ -532,9 +532,9 @@ __global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
 
 template<typename FloatType>
 __global__ void SpreadSubproblemHorner2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, 
-	const int ns, int nf1, int nf2, FloatType sigma, int* binstartpts, int* bin_size, 
-	int bin_size_x, int bin_size_y, int* subprob_to_bin, int* subprobstartpts, 
-	int* numsubprob, int maxsubprobsize, int nbinx, int nbiny, int* idxnupts, 
+	const int ns, int nf1, int nf2, FloatType sigma, int* binstartpts, int* bin_sizes, 
+	int bin_size_x, int bin_size_y, int* subprob_bins, int* subprob_start_pts, 
+	int* num_subprob, int max_subprob_size, int nbinx, int nbiny, int* idxnupts, 
 	int pirange)
 {
 	extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
@@ -542,11 +542,11 @@ __global__ void SpreadSubproblemHorner2DKernel(FloatType *x, FloatType *y, GpuCo
 
 	int xstart,ystart,xend,yend;
 	int subpidx=blockIdx.x;
-	int bidx=subprob_to_bin[subpidx];
-	int binsubp_idx=subpidx-subprobstartpts[bidx];
+	int bidx=subprob_bins[subpidx];
+	int binsubp_idx=subpidx-subprob_start_pts[bidx];
 	int ix, iy, outidx;
-	int ptstart=binstartpts[bidx]+binsubp_idx*maxsubprobsize;
-	int nupts=min(maxsubprobsize, bin_size[bidx]-binsubp_idx*maxsubprobsize);
+	int ptstart=binstartpts[bidx]+binsubp_idx*max_subprob_size;
+	int nupts=min(max_subprob_size, bin_sizes[bidx]-binsubp_idx*max_subprob_size);
 
 	int xoffset=(bidx % nbinx)*bin_size_x;
 	int yoffset=(bidx / nbinx)*bin_size_y;
@@ -691,8 +691,8 @@ __global__ void InterpNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
 template<typename FloatType>
 __global__ void InterpSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, const int ns,
 	int nf1, int nf2, FloatType es_c, FloatType es_beta, FloatType sigma, int* binstartpts,
-	int* bin_size, int bin_size_x, int bin_size_y, int* subprob_to_bin,
-	int* subprobstartpts, int* numsubprob, int maxsubprobsize, int nbinx, 
+	int* bin_sizes, int bin_size_x, int bin_size_y, int* subprob_bins,
+	int* subprob_start_pts, int* num_subprob, int max_subprob_size, int nbinx, 
 	int nbiny, int* idxnupts, int pirange)
 {
 	extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
@@ -700,12 +700,12 @@ __global__ void InterpSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
 
 	int xstart,ystart,xend,yend;
 	int subpidx=blockIdx.x;
-	int bidx=subprob_to_bin[subpidx];
-	int binsubp_idx=subpidx-subprobstartpts[bidx];
+	int bidx=subprob_bins[subpidx];
+	int binsubp_idx=subpidx-subprob_start_pts[bidx];
 	int ix, iy;
 	int outidx;
-	int ptstart=binstartpts[bidx]+binsubp_idx*maxsubprobsize;
-	int nupts=min(maxsubprobsize, bin_size[bidx]-binsubp_idx*maxsubprobsize);
+	int ptstart=binstartpts[bidx]+binsubp_idx*max_subprob_size;
+	int nupts=min(max_subprob_size, bin_sizes[bidx]-binsubp_idx*max_subprob_size);
 
 	int xoffset=(bidx % nbinx)*bin_size_x;
 	int yoffset=(bidx / nbinx)*bin_size_y;
@@ -761,21 +761,21 @@ __global__ void InterpSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
 template<typename FloatType>
 __global__ void InterpSubproblemHorner2DKernel(
     FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, 
-    const int ns, int nf1, int nf2, FloatType sigma, int* binstartpts, int* bin_size, 
-    int bin_size_x, int bin_size_y, int* subprob_to_bin, int* subprobstartpts, 
-    int* numsubprob, int maxsubprobsize, int nbinx, int nbiny, int* idxnupts, 
+    const int ns, int nf1, int nf2, FloatType sigma, int* binstartpts, int* bin_sizes, 
+    int bin_size_x, int bin_size_y, int* subprob_bins, int* subprob_start_pts, 
+    int* num_subprob, int max_subprob_size, int nbinx, int nbiny, int* idxnupts, 
     int pirange) {
 	extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
 	int xstart,ystart,xend,yend;
 	int subpidx=blockIdx.x;
-	int bidx=subprob_to_bin[subpidx];
-	int binsubp_idx=subpidx-subprobstartpts[bidx];
+	int bidx=subprob_bins[subpidx];
+	int binsubp_idx=subpidx-subprob_start_pts[bidx];
 	int ix, iy;
 	int outidx;
-	int ptstart=binstartpts[bidx]+binsubp_idx*maxsubprobsize;
-	int nupts=min(maxsubprobsize, bin_size[bidx]-binsubp_idx*maxsubprobsize);
+	int ptstart=binstartpts[bidx]+binsubp_idx*max_subprob_size;
+	int nupts=min(max_subprob_size, bin_sizes[bidx]-binsubp_idx*max_subprob_size);
 
 	int xoffset=(bidx % nbinx)*bin_size_x;
 	int yoffset=(bidx / nbinx)*bin_size_y;
@@ -946,20 +946,20 @@ template<typename FloatType>
 __global__ void SpreadSubproblemHorner3DKernel(
     FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
     GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
-    FloatType sigma, int* binstartpts, int* bin_size, int bin_size_x,
+    FloatType sigma, int* binstartpts, int* bin_sizes, int bin_size_x,
     int bin_size_y, int bin_size_z,
-    int* subprob_to_bin, int* subprobstartpts, int* numsubprob,
-    int maxsubprobsize, int nbinx, int nbiny, int nbinz, int* idxnupts,
+    int* subprob_bins, int* subprob_start_pts, int* num_subprob,
+    int max_subprob_size, int nbinx, int nbiny, int nbinz, int* idxnupts,
     int pirange) {
 	extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
 	int xstart,ystart,xend,yend,zstart,zend;
-	int bidx=subprob_to_bin[blockIdx.x];
-	int binsubp_idx=blockIdx.x-subprobstartpts[bidx];
+	int bidx=subprob_bins[blockIdx.x];
+	int binsubp_idx=blockIdx.x-subprob_start_pts[bidx];
 	int ix,iy,iz,outidx;
-	int ptstart=binstartpts[bidx]+binsubp_idx*maxsubprobsize;
-	int nupts=min(maxsubprobsize, bin_size[bidx]-binsubp_idx*maxsubprobsize);
+	int ptstart=binstartpts[bidx]+binsubp_idx*max_subprob_size;
+	int nupts=min(max_subprob_size, bin_sizes[bidx]-binsubp_idx*max_subprob_size);
 
 	int xoffset=(bidx % nbinx)*bin_size_x;
 	int yoffset=((bidx / nbinx)%nbiny)*bin_size_y;
@@ -1054,19 +1054,19 @@ template<typename FloatType>
 __global__ void SpreadSubproblem3DKernel(
     FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
     GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
-    FloatType es_c, FloatType es_beta, int* binstartpts, int* bin_size, int bin_size_x, int bin_size_y, int bin_size_z,
-    int* subprob_to_bin, int* subprobstartpts, int* numsubprob, int maxsubprobsize,
+    FloatType es_c, FloatType es_beta, int* binstartpts, int* bin_sizes, int bin_size_x, int bin_size_y, int bin_size_z,
+    int* subprob_bins, int* subprob_start_pts, int* num_subprob, int max_subprob_size,
     int nbinx, int nbiny, int nbinz, int* idxnupts, int pirange) {
 	extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
 	int xstart,ystart,xend,yend,zstart,zend;
 	int subpidx=blockIdx.x;
-	int bidx=subprob_to_bin[subpidx];
-	int binsubp_idx=subpidx-subprobstartpts[bidx];
+	int bidx=subprob_bins[subpidx];
+	int binsubp_idx=subpidx-subprob_start_pts[bidx];
 	int ix, iy, iz, outidx;
-	int ptstart=binstartpts[bidx]+binsubp_idx*maxsubprobsize;
-	int nupts=min(maxsubprobsize, bin_size[bidx]-binsubp_idx*maxsubprobsize);
+	int ptstart=binstartpts[bidx]+binsubp_idx*max_subprob_size;
+	int nupts=min(max_subprob_size, bin_sizes[bidx]-binsubp_idx*max_subprob_size);
 
 	int xoffset=(bidx % nbinx)*bin_size_x;
 	int yoffset=((bidx / nbinx)%nbiny)*bin_size_y;
@@ -1257,9 +1257,9 @@ template<typename FloatType>
 __global__
 void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw,
 	int M, const int ns, int nf1, int nf2, int nf3, FloatType es_c, FloatType es_beta,
-	int* binstartpts, int* bin_size, int bin_size_x, int bin_size_y,
-	int bin_size_z, int* subprob_to_bin, int* subprobstartpts, int* numsubprob,
-	int maxsubprobsize, int nbinx, int nbiny, int nbinz, int* idxnupts,
+	int* binstartpts, int* bin_sizes, int bin_size_x, int bin_size_y,
+	int bin_size_z, int* subprob_bins, int* subprob_start_pts, int* num_subprob,
+	int max_subprob_size, int nbinx, int nbiny, int nbinz, int* idxnupts,
 	int pirange)
 {
 	extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
@@ -1267,12 +1267,12 @@ void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
 
 	int xstart,ystart,xend,yend,zstart,zend;
 	int subpidx=blockIdx.x;
-	int bidx=subprob_to_bin[subpidx];
-	int binsubp_idx=subpidx-subprobstartpts[bidx];
+	int bidx=subprob_bins[subpidx];
+	int binsubp_idx=subpidx-subprob_start_pts[bidx];
 	int ix, iy, iz;
 	int outidx;
-	int ptstart=binstartpts[bidx]+binsubp_idx*maxsubprobsize;
-	int nupts=min(maxsubprobsize, bin_size[bidx]-binsubp_idx*maxsubprobsize);
+	int ptstart=binstartpts[bidx]+binsubp_idx*max_subprob_size;
+	int nupts=min(max_subprob_size, bin_sizes[bidx]-binsubp_idx*max_subprob_size);
 
 	int xoffset=(bidx % nbinx)*bin_size_x;
 	int yoffset=((bidx / nbinx)%nbiny)*bin_size_y;
@@ -1352,9 +1352,9 @@ template<typename FloatType>
 __global__
 void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw,
 	int M, const int ns, int nf1, int nf2, int nf3, FloatType sigma, int* binstartpts,
-	int* bin_size, int bin_size_x, int bin_size_y, int bin_size_z,
-	int* subprob_to_bin, int* subprobstartpts, int* numsubprob,
-	int maxsubprobsize, int nbinx, int nbiny, int nbinz, int* idxnupts,
+	int* bin_sizes, int bin_size_x, int bin_size_y, int bin_size_z,
+	int* subprob_bins, int* subprob_start_pts, int* num_subprob,
+	int max_subprob_size, int nbinx, int nbiny, int nbinz, int* idxnupts,
 	int pirange)
 {
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
@@ -1362,12 +1362,12 @@ void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, Gp
 
 	int xstart,ystart,xend,yend,zstart,zend;
 	int subpidx=blockIdx.x;
-	int bidx=subprob_to_bin[subpidx];
-	int binsubp_idx=subpidx-subprobstartpts[bidx];
+	int bidx=subprob_bins[subpidx];
+	int binsubp_idx=subpidx-subprob_start_pts[bidx];
 	int ix, iy, iz;
 	int outidx;
-	int ptstart=binstartpts[bidx]+binsubp_idx*maxsubprobsize;
-	int nupts=min(maxsubprobsize, bin_size[bidx]-binsubp_idx*maxsubprobsize);
+	int ptstart=binstartpts[bidx]+binsubp_idx*max_subprob_size;
+	int nupts=min(max_subprob_size, bin_sizes[bidx]-binsubp_idx*max_subprob_size);
 
 	int xoffset=(bidx % nbinx)*bin_size_x;
 	int yoffset=((bidx / nbinx)%nbiny)*bin_size_y;
@@ -1507,7 +1507,7 @@ Plan<GPUDevice, FloatType>::Plan(
   this->ms = 0;
   this->mt = 0;
   this->mu = 0;
-  this->totalnumsubprob = 0;
+  this->subprob_count_ = 0;
   this->c_ = nullptr;
   this->f_ = nullptr;
   this->idx_nupts_ = nullptr;
@@ -1770,7 +1770,7 @@ Plan<GPUDevice, FloatType>::~Plan() {
             checkCudaErrors(cudaFree(this->sort_idx_));
           checkCudaErrors(cudaFree(this->bin_sizes_));
           checkCudaErrors(cudaFree(this->bin_start_pts_));
-        }else{
+        } else {
           if (this->idx_nupts_)
             checkCudaErrors(cudaFree(this->idx_nupts_));
         }
@@ -2067,7 +2067,6 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
 
   int kernel_width=this->spread_params_.nspread;   // psi's support in terms of number of cells
   int pirange=this->spread_params_.pirange;
-  int *d_idxnupts=this->idx_nupts_;
   FloatType es_c=this->spread_params_.ES_c;
   FloatType es_beta=this->spread_params_.ES_beta;
   FloatType sigma=this->spread_params_.upsampling_factor;
@@ -2087,7 +2086,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
           SpreadNuptsDrivenHorner2DKernel<<<blocks, threadsPerBlock>>>(this->points_[0],
             this->points_[1], d_c + t * this->num_points_,
             d_fw + t * this->grid_size_, this->num_points_, kernel_width,
-            this->grid_dims_[0], this->grid_dims_[1], sigma, d_idxnupts, pirange);
+            this->grid_dims_[0], this->grid_dims_[1], sigma, this->idx_nupts_, pirange);
         }
       } else {
         for (int t = 0; t < blksize; t++) {
@@ -2095,7 +2094,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
             this->points_[0], this->points_[1],
             d_c + t * this->grid_size_, d_fw + t * this->grid_size_,
             this->num_points_, kernel_width,
-            this->grid_dims_[0], this->grid_dims_[1], es_c, es_beta, d_idxnupts, pirange);
+            this->grid_dims_[0], this->grid_dims_[1], es_c, es_beta, this->idx_nupts_, pirange);
         }
       }
       break;
@@ -2106,7 +2105,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
             this->points_[1], this->points_[2], d_c+t*this->num_points_,
             d_fw+t*this->grid_size_, this->num_points_, kernel_width,
             this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
-            sigma, d_idxnupts,pirange);
+            sigma, this->idx_nupts_,pirange);
         }
       } else {
         for (int t = 0; t < blksize; t++) {
@@ -2114,7 +2113,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
             this->points_[1], this->points_[2],
             d_c+t*this->num_points_, d_fw+t*this->grid_size_, this->num_points_, kernel_width, this->grid_dims_[0],
             this->grid_dims_[1], this->grid_dims_[2], es_c, es_beta, 
-            d_idxnupts,pirange);
+            this->idx_nupts_,pirange);
         }
       }
       break;
@@ -2125,46 +2124,33 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
-  int kernel_width = this->spread_params_.nspread;// psi's support in terms of number of cells
-  FloatType es_c=this->spread_params_.ES_c;
-  FloatType es_beta=this->spread_params_.ES_beta;
-  int maxsubprobsize=this->options_.gpu_max_subproblem_size;
-
-  // assume that bin_size_x > kernel_width/2;
-  int bin_size[3];
-  bin_size[0] = this->options_.gpu_bin_size.x;
-  bin_size[1] = this->options_.gpu_bin_size.y;
-  bin_size[2] = this->options_.gpu_bin_size.z;
-
+    int kernel_width = this->spread_params_.nspread;// psi's support in terms of number of cells
+    FloatType es_c=this->spread_params_.ES_c;
+    FloatType es_beta=this->spread_params_.ES_beta;
+    int max_subprob_size=this->options_.gpu_max_subproblem_size;
+    
   int num_bins[3] = {1, 1, 1};
   int bin_count = 1;
   for (int i = 0; i < this->rank_; i++) {
-    num_bins[i] = (this->grid_dims_[i] + bin_size[i] - 1) / bin_size[i];
+    num_bins[i] = (this->grid_dims_[i] + this->bin_dims_[i] - 1) / this->bin_dims_[i];
     bin_count *= num_bins[i];
   }
 
   GpuComplex<FloatType>* d_c = this->c_;
   GpuComplex<FloatType>* d_fw = this->grid_data_;
 
-  int *d_binsize = this->bin_sizes_;
-  int *d_binstartpts = this->bin_start_pts_;
-  int *d_numsubprob = this->num_subprob_;
-  int *d_subprobstartpts = this->subprob_start_pts_;
-  int *d_idxnupts = this->idx_nupts_;
-
-  int totalnumsubprob=this->totalnumsubprob;
-  int *d_subprob_to_bin = this->subprob_bins_;
+  int subprob_count = this->subprob_count_;
 
   int pirange=this->spread_params_.pirange;
 
   FloatType sigma=this->options_.upsampling_factor;
 
   // GPU kernel configuration.
-  int num_blocks = totalnumsubprob;
+  int num_blocks = subprob_count;
   int threads_per_block = 256;
   size_t shared_memory_size = sizeof(GpuComplex<FloatType>);
   for (int i = 0; i < this->rank_; i++) {
-    shared_memory_size *= (bin_size[i] + 2 * ((kernel_width + 1) / 2));
+    shared_memory_size *= (this->bin_dims_[i] + 2 * ((kernel_width + 1) / 2));
   }
   if (shared_memory_size > this->device_.sharedMemPerBlock()) {
     return errors::ResourceExhausted(
@@ -2180,11 +2166,11 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
           SpreadSubproblemHorner2DKernel<<<num_blocks, threads_per_block,
             shared_memory_size>>>(this->points_[0], this->points_[1],
               d_c+t*this->num_points_, d_fw+t*this->grid_size_, this->num_points_,
-              kernel_width, this->grid_dims_[0], this->grid_dims_[1], sigma, d_binstartpts,
-            d_binsize, bin_size[0],
-            bin_size[1], d_subprob_to_bin, d_subprobstartpts,
-            d_numsubprob, maxsubprobsize,num_bins[0],num_bins[1],
-            d_idxnupts, pirange);
+              kernel_width, this->grid_dims_[0], this->grid_dims_[1], sigma, this->bin_start_pts_,
+            this->bin_sizes_, this->bin_dims_[0],
+            this->bin_dims_[1], this->subprob_bins_, this->subprob_start_pts_,
+            this->num_subprob_, max_subprob_size,num_bins[0],num_bins[1],
+            this->idx_nupts_, pirange);
         }
       } else {
         for (int t = 0; t < blksize; t++) {
@@ -2192,10 +2178,10 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
             this->points_[0], this->points_[1], d_c+t*this->num_points_,
             d_fw+t*this->grid_size_, this->num_points_, kernel_width,
             this->grid_dims_[0], this->grid_dims_[1],
-            es_c, es_beta, sigma,d_binstartpts, d_binsize, bin_size[0],
-            bin_size[1], d_subprob_to_bin, d_subprobstartpts,
-            d_numsubprob, maxsubprobsize, num_bins[0], num_bins[1],
-            d_idxnupts, pirange);
+            es_c, es_beta, sigma,this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0],
+            this->bin_dims_[1], this->subprob_bins_, this->subprob_start_pts_,
+            this->num_subprob_, max_subprob_size, num_bins[0], num_bins[1],
+            this->idx_nupts_, pirange);
         }
       }
       break;
@@ -2208,10 +2194,10 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
               d_fw+t*this->grid_size_, 
               this->num_points_, kernel_width, this->grid_dims_[0],
               this->grid_dims_[1], this->grid_dims_[2], sigma,
-              d_binstartpts, d_binsize, bin_size[0],
-              bin_size[1], bin_size[2], d_subprob_to_bin, d_subprobstartpts,
-            d_numsubprob, maxsubprobsize,num_bins[0], num_bins[1], num_bins[2],
-            d_idxnupts,pirange);
+              this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0],
+              this->bin_dims_[1], this->bin_dims_[2], this->subprob_bins_, this->subprob_start_pts_,
+            this->num_subprob_, max_subprob_size,num_bins[0], num_bins[1], num_bins[2],
+            this->idx_nupts_,pirange);
         } else {
           SpreadSubproblem3DKernel<<<num_blocks, threads_per_block,
             shared_memory_size>>>(this->points_[0], this->points_[1],
@@ -2219,10 +2205,10 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
               d_fw+t*this->grid_size_, 
               this->num_points_, kernel_width, this->grid_dims_[0],
               this->grid_dims_[1], this->grid_dims_[2], es_c, es_beta,
-              d_binstartpts, d_binsize, 
-              bin_size[0], bin_size[1], bin_size[2], d_subprob_to_bin, 
-            d_subprobstartpts,d_numsubprob, maxsubprobsize,num_bins[0], 
-            num_bins[1], num_bins[2],d_idxnupts,pirange);
+              this->bin_start_pts_, this->bin_sizes_, 
+              this->bin_dims_[0], this->bin_dims_[1], this->bin_dims_[2], this->subprob_bins_, 
+            this->subprob_start_pts_,this->num_subprob_, max_subprob_size,num_bins[0], 
+            num_bins[1], num_bins[2],this->idx_nupts_,pirange);
         }
       }
       break;
@@ -2241,7 +2227,6 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
 	FloatType es_beta=this->spread_params_.ES_beta;
 	FloatType sigma = this->options_.upsampling_factor;
 	int pirange=this->spread_params_.pirange;
-	int *d_idxnupts=this->idx_nupts_;
 
 	GpuComplex<FloatType>* d_c = this->c_;
 	GpuComplex<FloatType>* d_fw = this->grid_data_;
@@ -2258,7 +2243,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
           InterpNuptsDrivenHorner2DKernel<<<blocks, threadsPerBlock>>>(
             this->points_[0], this->points_[1], d_c+t * this->num_points_,
             d_fw+t*this->grid_size_, this->num_points_, kernel_width,
-            this->grid_dims_[0], this->grid_dims_[1], sigma,  d_idxnupts,
+            this->grid_dims_[0], this->grid_dims_[1], sigma,  this->idx_nupts_,
             pirange);
         }
       } else {
@@ -2267,7 +2252,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
             this->points_[0], this->points_[1], 
             d_c+t * this->num_points_, d_fw+t*this->grid_size_,
             this->num_points_, kernel_width, this->grid_dims_[0], this->grid_dims_[1],
-            es_c, es_beta,  d_idxnupts, pirange);
+            es_c, es_beta,  this->idx_nupts_, pirange);
         }
       }
       break;
@@ -2283,7 +2268,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
               this->points_[0], this->points_[1], this->points_[2],
               d_c + t * this->num_points_, d_fw+t*this->grid_size_,
               this->num_points_, kernel_width, this->grid_dims_[0],
-              this->grid_dims_[1], this->grid_dims_[2], sigma, d_idxnupts,
+              this->grid_dims_[1], this->grid_dims_[2], sigma, this->idx_nupts_,
               pirange);
         }
       } else {
@@ -2293,7 +2278,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
               d_c + t * this->num_points_, d_fw + t * this->grid_size_,
               this->num_points_, kernel_width, 
               this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
-              es_c, es_beta, d_idxnupts,pirange);
+              es_c, es_beta, this->idx_nupts_,pirange);
         }
       }
       break;
@@ -2304,44 +2289,32 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
-	int kernel_width=this->spread_params_.nspread;   // psi's support in terms of number of cells
-	FloatType es_c=this->spread_params_.ES_c;
-	FloatType es_beta=this->spread_params_.ES_beta;
-	int maxsubprobsize=this->options_.gpu_max_subproblem_size;
-
-	// assume that bin_size_x > kernel_width/2;
-  int bin_size[3];
-  bin_size[0] = this->options_.gpu_bin_size.x;
-  bin_size[1] = this->options_.gpu_bin_size.y;
-  bin_size[2] = this->options_.gpu_bin_size.z;
+    int kernel_width = this->spread_params_.nspread;
+    FloatType es_c = this->spread_params_.ES_c;
+    FloatType es_beta = this->spread_params_.ES_beta;
+    int max_subprob_size = this->options_.gpu_max_subproblem_size;
 
   int num_bins[3] = {1, 1, 1};
   int bin_count = 1;
   for (int i = 0; i < this->rank_; i++) {
-    num_bins[i] = (this->grid_dims_[i] + bin_size[i] - 1) / bin_size[i];
+    num_bins[i] = (this->grid_dims_[i] + this->bin_dims_[i] - 1) / this->bin_dims_[i];
     bin_count *= num_bins[i];
   }
 
 	GpuComplex<FloatType>* d_c = this->c_;
 	GpuComplex<FloatType>* d_fw = this->grid_data_;
 
-	int *d_binsize = this->bin_sizes_;
-	int *d_binstartpts = this->bin_start_pts_;
-	int *d_numsubprob = this->num_subprob_;
-	int *d_subprobstartpts = this->subprob_start_pts_;
-	int *d_idxnupts = this->idx_nupts_;
-	int *d_subprob_to_bin = this->subprob_bins_;
-	int totalnumsubprob=this->totalnumsubprob;
+	int subprob_count=this->subprob_count_;
 	int pirange=this->spread_params_.pirange;
 
 	FloatType sigma=this->options_.upsampling_factor;
 
   // GPU kernel configuration.
-  int num_blocks = totalnumsubprob;
+  int num_blocks = subprob_count;
   int threads_per_block = 256;
   size_t shared_memory_size = sizeof(GpuComplex<FloatType>);
   for (int i = 0; i < this->rank_; i++) {
-    shared_memory_size *= (bin_size[i] + 2 * ((kernel_width + 1) / 2));
+    shared_memory_size *= (this->bin_dims_[i] + 2 * ((kernel_width + 1) / 2));
   }
   if (shared_memory_size > this->device_.sharedMemPerBlock()) {
     return errors::ResourceExhausted(
@@ -2354,54 +2327,57 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
     case 2:
       if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
         for (int t = 0; t < blksize; t++) {
-          InterpSubproblemHorner2DKernel<<<num_blocks, threads_per_block, shared_memory_size>>>(
-              this->points_[0], this->points_[1], d_c+t*this->num_points_,
-              d_fw+t*this->grid_size_, this->num_points_, kernel_width,
+          TF_CHECK_OK(GpuLaunchKernel(
+              InterpSubproblemHorner2DKernel<FloatType>, num_blocks,
+              threads_per_block, shared_memory_size, this->device_.stream(),
+              this->points_[0], this->points_[1], d_c + t * this->num_points_,
+              d_fw + t * this->grid_size_, this->num_points_, kernel_width,
               this->grid_dims_[0], this->grid_dims_[1], sigma,
-              d_binstartpts, d_binsize,
-              bin_size[0], bin_size[1],
-              d_subprob_to_bin, d_subprobstartpts,
-              d_numsubprob, maxsubprobsize,
-              num_bins[0], num_bins[1], d_idxnupts, pirange);
+              this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0], this->bin_dims_[1],
+              this->subprob_bins_, this->subprob_start_pts_, this->num_subprob_,
+              max_subprob_size, num_bins[0], num_bins[1], this->idx_nupts_,
+              pirange));
         }
       } else {
         for (int t = 0; t < blksize; t++) {
-          InterpSubproblem2DKernel<<<num_blocks, threads_per_block, shared_memory_size>>>(
+          TF_CHECK_OK(GpuLaunchKernel(
+              InterpSubproblem2DKernel<FloatType>, num_blocks,
+              threads_per_block, shared_memory_size, this->device_.stream(),
               this->points_[0], this->points_[1], d_c + t * this->num_points_,
               d_fw + t * this->grid_size_, this->num_points_, kernel_width,
-              this->grid_dims_[0], this->grid_dims_[1],
-              es_c, es_beta, sigma,
-              d_binstartpts, d_binsize,
-              bin_size[0], bin_size[1],
-              d_subprob_to_bin, d_subprobstartpts,
-              d_numsubprob, maxsubprobsize,
-              num_bins[0], num_bins[1], d_idxnupts, pirange);
+              this->grid_dims_[0], this->grid_dims_[1], es_c, es_beta, sigma,
+              this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0], this->bin_dims_[1],
+              this->subprob_bins_, this->subprob_start_pts_,
+              this->num_subprob_, max_subprob_size, num_bins[0], num_bins[1],
+              this->idx_nupts_, pirange));
         }
       }
       break;
     case 3:
       for (int t = 0; t < blksize; t++) {
         if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-          InterpSubproblemHorner3DKernel<<<num_blocks, threads_per_block,
-            shared_memory_size>>>(
+          TF_CHECK_OK(GpuLaunchKernel(
+              InterpSubproblemHorner3DKernel<FloatType>, num_blocks,
+              threads_per_block, shared_memory_size, this->device_.stream(),
               this->points_[0], this->points_[1], this->points_[2],
               d_c + t * this->num_points_, d_fw + t * this->grid_size_, 
-            this->num_points_, kernel_width, this->grid_dims_[0],
-            this->grid_dims_[1], this->grid_dims_[2], sigma,
-            d_binstartpts, d_binsize, bin_size[0],
-            bin_size[1], bin_size[2], d_subprob_to_bin, d_subprobstartpts,
-            d_numsubprob, maxsubprobsize,num_bins[0], num_bins[1], num_bins[2],
-            d_idxnupts, pirange);
-        }else{
+              this->num_points_, kernel_width, this->grid_dims_[0],
+              this->grid_dims_[1], this->grid_dims_[2], sigma,
+              this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0],
+              this->bin_dims_[1], this->bin_dims_[2], this->subprob_bins_,
+              this->subprob_start_pts_, this->num_subprob_,
+              max_subprob_size, num_bins[0], num_bins[1], num_bins[2],
+              this->idx_nupts_, pirange));
+        } else {
           InterpSubproblem3DKernel<<<num_blocks, threads_per_block,
             shared_memory_size>>>(
               this->points_[0], this->points_[1], this->points_[2],
               d_c + t * this->num_points_, d_fw + t * this->grid_size_, 
             this->num_points_, kernel_width, this->grid_dims_[0], this->grid_dims_[1],
-            this->grid_dims_[2], es_c, es_beta, d_binstartpts, d_binsize, 
-            bin_size[0], bin_size[1], bin_size[2], d_subprob_to_bin, 
-            d_subprobstartpts, d_numsubprob, maxsubprobsize,num_bins[0], 
-            num_bins[1], num_bins[2], d_idxnupts, pirange);
+            this->grid_dims_[2], es_c, es_beta, this->bin_start_pts_, this->bin_sizes_, 
+            this->bin_dims_[0], this->bin_dims_[1], this->bin_dims_[2], this->subprob_bins_, 
+            this->subprob_start_pts_, this->num_subprob_, max_subprob_size,num_bins[0], 
+            num_bins[1], num_bins[2], this->idx_nupts_, pirange);
         }
       }
       break;
@@ -2499,20 +2475,11 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
   int threads_per_block = 1024;
 
   if (this->spread_params_.sort_points == SortPoints::YES) {
-    int bin_size[3];
-    bin_size[0] = this->options_.gpu_bin_size.x;
-    bin_size[1] = this->options_.gpu_bin_size.y;
-    bin_size[2] = this->options_.gpu_bin_size.z;
-    if (bin_size[0] < 0 || bin_size[1] < 0 || bin_size[2] < 0) {
-      return errors::InvalidArgument(
-          "Invalid bin size: (", bin_size[0], ", ", bin_size[1], ", ",
-          bin_size[2], ")");
-    }
 
     int num_bins[3] = {1, 1, 1};
     int bin_count = 1;
     for (int i = 0; i < this->rank_; i++) {
-      num_bins[i] = (this->grid_dims_[i] + bin_size[i] - 1) / bin_size[i];
+      num_bins[i] = (this->grid_dims_[i] + this->bin_dims_[i] - 1) / this->bin_dims_[i];
       bin_count *= num_bins[i];
     }
 
@@ -2527,7 +2494,7 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
             CalcBinSizeNoGhost2DKernel<FloatType>,
             num_blocks, threads_per_block, 0, this->device_.stream(),
             this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
-            bin_size[0], bin_size[1], num_bins[0], num_bins[1],
+            this->bin_dims_[0], this->bin_dims_[1], num_bins[0], num_bins[1],
             this->bin_sizes_, this->points_[0], this->points_[1], this->sort_idx_,
             this->spread_params_.pirange));
         break;
@@ -2537,7 +2504,7 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
             num_blocks, threads_per_block, 0, this->device_.stream(),
             this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
             this->grid_dims_[2],
-            bin_size[0],bin_size[1],bin_size[2],num_bins[0],num_bins[1],num_bins[2],
+            this->bin_dims_[0],this->bin_dims_[1],this->bin_dims_[2],num_bins[0],num_bins[1],num_bins[2],
             this->bin_sizes_,this->points_[0],this->points_[1],this->points_[2],
             this->sort_idx_,this->spread_params_.pirange));
         break;
@@ -2555,7 +2522,7 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
         TF_CHECK_OK(GpuLaunchKernel(
             CalcInvertofGlobalSortIdx2DKernel<FloatType>,
             num_blocks, threads_per_block, 0, this->device_.stream(),
-            this->num_points_, bin_size[0], bin_size[1], num_bins[0],
+            this->num_points_, this->bin_dims_[0], this->bin_dims_[1], num_bins[0],
             num_bins[1], this->bin_start_pts_, this->sort_idx_,
             this->points_[0], this->points_[1], this->idx_nupts_,
             this->spread_params_.pirange, this->grid_dims_[0],
@@ -2563,8 +2530,8 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
         break;
       case 3:
         CalcInvertofGlobalSortIdx3DKernel<FloatType><<<num_blocks, threads_per_block>>>(
-          this->num_points_,bin_size[0],
-          bin_size[1],bin_size[2],num_bins[0],num_bins[1],num_bins[2],
+          this->num_points_,this->bin_dims_[0],
+          this->bin_dims_[1],this->bin_dims_[2],num_bins[0],num_bins[1],num_bins[2],
           this->bin_start_pts_,
           this->sort_idx_,this->points_[0],this->points_[1],this->points_[2],
           this->idx_nupts_, this->spread_params_.pirange, this->grid_dims_[0],
@@ -2588,33 +2555,16 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
   int num_blocks = (this->num_points_ + 1024 - 1) / 1024;
   int threads_per_block = 1024;
 
-  int maxsubprobsize=this->options_.gpu_max_subproblem_size;
-
-  int bin_size[3];
-  bin_size[0] = this->options_.gpu_bin_size.x;
-  bin_size[1] = this->options_.gpu_bin_size.y;
-  bin_size[2] = this->options_.gpu_bin_size.z;
-  if (bin_size[0] < 0 || bin_size[1] < 0 || bin_size[2] < 0) {
-    return errors::InvalidArgument(
-        "Invalid bin size: (", bin_size[0], ", ", bin_size[1], ", ",
-        bin_size[2], ")");
-  }
+  int max_subprob_size = this->options_.gpu_max_subproblem_size;
 
   int num_bins[3] = {1, 1, 1};
   int bin_count = 1;
   for (int i = 0; i < this->rank_; i++) {
-    num_bins[i] = (this->grid_dims_[i] + bin_size[i] - 1) / bin_size[i];
+    num_bins[i] = (this->grid_dims_[i] + this->bin_dims_[i] - 1) / this->bin_dims_[i];
     bin_count *= num_bins[i];
   }
 
-  int *d_binsize = this->bin_sizes_;
-  int *d_binstartpts = this->bin_start_pts_;
-  int *d_sortidx = this->sort_idx_;
-  int *d_numsubprob = this->num_subprob_;
-  int *d_subprobstartpts = this->subprob_start_pts_;
-  int *d_idxnupts = this->idx_nupts_;
-
-  int *d_subprob_to_bin = NULL;
+  if (this->subprob_bins_ != NULL) cudaFree(this->subprob_bins_);
 
   int pirange=this->spread_params_.pirange;
 
@@ -2629,25 +2579,25 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
           CalcBinSizeNoGhost2DKernel<FloatType>,
           num_blocks, threads_per_block, 0, this->device_.stream(),
           this->num_points_, this->grid_dims_[0],
-          this->grid_dims_[1], bin_size[0], bin_size[1],
-          num_bins[0], num_bins[1], d_binsize, this->points_[0],
-          this->points_[1], d_sortidx, pirange));
+          this->grid_dims_[1], this->bin_dims_[0], this->bin_dims_[1],
+          num_bins[0], num_bins[1], this->bin_sizes_, this->points_[0],
+          this->points_[1], this->sort_idx_, pirange));
       break;
     case 3:
       TF_CHECK_OK(GpuLaunchKernel(
           CalcBinSizeNoGhost3DKernel<FloatType>,
           num_blocks, threads_per_block, 0, this->device_.stream(),
           this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
-          this->grid_dims_[2], bin_size[0],
-          bin_size[1], bin_size[2], num_bins[0], num_bins[1], num_bins[2], d_binsize,
-          this->points_[0], this->points_[1], this->points_[2], d_sortidx, pirange));
+          this->grid_dims_[2], this->bin_dims_[0],
+          this->bin_dims_[1], this->bin_dims_[2], num_bins[0], num_bins[1], num_bins[2], this->bin_sizes_,
+          this->points_[0], this->points_[1], this->points_[2], this->sort_idx_, pirange));
       break;
     default:
       return errors::Unimplemented("Invalid rank: ", this->rank_);
   }
 
-  thrust::device_ptr<int> d_ptr(d_binsize);
-  thrust::device_ptr<int> d_result(d_binstartpts);
+  thrust::device_ptr<int> d_ptr(this->bin_sizes_);
+  thrust::device_ptr<int> d_result(this->bin_start_pts_);
   thrust::exclusive_scan(d_ptr, d_ptr + bin_count, d_result);
 
   switch (this->rank_) {
@@ -2655,19 +2605,19 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
       TF_CHECK_OK(GpuLaunchKernel(
           CalcInvertofGlobalSortIdx2DKernel<FloatType>,
           num_blocks, threads_per_block, 0, this->device_.stream(),
-          this->num_points_, bin_size[0], bin_size[1], num_bins[0],
-          num_bins[1], d_binstartpts, d_sortidx, this->points_[0],
-          this->points_[1], d_idxnupts, pirange, this->grid_dims_[0],
+          this->num_points_, this->bin_dims_[0], this->bin_dims_[1], num_bins[0],
+          num_bins[1], this->bin_start_pts_, this->sort_idx_, this->points_[0],
+          this->points_[1], this->idx_nupts_, pirange, this->grid_dims_[0],
           this->grid_dims_[1]));
       break;
     case 3:
       TF_CHECK_OK(GpuLaunchKernel(
           CalcInvertofGlobalSortIdx3DKernel<FloatType>,
           num_blocks, threads_per_block, 0, this->device_.stream(),
-          this->num_points_, bin_size[0],
-          bin_size[1], bin_size[2], num_bins[0], num_bins[1], num_bins[2],
-          d_binstartpts, d_sortidx, this->points_[0], this->points_[1],
-          this->points_[2], d_idxnupts, pirange, this->grid_dims_[0],
+          this->num_points_, this->bin_dims_[0],
+          this->bin_dims_[1], this->bin_dims_[2], num_bins[0], num_bins[1], num_bins[2],
+          this->bin_start_pts_, this->sort_idx_, this->points_[0], this->points_[1],
+          this->points_[2], this->idx_nupts_, pirange, this->grid_dims_[0],
           this->grid_dims_[1], this->grid_dims_[2]));
       break;
     default:
@@ -2676,32 +2626,28 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
 
   TF_CHECK_OK(GpuLaunchKernel(
       CalcSubproblemKernel, num_blocks, threads_per_block, 0,
-      this->device_.stream(), d_binsize, d_numsubprob, maxsubprobsize,
+      this->device_.stream(), this->bin_sizes_, this->num_subprob_, max_subprob_size,
       bin_count));
 
-  d_ptr    = thrust::device_pointer_cast(d_numsubprob);
-  d_result = thrust::device_pointer_cast(d_subprobstartpts+1);
+  d_ptr    = thrust::device_pointer_cast(this->num_subprob_);
+  d_result = thrust::device_pointer_cast(this->subprob_start_pts_ + 1);
   thrust::inclusive_scan(d_ptr, d_ptr + bin_count, d_result);
-  checkCudaErrors(cudaMemset(d_subprobstartpts,0,sizeof(int)));
+  checkCudaErrors(cudaMemset(this->subprob_start_pts_, 0, sizeof(int)));
 
-  int totalnumsubprob;
-  checkCudaErrors(cudaMemcpy(&totalnumsubprob,&d_subprobstartpts[bin_count],
+  int subprob_count;
+  checkCudaErrors(cudaMemcpy(&subprob_count,&this->subprob_start_pts_[bin_count],
     sizeof(int),cudaMemcpyDeviceToHost));
-  checkCudaErrors(cudaMalloc(&d_subprob_to_bin,totalnumsubprob*sizeof(int)));
+  checkCudaErrors(cudaMalloc(&this->subprob_bins_,subprob_count*sizeof(int)));
 
   num_blocks = (bin_count + 1024 - 1) / 1024;
   threads_per_block = 1024;
 
   TF_CHECK_OK(GpuLaunchKernel(
       MapBinToSubproblemKernel, num_blocks, threads_per_block, 0,
-      this->device_.stream(), d_subprob_to_bin, d_subprobstartpts,
-      d_numsubprob, bin_count));
+      this->device_.stream(), this->subprob_bins_, this->subprob_start_pts_,
+      this->num_subprob_, bin_count));
 
-  assert(d_subprob_to_bin != NULL);
-  if (this->subprob_bins_ != NULL) cudaFree(this->subprob_bins_);
-  this->subprob_bins_ = d_subprob_to_bin;
-  assert(this->subprob_bins_ != NULL);
-  this->totalnumsubprob = totalnumsubprob;
+  this->subprob_count_ = subprob_count;
 
   return Status::OK();
 }

@@ -399,7 +399,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   int mt;
   int mu;
 
-  int totalnumsubprob;
+  
   
   // Internal pointer to non-uniform data.
   DType* c_;
@@ -407,6 +407,8 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // Internal pointer to uniform data.
   DType* f_;
 
+  // Total number of subproblems.
+  int subprob_count_;
   // Indices of the non-uniform points in the bin-sorted order. When allocated,
   // it has length equal to num_points_. This is a device pointer.
   int* idx_nupts_;

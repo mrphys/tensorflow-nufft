@@ -2578,13 +2578,15 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
             this->grid_dims_[1]));
         break;
       case 3:
-        CalcInvertofGlobalSortIdx3DKernel<FloatType><<<num_blocks, threads_per_block>>>(
-          this->num_points_,this->bin_dims_[0],
-          this->bin_dims_[1],this->bin_dims_[2],this->num_bins_[0],this->num_bins_[1],this->num_bins_[2],
-          this->bin_start_pts_,
-          this->sort_idx_,this->points_[0],this->points_[1],this->points_[2],
-          this->idx_nupts_, this->spread_params_.pirange, this->grid_dims_[0],
-          this->grid_dims_[1], this->grid_dims_[2]);
+        TF_CHECK_OK(GpuLaunchKernel(
+            CalcInvertofGlobalSortIdx3DKernel<FloatType>, num_blocks,
+            threads_per_block, 0, this->device_.stream(), this->num_points_,
+            this->bin_dims_[0], this->bin_dims_[1], this->bin_dims_[2],
+            this->num_bins_[0], this->num_bins_[1], this->num_bins_[2],
+            this->bin_start_pts_, this->sort_idx_, this->points_[0],
+            this->points_[1], this->points_[2], this->idx_nupts_,
+            this->spread_params_.pirange, this->grid_dims_[0],
+            this->grid_dims_[1], this->grid_dims_[2]));
         break;
       default:
         return errors::Unimplemented("Invalid rank: ", this->rank_);

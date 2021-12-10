@@ -202,10 +202,10 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
   // Batch of fine grids for FFTW to plan and execute. This is usually the
   // largest array allocated by NUFFT.
-  Tensor fine_grid_;
+  Tensor grid_tensor_;
 
   // A convenience pointer to the fine grid array for FFTW calls.
-  FftwType* fine_grid_data_;
+  FftwType* grid_data_;
 
   // Relative user tol.
   FloatType tol_;
@@ -360,10 +360,10 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
   // Batch of fine grids for cuFFT to plan and execute. This is usually the
   // largest array allocated by NUFFT.
-  Tensor fine_grid_;
+  Tensor grid_tensor_;
 
   // A convenience pointer to the fine grid array.
-  DType* fine_grid_data_;
+  DType* grid_data_;
 
   // Tensors in device memory. Used for deconvolution. Empty in spread/interp
   // mode. Only the first `rank` tensors are allocated.

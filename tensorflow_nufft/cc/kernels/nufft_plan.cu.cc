@@ -102,9 +102,6 @@ Status set_grid_size(int ms,
                      const SpreadParameters<FloatType>& spread_params,
                      int* grid_size);
 
-template<typename FloatType>
-void free_gpu_memory(Plan<GPUDevice, FloatType>* d_plan);
-
 __device__ int CalcGlobalIdxV2(int xidx, int yidx, int zidx, int nbinx, int nbiny, int nbinz) {
 	return xidx + yidx*nbinx + zidx*nbinx*nbiny;
 }
@@ -323,8 +320,6 @@ __global__ void Amplify3DKernel(
       fwkerhalf3[abs(k3-mu/2)];
     fw[outidx].x = fk[inidx].x/kervalue;
     fw[outidx].y = fk[inidx].y/kervalue;
-    //fw[outidx].x = fk[inidx].x;
-    //fw[outidx].y = fk[inidx].y;
   }
 }
 
@@ -335,7 +330,7 @@ __global__ void Amplify3DKernel(
     This is the "reference implementation", used by eg common/onedim_* 
     2/17/17 */
 template<typename FloatType>
-static __forceinline__ __device__ FloatType evaluate_kernel(
+static __forceinline__ __device__ FloatType EvaluateKernel(
     FloatType x, FloatType es_c, FloatType es_beta, int ns) {
 	return abs(x) < ns/2.0 ? exp(es_beta * (sqrt(1.0 - es_c*x*x))) : 0.0;
 }
@@ -345,7 +340,7 @@ static __forceinline__ __device__ FloatType evaluate_kernel(
 // This is the current evaluation method, since it's faster (except i7 w=16).
 // Two upsampfacs implemented. Params must match ref formula. Barnett 4/24/18
 template<typename FloatType>
-static __inline__ __device__ void eval_kernel_vec_Horner(
+static __inline__ __device__ void EvaluateKernelVectorHorner(
     FloatType *ker, const FloatType x, const int w, 
 	  const double upsampling_factor) {
 	FloatType z = 2*x + w - 1.0;         // scale so local grid offset z in [-1,1]
@@ -356,11 +351,11 @@ static __inline__ __device__ void eval_kernel_vec_Horner(
 }
 
 template<typename FloatType>
-static __inline__ __device__ void eval_kernel_vec(
+static __inline__ __device__ void EvaluateKernelVector(
     FloatType *ker, const FloatType x, const double w, const double es_c, 
     const double es_beta) {
 	for (int i=0; i<w; i++) {
-		ker[i] = evaluate_kernel<FloatType>(abs(x+i), es_c, es_beta, w);		
+		ker[i] = EvaluateKernel<FloatType>(abs(x+i), es_c, es_beta, w);		
 	}
 }
 
@@ -389,8 +384,8 @@ __global__ void SpreadNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex
 
 		FloatType x1=(FloatType)xstart-x_rescaled;
 		FloatType y1=(FloatType)ystart-y_rescaled;
-		eval_kernel_vec(ker1,x1,ns,es_c,es_beta);
-		eval_kernel_vec(ker2,y1,ns,es_c,es_beta);
+		EvaluateKernelVector(ker1,x1,ns,es_c,es_beta);
+		EvaluateKernelVector(ker2,y1,ns,es_c,es_beta);
 		for (yy=ystart; yy<=yend; yy++) {
 			for (xx=xstart; xx<=xend; xx++) {
 				ix = xx < 0 ? xx+nf1 : (xx>nf1-1 ? xx-nf1 : xx);
@@ -428,8 +423,8 @@ __global__ void SpreadNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
 
 		FloatType x1=(FloatType)xstart-x_rescaled;
 		FloatType y1=(FloatType)ystart-y_rescaled;
-		eval_kernel_vec_Horner(ker1,x1,ns,sigma);
-		eval_kernel_vec_Horner(ker2,y1,ns,sigma);
+		EvaluateKernelVectorHorner(ker1,x1,ns,sigma);
+		EvaluateKernelVectorHorner(ker2,y1,ns,sigma);
 		for (yy=ystart; yy<=yend; yy++) {
 			for (xx=xstart; xx<=xend; xx++) {
 				ix = xx < 0 ? xx+nf1 : (xx>nf1-1 ? xx-nf1 : xx);
@@ -500,8 +495,8 @@ __global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
 
 		FloatType x1=(FloatType)xstart+xoffset - x_rescaled;
 		FloatType y1=(FloatType)ystart+yoffset - y_rescaled;
-		eval_kernel_vec(ker1,x1,ns,es_c,es_beta);
-		eval_kernel_vec(ker2,y1,ns,es_c,es_beta);
+		EvaluateKernelVector(ker1,x1,ns,es_c,es_beta);
+		EvaluateKernelVector(ker2,y1,ns,es_c,es_beta);
 
 		for (int yy=ystart; yy<=yend; yy++) {
 			iy = yy+ceil(ns/2.0);
@@ -581,8 +576,8 @@ __global__ void SpreadSubproblemHorner2DKernel(FloatType *x, FloatType *y, GpuCo
 		xend   = floor(x_rescaled + ns/2.0)-xoffset;
 		yend   = floor(y_rescaled + ns/2.0)-yoffset;
 
-		eval_kernel_vec_Horner(ker1,xstart+xoffset-x_rescaled,ns,sigma);
-		eval_kernel_vec_Horner(ker2,ystart+yoffset-y_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker1,xstart+xoffset-x_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker2,ystart+yoffset-y_rescaled,ns,sigma);
 
 		for (int yy=ystart; yy<=yend; yy++) {
 			iy = yy+ceil(ns/2.0);
@@ -635,13 +630,13 @@ __global__ void InterpNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex
 		cnow.y = 0.0;
 		for (int yy=ystart; yy<=yend; yy++) {
 			FloatType disy=abs(y_rescaled-yy);
-			FloatType kervalue2 = evaluate_kernel(disy, es_c, es_beta, ns);
+			FloatType kervalue2 = EvaluateKernel(disy, es_c, es_beta, ns);
 			for (int xx=xstart; xx<=xend; xx++) {
 				int ix = xx < 0 ? xx+nf1 : (xx>nf1-1 ? xx-nf1 : xx);
 				int iy = yy < 0 ? yy+nf2 : (yy>nf2-1 ? yy-nf2 : yy);
 				int inidx = ix+iy*nf1;
 				FloatType disx=abs(x_rescaled-xx);
-				FloatType kervalue1 = evaluate_kernel(disx, es_c, es_beta, ns);
+				FloatType kervalue1 = EvaluateKernel(disx, es_c, es_beta, ns);
 				cnow.x += fw[inidx].x*kervalue1*kervalue2;
 				cnow.y += fw[inidx].y*kervalue1*kervalue2;
 			}
@@ -671,8 +666,8 @@ __global__ void InterpNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
 		FloatType ker1[kMaxKernelWidth];
 		FloatType ker2[kMaxKernelWidth];
 
-		eval_kernel_vec_Horner(ker1,xstart-x_rescaled,ns,sigma);
-        eval_kernel_vec_Horner(ker2,ystart-y_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker1,xstart-x_rescaled,ns,sigma);
+        EvaluateKernelVectorHorner(ker2,ystart-y_rescaled,ns,sigma);
 
 		for (int yy=ystart; yy<=yend; yy++) {
 			FloatType disy=abs(y_rescaled-yy);
@@ -748,13 +743,13 @@ __global__ void InterpSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
 
 		for (int yy=ystart; yy<=yend; yy++) {
 			FloatType disy=abs(y_rescaled-(yy+yoffset));
-			FloatType kervalue2 = evaluate_kernel(disy, es_c, es_beta, ns);
+			FloatType kervalue2 = EvaluateKernel(disy, es_c, es_beta, ns);
 			for (int xx=xstart; xx<=xend; xx++) {
 				ix = xx+ceil(ns/2.0);
 				iy = yy+ceil(ns/2.0);
 				outidx = ix+iy*(bin_size_x+ceil(ns/2.0)*2);
 				FloatType disx=abs(x_rescaled-(xx+xoffset));
-				FloatType kervalue1 = evaluate_kernel(disx, es_c, es_beta, ns);
+				FloatType kervalue1 = EvaluateKernel(disx, es_c, es_beta, ns);
 				cnow.x += fwshared[outidx].x*kervalue1*kervalue2;
 				cnow.y += fwshared[outidx].y*kervalue1*kervalue2;
 			}
@@ -821,8 +816,8 @@ __global__ void InterpSubproblemHorner2DKernel(
 		xend   = floor(x_rescaled + ns/2.0)-xoffset;
 		yend   = floor(y_rescaled + ns/2.0)-yoffset;
 
-		eval_kernel_vec_Horner(ker1,xstart+xoffset-x_rescaled,ns,sigma);
-		eval_kernel_vec_Horner(ker2,ystart+yoffset-y_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker1,xstart+xoffset-x_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker2,ystart+yoffset-y_rescaled,ns,sigma);
 		
 		for (int yy=ystart; yy<=yend; yy++) {
 			FloatType disy=abs(y_rescaled-(yy+yoffset));
@@ -871,9 +866,9 @@ __global__ void SpreadNuptsDrivenHorner3DKernel(
 		FloatType y1=(FloatType)ystart-y_rescaled;
 		FloatType z1=(FloatType)zstart-z_rescaled;
 
-		eval_kernel_vec_Horner(ker1,x1,ns,sigma);
-		eval_kernel_vec_Horner(ker2,y1,ns,sigma);
-		eval_kernel_vec_Horner(ker3,z1,ns,sigma);
+		EvaluateKernelVectorHorner(ker1,x1,ns,sigma);
+		EvaluateKernelVectorHorner(ker2,y1,ns,sigma);
+		EvaluateKernelVectorHorner(ker3,z1,ns,sigma);
 		for (zz=zstart; zz<=zend; zz++) {
 			ker3val=ker3[zz-zstart];
 			for (yy=ystart; yy<=yend; yy++) {
@@ -923,9 +918,9 @@ void SpreadNuptsDriven3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComp
 		FloatType y1=(FloatType)ystart-y_rescaled;
 		FloatType z1=(FloatType)zstart-z_rescaled;
 
-		eval_kernel_vec(ker1,x1,ns,es_c,es_beta);
-		eval_kernel_vec(ker2,y1,ns,es_c,es_beta);
-		eval_kernel_vec(ker3,z1,ns,es_c,es_beta);
+		EvaluateKernelVector(ker1,x1,ns,es_c,es_beta);
+		EvaluateKernelVector(ker2,y1,ns,es_c,es_beta);
+		EvaluateKernelVector(ker3,z1,ns,es_c,es_beta);
 		for (zz=zstart; zz<=zend; zz++) {
 			ker3val=ker3[zz-zstart];
 			for (yy=ystart; yy<=yend; yy++) {
@@ -948,13 +943,14 @@ void SpreadNuptsDriven3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComp
 }
 
 template<typename FloatType>
-__global__ void SpreadSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M,
-	const int ns, int nf1, int nf2, int nf3, FloatType sigma, int* binstartpts,
-	int* bin_size, int bin_size_x, int bin_size_y, int bin_size_z,
-	int* subprob_to_bin, int* subprobstartpts, int* numsubprob,
-	int maxsubprobsize, int nbinx, int nbiny, int nbinz, int* idxnupts,
-	int pirange)
-{
+__global__ void SpreadSubproblemHorner3DKernel(
+    FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
+    FloatType sigma, int* binstartpts, int* bin_size, int bin_size_x,
+    int bin_size_y, int bin_size_z,
+    int* subprob_to_bin, int* subprobstartpts, int* numsubprob,
+    int maxsubprobsize, int nbinx, int nbiny, int nbinz, int* idxnupts,
+    int pirange) {
 	extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
@@ -1000,9 +996,9 @@ __global__ void SpreadSubproblemHorner3DKernel(FloatType *x, FloatType *y, Float
 		yend   = floor(y_rescaled + ns/2.0)-yoffset;
 		zend   = floor(z_rescaled + ns/2.0)-zoffset;
 
-		eval_kernel_vec_Horner(ker1,xstart+xoffset-x_rescaled,ns,sigma);
-		eval_kernel_vec_Horner(ker2,ystart+yoffset-y_rescaled,ns,sigma);
-		eval_kernel_vec_Horner(ker3,zstart+zoffset-z_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker1,xstart+xoffset-x_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker2,ystart+yoffset-y_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker3,zstart+zoffset-z_rescaled,ns,sigma);
 
     	for (int zz=zstart; zz<=zend; zz++) {
 			FloatType kervalue3 = ker3[zz-zstart];
@@ -1055,13 +1051,12 @@ __global__ void SpreadSubproblemHorner3DKernel(FloatType *x, FloatType *y, Float
 }
 
 template<typename FloatType>
-__global__
-void SpreadSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M,
-	const int ns, int nf1, int nf2, int nf3, FloatType es_c, FloatType es_beta, int* binstartpts,
-	int* bin_size, int bin_size_x, int bin_size_y, int bin_size_z,
-	int* subprob_to_bin, int* subprobstartpts, int* numsubprob, int maxsubprobsize,
-	int nbinx, int nbiny, int nbinz, int* idxnupts, int pirange)
-{
+__global__ void SpreadSubproblem3DKernel(
+    FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
+    FloatType es_c, FloatType es_beta, int* binstartpts, int* bin_size, int bin_size_x, int bin_size_y, int bin_size_z,
+    int* subprob_to_bin, int* subprobstartpts, int* numsubprob, int maxsubprobsize,
+    int nbinx, int nbiny, int nbinz, int* idxnupts, int pirange) {
 	extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
@@ -1109,9 +1104,9 @@ void SpreadSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
 		FloatType y1=(FloatType)ystart+yoffset-y_rescaled;
 		FloatType z1=(FloatType)zstart+zoffset-z_rescaled;
 
-		eval_kernel_vec(ker1,x1,ns,es_c,es_beta);
-		eval_kernel_vec(ker2,y1,ns,es_c,es_beta);
-		eval_kernel_vec(ker3,z1,ns,es_c,es_beta);
+		EvaluateKernelVector(ker1,x1,ns,es_c,es_beta);
+		EvaluateKernelVector(ker2,y1,ns,es_c,es_beta);
+		EvaluateKernelVector(ker3,z1,ns,es_c,es_beta);
 #if 1
 		for (int zz=zstart; zz<=zend; zz++) {
 			FloatType kervalue3 = ker3[zz-zstart];
@@ -1183,10 +1178,10 @@ void InterpNuptsDriven3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComp
 		cnow.y = 0.0;
 		for (int zz=zstart; zz<=zend; zz++) {
 			FloatType disz=abs(z_rescaled-zz);
-			FloatType kervalue3 = evaluate_kernel(disz, es_c, es_beta, ns);
+			FloatType kervalue3 = EvaluateKernel(disz, es_c, es_beta, ns);
 			for (int yy=ystart; yy<=yend; yy++) {
 				FloatType disy=abs(y_rescaled-yy);
-				FloatType kervalue2 = evaluate_kernel(disy, es_c, es_beta, ns);
+				FloatType kervalue2 = EvaluateKernel(disy, es_c, es_beta, ns);
 				for (int xx=xstart; xx<=xend; xx++) {
 					int ix = xx < 0 ? xx+nf1 : (xx>nf1-1 ? xx-nf1 : xx);
 					int iy = yy < 0 ? yy+nf2 : (yy>nf2-1 ? yy-nf2 : yy);
@@ -1195,7 +1190,7 @@ void InterpNuptsDriven3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComp
 					int inidx = ix+iy*nf1+iz*nf2*nf1;
 
 					FloatType disx=abs(x_rescaled-xx);
-					FloatType kervalue1 = evaluate_kernel(disx, es_c, es_beta, ns);
+					FloatType kervalue1 = EvaluateKernel(disx, es_c, es_beta, ns);
 					cnow.x += fw[inidx].x*kervalue1*kervalue2*kervalue3;
 					cnow.y += fw[inidx].y*kervalue1*kervalue2*kervalue3;
 				}
@@ -1233,9 +1228,9 @@ void InterpNuptsDrivenHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, G
 		FloatType ker2[kMaxKernelWidth];
 		FloatType ker3[kMaxKernelWidth];
 
-		eval_kernel_vec_Horner(ker1,xstart-x_rescaled,ns,sigma);
-		eval_kernel_vec_Horner(ker2,ystart-y_rescaled,ns,sigma);
-		eval_kernel_vec_Horner(ker3,zstart-z_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker1,xstart-x_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker2,ystart-y_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker3,zstart-z_rescaled,ns,sigma);
 
 		for (int zz=zstart; zz<=zend; zz++) {
 			FloatType kervalue3 = ker3[zz-zstart];
@@ -1329,11 +1324,11 @@ void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
 
     	for (int zz=zstart; zz<=zend; zz++) {
 			FloatType disz=abs(z_rescaled-zz);
-			FloatType kervalue3 = evaluate_kernel(disz, es_c, es_beta, ns);
+			FloatType kervalue3 = EvaluateKernel(disz, es_c, es_beta, ns);
 			iz = zz+ceil(ns/2.0);
 			for (int yy=ystart; yy<=yend; yy++) {
 				FloatType disy=abs(y_rescaled-yy);
-				FloatType kervalue2 = evaluate_kernel(disy, es_c, es_beta, ns);
+				FloatType kervalue2 = EvaluateKernel(disy, es_c, es_beta, ns);
 				iy = yy+ceil(ns/2.0);
 				for (int xx=xstart; xx<=xend; xx++) {
 					ix = xx+ceil(ns/2.0);
@@ -1342,7 +1337,7 @@ void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
 						   (bin_size_y+ceil(ns/2.0)*2);
 
 					FloatType disx=abs(x_rescaled-xx);
-					FloatType kervalue1 = evaluate_kernel(disx, es_c, es_beta, ns);
+					FloatType kervalue1 = EvaluateKernel(disx, es_c, es_beta, ns);
 					cnow.x += fwshared[outidx].x*kervalue1*kervalue2*kervalue3;
 					cnow.y += fwshared[outidx].y*kervalue1*kervalue2*kervalue3;
         		}
@@ -1422,9 +1417,9 @@ void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, Gp
 		yend   = floor(y_rescaled + ns/2.0)-yoffset;
 		zend   = floor(z_rescaled + ns/2.0)-zoffset;
 
-		eval_kernel_vec_Horner(ker1,xstart+xoffset-x_rescaled,ns,sigma);
-		eval_kernel_vec_Horner(ker2,ystart+yoffset-y_rescaled,ns,sigma);
-		eval_kernel_vec_Horner(ker3,zstart+zoffset-z_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker1,xstart+xoffset-x_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker2,ystart+yoffset-y_rescaled,ns,sigma);
+		EvaluateKernelVectorHorner(ker3,zstart+zoffset-z_rescaled,ns,sigma);
     	for (int zz=zstart; zz<=zend; zz++) {
 			FloatType kervalue3 = ker3[zz-zstart];
 			iz = zz+ceil(ns/2.0);
@@ -1662,9 +1657,9 @@ Plan<GPUDevice, FloatType>::Plan(
     OP_REQUIRES_OK(context, context->allocate_temp(
         DataTypeToEnum<std::complex<FloatType>>::value,
         TensorShape({num_grid_elements * this->options_.max_batch_size}),
-        &this->fine_grid_));
-    this->fine_grid_data_ = reinterpret_cast<DType*>(
-        this->fine_grid_.flat<std::complex<FloatType>>().data());
+        &this->grid_tensor_));
+    this->grid_data_ = reinterpret_cast<DType*>(
+        this->grid_tensor_.flat<std::complex<FloatType>>().data());
 
     // For each dimension, calculate Fourier coefficients of the kernel for
     // deconvolution. The computation is performed on the CPU before
@@ -1761,7 +1756,64 @@ Plan<GPUDevice, FloatType>::~Plan() {
   if (this->fft_plan_)
     cufftDestroy(this->fft_plan_);
 
-  free_gpu_memory(this);
+  switch(this->options_.spread_method)
+  {
+    case SpreadMethod::NUPTS_DRIVEN:
+      {
+        if (this->spread_params_.sort_points == SortPoints::YES) {
+          if (this->idxnupts)
+            checkCudaErrors(cudaFree(this->idxnupts));
+          if (this->sortidx)
+            checkCudaErrors(cudaFree(this->sortidx));
+          checkCudaErrors(cudaFree(this->binsize));
+          checkCudaErrors(cudaFree(this->binstartpts));
+        }else{
+          if (this->idxnupts)
+            checkCudaErrors(cudaFree(this->idxnupts));
+        }
+      }
+      break;
+    case SpreadMethod::SUBPROBLEM:
+      {
+        if (this->idxnupts)
+          checkCudaErrors(cudaFree(this->idxnupts));
+        if (this->sortidx)
+          checkCudaErrors(cudaFree(this->sortidx));
+        checkCudaErrors(cudaFree(this->numsubprob));
+        checkCudaErrors(cudaFree(this->binsize));
+        checkCudaErrors(cudaFree(this->binstartpts));
+        checkCudaErrors(cudaFree(this->subprobstartpts));
+        checkCudaErrors(cudaFree(this->subprob_to_bin));
+      }
+      break;
+    case SpreadMethod::PAUL:
+      {
+        if (this->idxnupts)
+          checkCudaErrors(cudaFree(this->idxnupts));
+        if (this->sortidx)
+          checkCudaErrors(cudaFree(this->sortidx));
+        checkCudaErrors(cudaFree(this->numsubprob));
+        checkCudaErrors(cudaFree(this->binsize));
+        checkCudaErrors(cudaFree(this->finegridsize));
+        checkCudaErrors(cudaFree(this->binstartpts));
+        checkCudaErrors(cudaFree(this->subprobstartpts));
+        checkCudaErrors(cudaFree(this->subprob_to_bin));
+      }
+      break;
+    case SpreadMethod::BLOCK_GATHER:
+      {
+        if (this->idxnupts)
+          checkCudaErrors(cudaFree(this->idxnupts));
+        if (this->sortidx)
+          checkCudaErrors(cudaFree(this->sortidx));
+        checkCudaErrors(cudaFree(this->numsubprob));
+        checkCudaErrors(cudaFree(this->binsize));
+        checkCudaErrors(cudaFree(this->binstartpts));
+        checkCudaErrors(cudaFree(this->subprobstartpts));
+        checkCudaErrors(cudaFree(this->subprob_to_bin));
+      }
+      break;
+  }
 
         // Multi-GPU support: reset the device ID
         cudaSetDevice(orig_gpu_device_id);
@@ -1857,7 +1909,7 @@ Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
     d_fkstart = d_fk + i*this->options_.max_batch_size*this->mode_count_;
 
     this->c = d_cstart;
-    this->fine_grid_data_ = d_fkstart;
+    this->grid_data_ = d_fkstart;
 
     TF_RETURN_IF_ERROR(this->interp_batch(blksize));
   }
@@ -1891,7 +1943,7 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
     d_fkstart  = d_fk + i*this->options_.max_batch_size*this->mode_count_;
     
     this->c  = d_cstart;
-    this->fine_grid_data_ = d_fkstart;
+    this->grid_data_ = d_fkstart;
 
     TF_RETURN_IF_ERROR(this->spread_batch(blksize));
   }
@@ -1920,7 +1972,7 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
     this->c  = d_cstart;
     this->fk = d_fkstart;
 
-    checkCudaErrors(cudaMemset(this->fine_grid_data_,0,this->options_.max_batch_size*
+    checkCudaErrors(cudaMemset(this->grid_data_,0,this->options_.max_batch_size*
         this->grid_size_ * sizeof(DType)));
 
     // Step 1: Spread
@@ -1928,7 +1980,7 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
 
     // Step 2: FFT
     cufftResult result = cufftExec<FloatType>(
-      this->fft_plan_, this->fine_grid_data_, this->fine_grid_data_,
+      this->fft_plan_, this->grid_data_, this->grid_data_,
       static_cast<int>(this->fft_direction_));
     if (result != CUFFT_SUCCESS) {
       return errors::Internal("cuFFT execute failed with code: ", result);
@@ -1960,7 +2012,7 @@ Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
     // Step 2: FFT
     cudaDeviceSynchronize();
     cufftResult result = cufftExec<FloatType>(
-      this->fft_plan_, this->fine_grid_data_, this->fine_grid_data_,
+      this->fft_plan_, this->grid_data_, this->grid_data_,
       static_cast<int>(this->fft_direction_));
     if (result != CUFFT_SUCCESS) {
       return errors::Internal("cuFFT execute failed with code: ", result);
@@ -2019,7 +2071,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
   FloatType sigma=this->spread_params_.upsampling_factor;
 
   GpuComplex<FloatType>* d_c = this->c;
-  GpuComplex<FloatType>* d_fw = this->fine_grid_data_;
+  GpuComplex<FloatType>* d_fw = this->grid_data_;
 
   threadsPerBlock.x = 16;
   threadsPerBlock.y = 1;
@@ -2090,7 +2142,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
   }
 
   GpuComplex<FloatType>* d_c = this->c;
-  GpuComplex<FloatType>* d_fw = this->fine_grid_data_;
+  GpuComplex<FloatType>* d_fw = this->grid_data_;
 
   int *d_binsize = this->binsize;
   int *d_binstartpts = this->binstartpts;
@@ -2190,7 +2242,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
 	int *d_idxnupts=this->idxnupts;
 
 	GpuComplex<FloatType>* d_c = this->c;
-	GpuComplex<FloatType>* d_fw = this->fine_grid_data_;
+	GpuComplex<FloatType>* d_fw = this->grid_data_;
 
   switch (this->rank_) {
     case 2:
@@ -2269,7 +2321,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
   }
 
 	GpuComplex<FloatType>* d_c = this->c;
-	GpuComplex<FloatType>* d_fw = this->fine_grid_data_;
+	GpuComplex<FloatType>* d_fw = this->grid_data_;
 
 	int *d_binsize = this->binsize;
 	int *d_binstartpts = this->binstartpts;
@@ -2369,7 +2421,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
           Deconvolve2DKernel<<<num_blocks, threads_per_block>>>(
             this->num_modes_[0], this->num_modes_[1],
             this->grid_dims_[0], this->grid_dims_[1], 
-            this->fine_grid_data_ + t * this->grid_size_,
+            this->grid_data_ + t * this->grid_size_,
             this->fk + t * this->mode_count_, this->kernel_fseries_data_[0], 
             this->kernel_fseries_data_[1]);
         }
@@ -2379,34 +2431,35 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
           Deconvolve3DKernel<<<num_blocks, threads_per_block>>>(
             this->num_modes_[0], this->num_modes_[1], this->num_modes_[2],
             this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
-            this->fine_grid_data_ + t * this->grid_size_,
+            this->grid_data_ + t * this->grid_size_,
             this->fk + t * this->mode_count_, 
             this->kernel_fseries_data_[0], this->kernel_fseries_data_[1], this->kernel_fseries_data_[2]);
         }
         break;
     }
   } else {
-    checkCudaErrors(cudaMemset(this->fine_grid_data_,0,this->options_.max_batch_size*this->grid_size_*
+    checkCudaErrors(cudaMemset(this->grid_data_,0,this->options_.max_batch_size*this->grid_size_*
       sizeof(GpuComplex<FloatType>)));
     switch (this->rank_) {
       case 2:
         for (int t=0; t<blksize; t++) {
           Amplify2DKernel<<<num_blocks, threads_per_block>>>(this->num_modes_[0], 
             this->num_modes_[1], this->grid_dims_[0], this->grid_dims_[1],
-            this->fine_grid_data_ + t * this->grid_size_,
+            this->grid_data_ + t * this->grid_size_,
             this->fk + t * this->mode_count_,
             this->kernel_fseries_data_[0], this->kernel_fseries_data_[1]);
         }
         break;
       case 3:
         for (int t=0; t<blksize; t++) {
-          Amplify3DKernel<<<num_blocks, threads_per_block>>>(this->num_modes_[0],
-            this->num_modes_[1], this->num_modes_[2],
-            this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
-            this->fine_grid_data_ + t * this->grid_size_,
+          TF_CHECK_OK(GpuLaunchKernel(
+            Amplify3DKernel<FloatType>, num_blocks, threads_per_block, 0,
+            this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
+            this->num_modes_[2], this->grid_dims_[0], this->grid_dims_[1],
+            this->grid_dims_[2], this->grid_data_ + t * this->grid_size_,
             this->fk + t * this->mode_count_, 
             this->kernel_fseries_data_[0], this->kernel_fseries_data_[1],
-            this->kernel_fseries_data_[2]);
+            this->kernel_fseries_data_[2]));
         }
         break;
     }
@@ -2819,77 +2872,6 @@ Status set_grid_size(int ms,
   }
 
   return Status::OK();
-}
-
-template<typename FloatType>
-void free_gpu_memory(Plan<GPUDevice, FloatType>* d_plan) {
-
-      // Mult-GPU support: set the CUDA Device ID:
-      int orig_gpu_device_id;
-      cudaGetDevice(& orig_gpu_device_id);
-      cudaSetDevice(d_plan->options_.gpu_device_id);
-
-  switch(d_plan->options_.spread_method)
-  {
-    case SpreadMethod::NUPTS_DRIVEN:
-      {
-        if (d_plan->spread_params_.sort_points == SortPoints::YES) {
-          if (d_plan->idxnupts)
-            checkCudaErrors(cudaFree(d_plan->idxnupts));
-          if (d_plan->sortidx)
-            checkCudaErrors(cudaFree(d_plan->sortidx));
-          checkCudaErrors(cudaFree(d_plan->binsize));
-          checkCudaErrors(cudaFree(d_plan->binstartpts));
-        }else{
-          if (d_plan->idxnupts)
-            checkCudaErrors(cudaFree(d_plan->idxnupts));
-        }
-      }
-      break;
-    case SpreadMethod::SUBPROBLEM:
-      {
-        if (d_plan->idxnupts)
-          checkCudaErrors(cudaFree(d_plan->idxnupts));
-        if (d_plan->sortidx)
-          checkCudaErrors(cudaFree(d_plan->sortidx));
-        checkCudaErrors(cudaFree(d_plan->numsubprob));
-        checkCudaErrors(cudaFree(d_plan->binsize));
-        checkCudaErrors(cudaFree(d_plan->binstartpts));
-        checkCudaErrors(cudaFree(d_plan->subprobstartpts));
-        checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
-      }
-      break;
-    case SpreadMethod::PAUL:
-      {
-        if (d_plan->idxnupts)
-          checkCudaErrors(cudaFree(d_plan->idxnupts));
-        if (d_plan->sortidx)
-          checkCudaErrors(cudaFree(d_plan->sortidx));
-        checkCudaErrors(cudaFree(d_plan->numsubprob));
-        checkCudaErrors(cudaFree(d_plan->binsize));
-        checkCudaErrors(cudaFree(d_plan->finegridsize));
-        checkCudaErrors(cudaFree(d_plan->binstartpts));
-        checkCudaErrors(cudaFree(d_plan->subprobstartpts));
-        checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
-      }
-      break;
-    case SpreadMethod::BLOCK_GATHER:
-      {
-        if (d_plan->idxnupts)
-          checkCudaErrors(cudaFree(d_plan->idxnupts));
-        if (d_plan->sortidx)
-          checkCudaErrors(cudaFree(d_plan->sortidx));
-        checkCudaErrors(cudaFree(d_plan->numsubprob));
-        checkCudaErrors(cudaFree(d_plan->binsize));
-        checkCudaErrors(cudaFree(d_plan->binstartpts));
-        checkCudaErrors(cudaFree(d_plan->subprobstartpts));
-        checkCudaErrors(cudaFree(d_plan->subprob_to_bin));
-      }
-      break;
-  }
-
-        // Multi-GPU support: reset the device ID
-        cudaSetDevice(orig_gpu_device_id);
 }
 
 } // namespace

@@ -168,7 +168,6 @@ CUFINUFFTOBJS_64=$(CUFINUFFT_ROOT)/spreadinterp2d.o \
 				 $(CUFINUFFT_ROOT)/deconvolve_wrapper.o \
 				 $(CUFINUFFT_ROOT)/cufinufft.o \
 				 $(CUFINUFFT_ROOT)/spreadinterp3d.o \
-				 $(CUFINUFFT_ROOT)/cufinufft3d.o \
 				 $(CONTRIBOBJS)
 CUFINUFFTOBJS_32=$(CUFINUFFTOBJS_64:%.o=%_32.o)
 

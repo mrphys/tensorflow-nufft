@@ -16,8 +16,5 @@ limitations under the License.
 #ifndef __CUDECONVOLVE_H__
 #define __CUDECONVOLVE_H__
 
-#include <tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft_eitherprec.h>
-#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
-int CUDECONVOLVE2D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_mem, int blksize);
 #endif

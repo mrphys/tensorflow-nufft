@@ -22,27 +22,7 @@ limitations under the License.
 //Kernels for 2D codes
 /* -----------------------------Spreading Kernels-----------------------------*/
 /* Kernels for NUptsdriven Method */
-__global__
-void Spread_2d_NUptsdriven(FLT *x, FLT *y, CUCPX *c, CUCPX *fw, int M, const int ns,
-		int nf1, int nf2, FLT es_c, FLT es_beta, int* idxnupts, int pirange);
-__global__
-void Spread_2d_NUptsdriven_Horner(FLT *x, FLT *y, CUCPX *c, CUCPX *fw, int M,
-	const int ns, int nf1, int nf2, FLT sigma, int* idxnupts, int pirange);
 
-
-// Main Spreading Kernel
-__global__
-void Spread_2d_Subprob(FLT *x, FLT *y, CUCPX *c, CUCPX *fw, int M, const int ns,
-		int nf1, int nf2, FLT es_c, FLT es_beta, FLT sigma, int* binstartpts,
-		int* bin_size, int bin_size_x, int bin_size_y, int* subprob_to_bin,
-		int* subprobstartpts, int* numsubprob, int maxsubprobsize, int nbinx,
-		int nbiny,int* idxnupts, int pirange);
-__global__
-void Spread_2d_Subprob_Horner(FLT *x, FLT *y, CUCPX *c, CUCPX *fw, int M,
-		const int ns, int nf1, int nf2, FLT sigma, int* binstartpts,
-		int* bin_size, int bin_size_x, int bin_size_y, int* subprob_to_bin,
-		int* subprobstartpts, int* numsubprob, int maxsubprobsize, int nbinx,
-		int nbiny,int* idxnupts, int pirange);
 
 /* Kernels for Paul's Method */
 __global__
@@ -166,60 +146,13 @@ void Spread_3d_BlockGather_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, i
 
 /* -----------------------------Spreading Kernels-----------------------------*/
 /* Kernels for NUptsdriven Method */
-__global__
-void Interp_3d_NUptsdriven_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
-	int M, const int ns, int nf1, int nf2, int nf3, FLT sigma, int* idxnupts,
-	int pirange);
-__global__
-void Interp_3d_NUptsdriven(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
-	const int ns, int nf1, int nf2, int nf3, FLT es_c, FLT es_beta,
-	int* idxnupts, int pirange);
 
-/* Kernels for Subprob Method */
-__global__
-void Interp_3d_Subprob_Horner(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw, int M,
-	const int ns, int nf1, int nf2, int nf3, FLT sigma, int* binstartpts,
-	int* bin_size, int bin_size_x, int bin_size_y, int bin_size_z,
-	int* subprob_to_bin, int* subprobstartpts, int* numsubprob,
-	int maxsubprobsize, int nbinx, int nbiny, int nbinz, int* idxnupts,
-	int pirange);
-__global__
-void Interp_3d_Subprob(FLT *x, FLT *y, FLT *z, CUCPX *c, CUCPX *fw,
-	int M, const int ns, int nf1, int nf2, int nf3, FLT es_c, FLT es_beta,
-	int* binstartpts, int* bin_size, int bin_size_x, int bin_size_y,
-	int bin_size_z, int* subprob_to_bin, int* subprobstartpts, int* numsubprob,
-	int maxsubprobsize, int nbinx, int nbiny, int nbinz, int* idxnupts,
-	int pirange);
 
 namespace tensorflow {
 namespace nufft
 {
 			
-// Functions for calling different methods of spreading & interpolation
-int CUSPREAD2D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
-int CUINTERP2D(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
 
-// Wrappers for methods of spreading
-int CUSPREAD2D_NUPTSDRIVEN_PROP(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUSPREAD2D_NUPTSDRIVEN(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
-	int blksize);
-int CUSPREAD2D_SUBPROB_PROP(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUSPREAD2D_PAUL_PROP(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUSPREAD2D_SUBPROB(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
-	int blksize);
-int CUSPREAD2D_PAUL(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
-	int blksize);
-
-int CUSPREAD3D_BLOCKGATHER_PROP(
-	tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUSPREAD3D_BLOCKGATHER(
-	tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan, int blksize);
-
-// Wrappers for methods of interpolation
-int CUINTERP2D_NUPTSDRIVEN(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
-	int blksize);
-int CUINTERP2D_SUBPROB(tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan,
-	int blksize);
 
 } // namespace nufft
 } // namespace tensorflow

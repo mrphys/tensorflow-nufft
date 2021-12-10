@@ -270,6 +270,33 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
                     FloatType* points_y,
                     FloatType* points_z);
 
+  /*
+	"exec" stage (single and double precision versions).
+
+	The actual transformation is done here. Type and dimension of the
+	transformation are defined in d_plan in previous stages.
+
+        See ../docs/cppdoc.md for main user-facing documentation.
+
+	Input/Output:
+	d_c   a size d_plan->num_points_ CPX array on gpu (input for Type 1; output for Type
+	      2)
+	d_fk  a size d_plan->ms*d_plan->mt*d_plan->mu CPX array on gpu ((input for
+	      Type 2; output for Type 1)
+
+	Notes:
+        i) Here CPX is a defined type meaning either complex<float> or complex<double>
+	    to match the precision of the library called.
+        ii) All operations are done on the GPU device (hence the d_* names)
+
+	Melody Shih 07/25/19; Barnett 2/16/21.
+  */
+  Status execute(DType* d_c, DType* d_fk);
+
+  Status interp(DType* d_c, DType* d_fk);
+
+  Status spread(DType* d_c, DType* d_fk);
+
  private:
   
   Status init_spreader();
@@ -281,6 +308,53 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   Status init_spreader_paul();
 
   Status init_spreader_block_gather();
+
+  /*  
+    2D Type-1 NUFFT
+
+    This function is called in "exec" stage (See ../cufinufft.cu).
+    It includes (copied from doc in finufft library)
+      Step 1: spread data to oversampled regular mesh using kernel
+      Step 2: compute FFT on uniform mesh
+      Step 3: deconvolve by division of each Fourier mode independently by the
+              Fourier series coefficient of the kernel.
+
+    Melody Shih 07/25/19		
+  */
+  Status execute_type_1(DType* d_c, DType* d_fk);
+
+  /*  
+    2D Type-2 NUFFT
+
+    This function is called in "exec" stage (See ../cufinufft.cu).
+    It includes (copied from doc in finufft library)
+      Step 1: deconvolve (amplify) each Fourier mode, dividing by kernel 
+              Fourier coeff
+      Step 2: compute FFT on uniform mesh
+      Step 3: interpolate data to regular mesh
+
+    Melody Shih 07/25/19
+  */
+  Status execute_type_2(DType* d_c, DType* d_fk);
+
+  Status spread_batch(int blksize);
+
+  Status interp_batch(int blksize);
+
+  Status spread_batch_nupts_driven(int blksize);
+
+  Status spread_batch_subproblem(int blksize);
+
+  Status interp_batch_nupts_driven(int blksize);
+
+  Status interp_batch_subproblem(int blksize);
+
+  /* 
+  wrapper for deconvolution & amplication in 2D.
+
+  Melody Shih 07/25/19
+  */
+  Status deconvolve_batch(int blksize);
 
  public:
 

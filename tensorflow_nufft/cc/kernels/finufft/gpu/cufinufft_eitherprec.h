@@ -44,94 +44,13 @@ limitations under the License.
 
 
 /* Undefine things so we don't get warnings/errors later */
-#undef CUFINUFFT_EXECUTE
-#undef CUFINUFFT_INTERP
-#undef CUFINUFFT_SPREAD
-#undef CUFINUFFT2D1_EXEC
-#undef CUFINUFFT2D2_EXEC
-#undef CUFINUFFT2D_INTERP
-#undef CUFINUFFT2D_SPREAD
 /* spreading 2D */
-#undef CUSPREAD2D
-#undef CUSPREAD2D_NUPTSDRIVEN
-#undef CUSPREAD2D_SUBPROB
-#undef CUSPREAD2D_PAUL
-/* spreading 3d */
-#undef CUSPREAD3D_BLOCKGATHER
-/* interp */
-#undef CUINTERP2D
-#undef CUINTERP2D_NUPTSDRIVEN
-#undef CUINTERP2D_SUBPROB
+
 /* deconvolve */
-#undef CUDECONVOLVE2D
 /* structs */
 
 
-#ifdef SINGLE
-
-#define CUFINUFFT_EXECUTE cufinufftf_execute
-#define CUFINUFFT_INTERP cufinufftf_interp
-#define CUFINUFFT_SPREAD cufinufftf_spread
-#define CUFINUFFT2D1_EXEC cufinufftf2d1_exec
-#define CUFINUFFT2D2_EXEC cufinufftf2d2_exec
-#define CUFINUFFT2D_INTERP cufinufftf2d_interp
-/* spreading 2D */
-#define CUSPREAD2D cuspread2df
-#define CUSPREAD2D_NUPTSDRIVEN cuspread2df_nuptsdriven
-#define CUSPREAD2D_SUBPROB cuspread2df_subprob
-#define CUSPREAD2D_PAUL cuspread2df_paul
-#define CUSPREAD3D_BLOCKGATHER cuspread3df_blockgather
-/* interp */
-#define CUINTERP2D cuinterp2df
-#define CUINTERP2D_NUPTSDRIVEN cuinterp2df_nuptsdriven
-#define CUINTERP2D_SUBPROB cuinterp2df_subprob
-/* deconvolve */
-#define CUDECONVOLVE2D cudeconvolve2df
-/* structs */
-
-#else
-
-#define CUFINUFFT_EXECUTE cufinufft_execute
-#define CUFINUFFT_INTERP cufinufft_interp
-#define CUFINUFFT_SPREAD cufinufft_spread
-#define CUFINUFFT2D1_EXEC cufinufft2d1_exec
-#define CUFINUFFT2D2_EXEC cufinufft2d2_exec
-#define CUFINUFFT2D_INTERP cufinufft2d_interp
-#define CUFINUFFT2D_SPREAD cufinufft2d_spread
-/* spreading 2D */
-#define CUSPREAD2D cuspread2d
-#define CUSPREAD2D_NUPTSDRIVEN cuspread2d_nuptsdriven
-#define CUSPREAD2D_SUBPROB cuspread2d_subprob
-#define CUSPREAD2D_PAUL cuspread2d_paul
-#define CUSPREAD3D_BLOCKGATHER cuspread3d_blockgather
-#define CUINTERP2D cuinterp2d
-#define CUINTERP2D_NUPTSDRIVEN cuinterp2d_nuptsdriven
-#define CUINTERP2D_SUBPROB cuinterp2d_subprob
-/* deconvolve */
-#define CUDECONVOLVE2D cudeconvolve2d
-
-
-#endif
 
 #define checkCufftErrors(call)
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-int CUFINUFFT_EXECUTE(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUFINUFFT_INTERP(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUFINUFFT_SPREAD(CUCPX* h_c, CUCPX* h_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-#ifdef __cplusplus
-}
-#endif
-
-
-// 2d
-int CUFINUFFT2D1_EXEC(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUFINUFFT2D2_EXEC(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-
-// 2d
-int CUFINUFFT2D_INTERP(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
-int CUFINUFFT2D_SPREAD(CUCPX* d_c, CUCPX* d_fk, tensorflow::nufft::Plan<tensorflow::GPUDevice, FLT>* d_plan);
 
 #endif

@@ -22,7 +22,6 @@
 #undef IMA
 #undef FABS
 #undef CUCPX
-#undef CUFFT_EX
 
 // Compile-flag choice of single or double (default) precision:
 // (Note in the other codes, FLT is "double" or "float", CPX same but complex)

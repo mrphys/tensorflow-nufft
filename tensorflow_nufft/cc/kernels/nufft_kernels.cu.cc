@@ -35,7 +35,10 @@ int setpts<GPUDevice, float>(
     Plan<GPUDevice, float>* plan,
     int64_t M, float* x, float* y, float* z,
     int64_t N, float* s, float* t, float* u) {
-  plan->set_points(M, x, y, z);
+  Status st = plan->set_points(M, x, y, z);
+  if (!st.ok()) {
+    return 4;
+  }
   return 0;
 };
 
@@ -44,7 +47,10 @@ int setpts<GPUDevice, double>(
     Plan<GPUDevice, double>* plan,
     int64_t M, double* x, double* y, double* z,
     int64_t N, double* s, double* t, double* u) {
-  plan->set_points(M, x, y, z);
+  Status st = plan->set_points(M, x, y, z);
+  if (!st.ok()) {
+    return 4;
+  }
   return 0;
 };
 
@@ -52,60 +58,72 @@ template<>
 int execute<GPUDevice, float>(
     Plan<GPUDevice, float>* plan,
     std::complex<float>* c, std::complex<float>* f) {
-  return cufinufftf_execute(
-    reinterpret_cast<cuFloatComplex*>(c),
-    reinterpret_cast<cuFloatComplex*>(f),
-    plan);
+  Status s = plan->execute(reinterpret_cast<cuFloatComplex*>(c),
+                           reinterpret_cast<cuFloatComplex*>(f));
+  if (!s.ok()) {
+    return 4;
+  }
+  return 0; 
 };
 
 template<>
 int execute<GPUDevice, double>(
     Plan<GPUDevice, double>* plan,
     std::complex<double>* c, std::complex<double>* f) {
-  return cufinufft_execute(
-    reinterpret_cast<cuDoubleComplex*>(c),
-    reinterpret_cast<cuDoubleComplex*>(f),
-    plan);
+  Status s = plan->execute(reinterpret_cast<cuDoubleComplex*>(c),
+                           reinterpret_cast<cuDoubleComplex*>(f));
+  if (!s.ok()) {
+    return 4;
+  }
+  return 0;
 };
 
 template<>
 int interp<GPUDevice, float>(
     Plan<GPUDevice, float>* plan,
     std::complex<float>* c, std::complex<float>* f) {
-  return cufinufftf_interp(
-    reinterpret_cast<cuFloatComplex*>(c),
-    reinterpret_cast<cuFloatComplex*>(f),
-    plan);
+  Status s = plan->interp(reinterpret_cast<cuFloatComplex*>(c),
+                          reinterpret_cast<cuFloatComplex*>(f));
+  if (!s.ok()) {
+    return 4;
+  }
+  return 0;
 };
 
 template<>
 int interp<GPUDevice, double>(
     Plan<GPUDevice, double>* plan,
     std::complex<double>* c, std::complex<double>* f) {
-  return cufinufft_interp(
-    reinterpret_cast<cuDoubleComplex*>(c),
-    reinterpret_cast<cuDoubleComplex*>(f),
-    plan);
+  Status s = plan->interp(reinterpret_cast<cuDoubleComplex*>(c),
+                          reinterpret_cast<cuDoubleComplex*>(f));
+  if (!s.ok()) {
+    return 4;
+  }
+  return 0;
 };
 
 template<>
 int spread<GPUDevice, float>(
     Plan<GPUDevice, float>* plan,
     std::complex<float>* c, std::complex<float>* f) {
-  return cufinufftf_spread(
-    reinterpret_cast<cuFloatComplex*>(c),
-    reinterpret_cast<cuFloatComplex*>(f),
-    plan);
+  Status s = plan->spread(reinterpret_cast<cuFloatComplex*>(c),
+                          reinterpret_cast<cuFloatComplex*>(f));
+  if (!s.ok()) {
+    return 4;
+  }
+  return 0;
 };
 
 template<>
 int spread<GPUDevice, double>(
     Plan<GPUDevice, double>* plan,
     std::complex<double>* c, std::complex<double>* f) {
-  return cufinufft_spread(
-    reinterpret_cast<cuDoubleComplex*>(c),
-    reinterpret_cast<cuDoubleComplex*>(f),
-    plan);
+  Status s = plan->spread(reinterpret_cast<cuDoubleComplex*>(c),
+                          reinterpret_cast<cuDoubleComplex*>(f));
+  if (!s.ok()) {
+    return 4;
+  }
+  return 0;
 };
 
 }   // namespace nufft

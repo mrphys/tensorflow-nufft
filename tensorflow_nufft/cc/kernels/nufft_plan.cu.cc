@@ -42,10 +42,6 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
 #include "tensorflow_nufft/cc/kernels/omp_api.h"
 
-// TODO: remove
-#include "tensorflow_nufft/cc/kernels/finufft/gpu/cufinufft.h"
-#include "tensorflow_nufft/cc/kernels/finufft/gpu/cuspreadinterp.h"
-
 // NU coord handling macro: if p is true, rescales from [-pi,pi] to [0,N], then
 // folds *only* one period below and above, ie [-N,2N], into the domain [0,N]...
 #define RESCALE(x, N, p) (p ? \
@@ -375,8 +371,8 @@ __global__ void SpreadNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex
 	int xstart,ystart,xend,yend;
 	int xx, yy, ix, iy;
 	int outidx;
-	FloatType ker1[MAX_NSPREAD];
-	FloatType ker2[MAX_NSPREAD];
+	FloatType ker1[kMaxKernelWidth];
+	FloatType ker2[kMaxKernelWidth];
 
 	FloatType x_rescaled, y_rescaled;
 	FloatType kervalue1, kervalue2;
@@ -415,8 +411,8 @@ __global__ void SpreadNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
 {
 	int xx, yy, ix, iy;
 	int outidx;
-	FloatType ker1[MAX_NSPREAD];
-	FloatType ker2[MAX_NSPREAD];
+	FloatType ker1[kMaxKernelWidth];
+	FloatType ker2[kMaxKernelWidth];
 	FloatType ker1val, ker2val;
 
 	FloatType x_rescaled, y_rescaled;
@@ -461,6 +457,9 @@ __global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
   // error. To get around this issue, we declare the shared memory pointer as
   // `unsigned char` and then cast it to the appropriate type. See also
   // https://stackoverflow.com/a/27570775/9406746
+  // Note: `nvcc` emits a warning warning for this code: "#1886-D: specified
+  // alignment (16) is different from alignment (8) specified on a previous
+  // declaration". This can be safely ignored and is disabled in the Makefile.
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
@@ -477,8 +476,8 @@ __global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
 	int yoffset=(bidx / nbinx)*bin_size_y;
 
 	int N = (bin_size_x+2*ceil(ns/2.0))*(bin_size_y+2*ceil(ns/2.0));
-	FloatType ker1[MAX_NSPREAD];
-	FloatType ker2[MAX_NSPREAD];
+	FloatType ker1[kMaxKernelWidth];
+	FloatType ker2[kMaxKernelWidth];
 	
 	for (int i=threadIdx.x; i<N; i+=blockDim.x) {
 		fwshared[i].x = 0.0;
@@ -559,8 +558,8 @@ __global__ void SpreadSubproblemHorner2DKernel(FloatType *x, FloatType *y, GpuCo
 
 	int N = (bin_size_x+2*ceil(ns/2.0))*(bin_size_y+2*ceil(ns/2.0));
 	
-	FloatType ker1[MAX_NSPREAD];
-	FloatType ker2[MAX_NSPREAD];
+	FloatType ker1[kMaxKernelWidth];
+	FloatType ker2[kMaxKernelWidth];
 
 
 	for (int i=threadIdx.x; i<N; i+=blockDim.x) {
@@ -669,8 +668,8 @@ __global__ void InterpNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
 		GpuComplex<FloatType> cnow;
 		cnow.x = 0.0;
 		cnow.y = 0.0;
-		FloatType ker1[MAX_NSPREAD];
-		FloatType ker2[MAX_NSPREAD];
+		FloatType ker1[kMaxKernelWidth];
+		FloatType ker2[kMaxKernelWidth];
 
 		eval_kernel_vec_Horner(ker1,xstart-x_rescaled,ns,sigma);
         eval_kernel_vec_Horner(ker2,ystart-y_rescaled,ns,sigma);
@@ -805,8 +804,8 @@ __global__ void InterpSubproblemHorner2DKernel(
 	}
 	__syncthreads();
 
-	FloatType ker1[MAX_NSPREAD];
-	FloatType ker2[MAX_NSPREAD];
+	FloatType ker1[kMaxKernelWidth];
+	FloatType ker2[kMaxKernelWidth];
 
 	FloatType x_rescaled, y_rescaled;
 	GpuComplex<FloatType> cnow;
@@ -849,9 +848,9 @@ __global__ void SpreadNuptsDrivenHorner3DKernel(
     int pirange) {
 	int xx, yy, zz, ix, iy, iz;
 	int outidx;
-	FloatType ker1[MAX_NSPREAD];
-	FloatType ker2[MAX_NSPREAD];
-	FloatType ker3[MAX_NSPREAD];
+	FloatType ker1[kMaxKernelWidth];
+	FloatType ker2[kMaxKernelWidth];
+	FloatType ker3[kMaxKernelWidth];
 
 	FloatType ker1val, ker2val, ker3val;
 
@@ -902,9 +901,9 @@ void SpreadNuptsDriven3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComp
 {
 	int xx, yy, zz, ix, iy, iz;
 	int outidx;
-	FloatType ker1[MAX_NSPREAD];
-	FloatType ker2[MAX_NSPREAD];
-	FloatType ker3[MAX_NSPREAD];
+	FloatType ker1[kMaxKernelWidth];
+	FloatType ker2[kMaxKernelWidth];
+	FloatType ker3[kMaxKernelWidth];
 
 	FloatType x_rescaled, y_rescaled, z_rescaled;
 	FloatType ker1val, ker2val, ker3val;
@@ -983,9 +982,9 @@ __global__ void SpreadSubproblemHorner3DKernel(FloatType *x, FloatType *y, Float
 	GpuComplex<FloatType> cnow;
 
 	for (int i=threadIdx.x; i<nupts; i+=blockDim.x) {
-		FloatType ker1[MAX_NSPREAD];
-		FloatType ker2[MAX_NSPREAD];
-		FloatType ker3[MAX_NSPREAD];
+		FloatType ker1[kMaxKernelWidth];
+		FloatType ker2[kMaxKernelWidth];
+		FloatType ker3[kMaxKernelWidth];
 
 		int nuptsidx = idxnupts[ptstart+i];
 		x_rescaled = RESCALE(x[nuptsidx],nf1,pirange);
@@ -1089,9 +1088,9 @@ void SpreadSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
 	FloatType x_rescaled, y_rescaled, z_rescaled;
 	GpuComplex<FloatType> cnow;
 	for (int i=threadIdx.x; i<nupts; i+=blockDim.x) {
-		FloatType ker1[MAX_NSPREAD];
-		FloatType ker2[MAX_NSPREAD];
-		FloatType ker3[MAX_NSPREAD];
+		FloatType ker1[kMaxKernelWidth];
+		FloatType ker2[kMaxKernelWidth];
+		FloatType ker3[kMaxKernelWidth];
 		int idx = ptstart+i;
 		x_rescaled=RESCALE(x[idxnupts[idx]], nf1, pirange);
 		y_rescaled=RESCALE(y[idxnupts[idx]], nf2, pirange);
@@ -1230,9 +1229,9 @@ void InterpNuptsDrivenHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, G
 		cnow.x = 0.0;
 		cnow.y = 0.0;
 
-		FloatType ker1[MAX_NSPREAD];
-		FloatType ker2[MAX_NSPREAD];
-		FloatType ker3[MAX_NSPREAD];
+		FloatType ker1[kMaxKernelWidth];
+		FloatType ker2[kMaxKernelWidth];
+		FloatType ker3[kMaxKernelWidth];
 
 		eval_kernel_vec_Horner(ker1,xstart-x_rescaled,ns,sigma);
 		eval_kernel_vec_Horner(ker2,ystart-y_rescaled,ns,sigma);
@@ -1402,9 +1401,9 @@ void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, Gp
 		}
 	}
 	__syncthreads();
-	FloatType ker1[MAX_NSPREAD];
-	FloatType ker2[MAX_NSPREAD];
-	FloatType ker3[MAX_NSPREAD];
+	FloatType ker1[kMaxKernelWidth];
+	FloatType ker2[kMaxKernelWidth];
+	FloatType ker3[kMaxKernelWidth];
 	FloatType x_rescaled, y_rescaled, z_rescaled;
 	GpuComplex<FloatType> cnow;
 	for (int i=threadIdx.x; i<nupts; i+=blockDim.x) {

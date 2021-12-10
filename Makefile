@@ -68,7 +68,7 @@ CUFINUFFT_CFLAGS = -funroll-loops
 
 NVARCH ?= -gencode=arch=compute_61,code=sm_61
 
-CUDAFE = --diag_suppress=174 --diag_suppress=611 --diag_suppress=20012 --display_error_number
+CUDAFE = --diag_suppress=174 --diag_suppress=611 --diag_suppress=20012 --diag_suppress=1886 --display_error_number
 
 CUFLAGS = $(NVARCH) -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-constexpr
 CUFLAGS += -I$(ROOT_DIR)
@@ -147,28 +147,14 @@ $(FINUFFT_ROOT)/%_32.o: $(FINUFFT_ROOT)/%.c $(FINUFFT_HEADERS)
 
 CUFINUFFT_LIB = $(CUFINUFFT_ROOT)/libcufinufft.a
 CUFINUFFT_DLINK = $(CUFINUFFT_ROOT)/libcufinufft.dlink
-CUFINUFFT_HEADERS = $(CUFINUFFT_ROOT)/cufinufft.h \
-					$(CUFINUFFT_ROOT)/cudeconvolve.h \
-					$(CUFINUFFT_ROOT)/profile.h \
-					$(CUFINUFFT_ROOT)/cuspreadinterp.h \
-					$(CUFINUFFT_ROOT)/cufinufft_eitherprec.h \
-					$(CUFINUFFT_ROOT)/cufinufft_errors.h
 CONTRIBOBJS=$(CUFINUFFT_ROOT)/contrib/spreadinterp.o \
 			$(CUFINUFFT_ROOT)/contrib/utils_fp.o
 
 # We create three collections of objects:
 #  Double (_64), Single (_32), and floating point agnostic (no suffix)
-CUFINUFFTOBJS=$(CUFINUFFT_ROOT)/precision_independent.o \
-			  $(CUFINUFFT_ROOT)/profile.o \
-			  $(CUFINUFFT_ROOT)/contrib/legendre_rule_fast.o \
+CUFINUFFTOBJS=$(CUFINUFFT_ROOT)/contrib/legendre_rule_fast.o \
 			  $(CUFINUFFT_ROOT)/contrib/utils.o
-CUFINUFFTOBJS_64=$(CUFINUFFT_ROOT)/spreadinterp2d.o \
-				 $(CUFINUFFT_ROOT)/cufinufft2d.o \
-				 $(CUFINUFFT_ROOT)/spread2d_wrapper.o \
-				 $(CUFINUFFT_ROOT)/deconvolve_wrapper.o \
-				 $(CUFINUFFT_ROOT)/cufinufft.o \
-				 $(CUFINUFFT_ROOT)/spreadinterp3d.o \
-				 $(CONTRIBOBJS)
+CUFINUFFTOBJS_64=$(CONTRIBOBJS)
 CUFINUFFTOBJS_32=$(CUFINUFFTOBJS_64:%.o=%_32.o)
 
 
@@ -178,17 +164,17 @@ $(CUFINUFFT_LIB): $(CUFINUFFTOBJS) $(CUFINUFFTOBJS_64) $(CUFINUFFTOBJS_32) $(CON
 	$(NVCC) -dlink $(CUFINUFFT_CUFLAGS) $^ -o $(CUFINUFFT_DLINK)
 	ar rcs $(CUFINUFFT_LIB) $^ $(CUFINUFFT_DLINK)
 
-$(CUFINUFFT_ROOT)/%_32.o: $(CUFINUFFT_ROOT)/%.cpp $(CUFINUFFT_HEADERS)
+$(CUFINUFFT_ROOT)/%_32.o: $(CUFINUFFT_ROOT)/%.cpp
 	$(CXX) -DSINGLE -c $(CXXFLAGS) $(CUFINUFFT_CFLAGS) $< -o $@
-$(CUFINUFFT_ROOT)/%_32.o: $(CUFINUFFT_ROOT)/%.c $(CUFINUFFT_HEADERS)
+$(CUFINUFFT_ROOT)/%_32.o: $(CUFINUFFT_ROOT)/%.c
 	$(CC) -DSINGLE -c $(CFLAGS) $(CUFINUFFT_CFLAGS) $< -o $@
-$(CUFINUFFT_ROOT)/%_32.o: $(CUFINUFFT_ROOT)/%.cu $(CUFINUFFT_HEADERS)
+$(CUFINUFFT_ROOT)/%_32.o: $(CUFINUFFT_ROOT)/%.cu
 	$(NVCC) -DSINGLE --device-c -c $(CUFINUFFT_CUFLAGS) $< -o $@
-$(CUFINUFFT_ROOT)/%.o: $(CUFINUFFT_ROOT)/%.cpp $(CUFINUFFT_HEADERS)
+$(CUFINUFFT_ROOT)/%.o: $(CUFINUFFT_ROOT)/%.cpp
 	$(CXX) -c $(CXXFLAGS) $(CUFINUFFT_CFLAGS) $< -o $@
-$(CUFINUFFT_ROOT)/%.o: $(CUFINUFFT_ROOT)/%.c $(CUFINUFFT_HEADERS)
+$(CUFINUFFT_ROOT)/%.o: $(CUFINUFFT_ROOT)/%.c
 	$(CC) -c $(CFLAGS) $(CUFINUFFT_CFLAGS) $< -o $@
-$(CUFINUFFT_ROOT)/%.o: $(CUFINUFFT_ROOT)/%.cu $(CUFINUFFT_HEADERS)
+$(CUFINUFFT_ROOT)/%.o: $(CUFINUFFT_ROOT)/%.cu
 	$(NVCC) --device-c -c $(CUFINUFFT_CUFLAGS) $< -o $@
 
 

@@ -11,9 +11,6 @@
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
 
-#define MAX_NSPREAD 16     // upper bound on w, ie nspread, even when padded
-                           // (see evaluate_kernel_vector); also for common
-
 
 #ifdef SINGLE
 #define SPREADINTERPF_H

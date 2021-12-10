@@ -2258,7 +2258,6 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
     default:
       return errors::Unimplemented("Invalid rank: ", this->rank_);
   }
-
   return Status::OK();
 }
 
@@ -2282,23 +2281,33 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
       threads_per_block.y = 1;
       num_blocks.x = (this->num_points_ + threads_per_block.x - 1)/threads_per_block.x;
       num_blocks.y = 1;
-
-      if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-        for (int t = 0; t < blksize; t++) {
-          InterpNuptsDrivenHorner2DKernel<<<num_blocks, threads_per_block>>>(
-            this->points_[0], this->points_[1], d_c+t * this->num_points_,
-            d_fw+t*this->grid_size_, this->num_points_, kernel_width,
-            this->grid_dims_[0], this->grid_dims_[1], sigma,  this->idx_nupts_,
-            pirange);
-        }
-      } else {
-        for (int t = 0; t < blksize; t++) {
-          InterpNuptsDriven2DKernel<<<num_blocks, threads_per_block>>>(
-            this->points_[0], this->points_[1], 
-            d_c+t * this->num_points_, d_fw+t*this->grid_size_,
-            this->num_points_, kernel_width, this->grid_dims_[0], this->grid_dims_[1],
-            es_c, es_beta,  this->idx_nupts_, pirange);
-        }
+      switch (this->options_.kernel_evaluation_method) {
+        case KernelEvaluationMethod::DIRECT:
+          for (int t = 0; t < blksize; t++) {
+            TF_CHECK_OK(GpuLaunchKernel(
+                InterpNuptsDriven2DKernel<FloatType>, num_blocks,
+                threads_per_block, 0, this->device_.stream(), this->points_[0],
+                this->points_[1], d_c + t * this->num_points_,
+                d_fw + t * this->grid_size_, this->num_points_, kernel_width,
+                this->grid_dims_[0], this->grid_dims_[1], es_c, es_beta,
+                this->idx_nupts_, pirange));
+          }
+          break;
+        case KernelEvaluationMethod::HORNER:
+          for (int t = 0; t < blksize; t++) {
+            TF_CHECK_OK(GpuLaunchKernel(
+                InterpNuptsDrivenHorner2DKernel<FloatType>, num_blocks,
+                threads_per_block, 0, this->device_.stream(), this->points_[0],
+                this->points_[1], d_c + t * this->num_points_,
+                d_fw + t * this->grid_size_, this->num_points_, kernel_width,
+                this->grid_dims_[0], this->grid_dims_[1], sigma,
+                this->idx_nupts_, pirange));
+          }
+          break;
+        default:
+          return errors::Internal(
+              "Invalid kernel evaluation method: ", static_cast<int>(
+                  this->options_.kernel_evaluation_method));
       }
       break;
     case 3:
@@ -2306,29 +2315,38 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
       threads_per_block.y = 1;
       num_blocks.x = (this->num_points_ + threads_per_block.x - 1) / threads_per_block.x;
       num_blocks.y = 1;
-
-      if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-        for (int t = 0; t < blksize; t++) {
-          InterpNuptsDrivenHorner3DKernel<<<num_blocks, threads_per_block, 0, 0>>>(
-              this->points_[0], this->points_[1], this->points_[2],
-              d_c + t * this->num_points_, d_fw+t*this->grid_size_,
-              this->num_points_, kernel_width, this->grid_dims_[0],
-              this->grid_dims_[1], this->grid_dims_[2], sigma, this->idx_nupts_,
-              pirange);
-        }
-      } else {
-        for (int t = 0; t < blksize; t++) {
-          InterpNuptsDriven3DKernel<<<num_blocks, threads_per_block, 0, 0>>>(
-              this->points_[0], this->points_[1], this->points_[2],
-              d_c + t * this->num_points_, d_fw + t * this->grid_size_,
-              this->num_points_, kernel_width, 
-              this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
-              es_c, es_beta, this->idx_nupts_,pirange);
-        }
+      switch (this->options_.kernel_evaluation_method) {
+        case KernelEvaluationMethod::DIRECT:
+          for (int t = 0; t < blksize; t++) {
+            TF_CHECK_OK(GpuLaunchKernel(
+                InterpNuptsDriven3DKernel<FloatType>, num_blocks,
+                threads_per_block, 0, this->device_.stream(), this->points_[0],
+                this->points_[1], this->points_[2], d_c + t * this->num_points_,
+                d_fw + t * this->grid_size_, this->num_points_, kernel_width, 
+                this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
+                es_c, es_beta, this->idx_nupts_,pirange));
+          }
+          break;
+        case KernelEvaluationMethod::HORNER:
+          for (int t = 0; t < blksize; t++) {
+            TF_CHECK_OK(GpuLaunchKernel(
+                InterpNuptsDrivenHorner3DKernel<FloatType>, num_blocks,
+                threads_per_block, 0, this->device_.stream(), this->points_[0],
+                this->points_[1], this->points_[2], d_c + t * this->num_points_,
+                d_fw + t * this->grid_size_, this->num_points_, kernel_width,
+                this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
+                sigma, this->idx_nupts_, pirange));
+          }
+          break;
+        default:
+          return errors::Internal(
+              "Invalid kernel evaluation method: ", static_cast<int>(
+                  this->options_.kernel_evaluation_method));
       }
       break;
+    default:
+      return errors::Unimplemented("Invalid rank: ", this->rank_);
   }
-
 	return Status::OK();
 }
 

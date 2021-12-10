@@ -351,7 +351,7 @@ static __inline__ __device__ void eval_kernel_vec_Horner(
 	FloatType z = 2*x + w - 1.0;         // scale so local grid offset z in [-1,1]
 	// insert the auto-generated code which expects z, w args, writes to ker...
 	if (upsampling_factor == 2.0) {     // floating point equality is fine here
-#include "tensorflow_nufft/cc/kernels/finufft/gpu/contrib/ker_horner_allw_loop.c"
+    #include "tensorflow_nufft/cc/kernels/kernel_horner_sigma2.c"
 	}
 }
 
@@ -2669,7 +2669,6 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
 // (etiher 0:exp(sqrt()), 1: Horner ppval).
 // Also sets all default options in SpreadParameters<FloatType>. See cnufftspread.h for spread_params.
 // Must call before any kernel evals done.
-// Returns: 0 success, 1, warning, >1 failure (see error codes in utils.h)
 {
   if (upsampling_factor != 2.0) {
     if (kernel_evaluation_method == KernelEvaluationMethod::HORNER) {

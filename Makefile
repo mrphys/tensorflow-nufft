@@ -142,43 +142,6 @@ $(FINUFFT_ROOT)/%_32.o: $(FINUFFT_ROOT)/%.c $(FINUFFT_HEADERS)
 
 
 # ==============================================================================
-# CUFINUFFT
-# ==============================================================================
-
-CUFINUFFT_LIB = $(CUFINUFFT_ROOT)/libcufinufft.a
-CUFINUFFT_DLINK = $(CUFINUFFT_ROOT)/libcufinufft.dlink
-CONTRIBOBJS=$(CUFINUFFT_ROOT)/contrib/spreadinterp.o \
-			$(CUFINUFFT_ROOT)/contrib/utils_fp.o
-
-# We create three collections of objects:
-#  Double (_64), Single (_32), and floating point agnostic (no suffix)
-CUFINUFFTOBJS=$(CUFINUFFT_ROOT)/contrib/legendre_rule_fast.o \
-			  $(CUFINUFFT_ROOT)/contrib/utils.o
-CUFINUFFTOBJS_64=$(CONTRIBOBJS)
-CUFINUFFTOBJS_32=$(CUFINUFFTOBJS_64:%.o=%_32.o)
-
-
-cufinufft: $(CUFINUFFT_LIB)
-
-$(CUFINUFFT_LIB): $(CUFINUFFTOBJS) $(CUFINUFFTOBJS_64) $(CUFINUFFTOBJS_32) $(CONTRIBOBJS)
-	$(NVCC) -dlink $(CUFINUFFT_CUFLAGS) $^ -o $(CUFINUFFT_DLINK)
-	ar rcs $(CUFINUFFT_LIB) $^ $(CUFINUFFT_DLINK)
-
-$(CUFINUFFT_ROOT)/%_32.o: $(CUFINUFFT_ROOT)/%.cpp
-	$(CXX) -DSINGLE -c $(CXXFLAGS) $(CUFINUFFT_CFLAGS) $< -o $@
-$(CUFINUFFT_ROOT)/%_32.o: $(CUFINUFFT_ROOT)/%.c
-	$(CC) -DSINGLE -c $(CFLAGS) $(CUFINUFFT_CFLAGS) $< -o $@
-$(CUFINUFFT_ROOT)/%_32.o: $(CUFINUFFT_ROOT)/%.cu
-	$(NVCC) -DSINGLE --device-c -c $(CUFINUFFT_CUFLAGS) $< -o $@
-$(CUFINUFFT_ROOT)/%.o: $(CUFINUFFT_ROOT)/%.cpp
-	$(CXX) -c $(CXXFLAGS) $(CUFINUFFT_CFLAGS) $< -o $@
-$(CUFINUFFT_ROOT)/%.o: $(CUFINUFFT_ROOT)/%.c
-	$(CC) -c $(CFLAGS) $(CUFINUFFT_CFLAGS) $< -o $@
-$(CUFINUFFT_ROOT)/%.o: $(CUFINUFFT_ROOT)/%.cu
-	$(NVCC) --device-c -c $(CUFINUFFT_CUFLAGS) $< -o $@
-
-
-# ==============================================================================
 # TensorFlow NUFFT
 # ==============================================================================
 
@@ -192,7 +155,7 @@ lib: $(TARGET_LIB)
 $(TARGET_DLINK): $(CUOBJECTS)
 	$(NVCC) -ccbin $(CXX) -dlink $(CUFLAGS) -o $@ $^
 
-$(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK) $(FINUFFT_LIB) $(CUFINUFFT_LIB)
+$(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK) $(FINUFFT_LIB)
 	$(CXX) -shared $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 
@@ -221,19 +184,13 @@ docs: $(TARGET)
 	$(MAKE) -C tools/docs html PY_VERSION=$(PY_VERSION)
 	rm tfft
 
-# Cleans only TensorFlow NUFFT additions.
+# Cleans compiled objects.
 clean:
 	rm -f $(TARGET_LIB)
 	rm -f $(TARGET_DLINK)
 	rm -f $(CUOBJECTS)
 	rm -rf artifacts/
-
-# Cleans FINUFFT.
-allclean: clean
 	rm -f $(FINUFFT_LIB)
 	rm -f $(FINUFFT_ROOT)/*.o $(FINUFFT_ROOT)/contrib/*.o
-	rm -f $(CUFINUFFT_LIB)
-	rm -f $(CUFINUFFT_DLINK)
-	rm -f $(CUFINUFFT_ROOT)/*.o $(CUFINUFFT_ROOT)/contrib/*.o
 
 .PHONY: all lib finufft wheel test benchmark lint docs clean allclean

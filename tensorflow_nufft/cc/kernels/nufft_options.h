@@ -138,7 +138,7 @@ struct Options {
   #endif // GOOGLE_CUDA
 };
 
-} // namespace nufft
-} // namespace tensorflow
+}  // namespace nufft
+}  // namespace tensorflow
 
 #endif // TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_OPTIONS_H_

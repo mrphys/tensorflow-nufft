@@ -68,7 +68,7 @@ void kernel_fseries_1d(int grid_size,
 template<typename IntType>
 IntType next_smooth_int(IntType n, IntType b = 1);
 
-} // namespace nufft
-} // namespace tensorflow
+}  // namespace nufft
+}  // namespace tensorflow
 
 #endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H_

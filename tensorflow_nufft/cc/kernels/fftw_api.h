@@ -191,7 +191,7 @@ inline void destroy_plan<double>(typename PlanType<double>::Type& plan) {
   fftw_destroy_plan(plan);
 }
 
-} // namespace fftw
-} // namespace tensorflow
+}  // namespace fftw
+}  // namespace tensorflow
 
 #endif // TENSORFLOW_NUFFT_KERNELS_FFTW_API_H_

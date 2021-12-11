@@ -429,7 +429,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 };
 #endif // GOOGLE_CUDA
 
-} // namespace nufft
-} // namespace tensorflow
+}  // namespace nufft
+}  // namespace tensorflow
 
 #endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H_

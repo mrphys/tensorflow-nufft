@@ -178,7 +178,7 @@ class Spreader<GPUDevice, FloatType> : public SpreaderBase<GPUDevice, FloatType>
 };
 #endif // GOOGLE_CUDA
 
-} // namespace nufft
-} // namespace tensorflow
+}  // namespace nufft
+}  // namespace tensorflow
 
 #endif // TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_SPREAD_H_

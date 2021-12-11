@@ -1441,7 +1441,7 @@ void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, Gp
 	}
 }
 
-} // namespace
+}  // namespace
 
 template<typename FloatType>
 Plan<GPUDevice, FloatType>::Plan(
@@ -2620,16 +2620,14 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
 
 namespace {
 
+// Initializes spreader kernel parameters given desired NUFFT tol eps,
+// upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), and ker eval meth
+// Also sets all default options in SpreadParameters<FloatType>.
+// Must call before any kernel evals done.
 template<typename FloatType>
 Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
                       KernelEvaluationMethod kernel_evaluation_method,
-                      SpreadParameters<FloatType>& spread_params)
-// Initializes spreader kernel parameters given desired NUFFT tol eps,
-// upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), and ker eval meth
-// (etiher 0:exp(sqrt()), 1: Horner ppval).
-// Also sets all default options in SpreadParameters<FloatType>. See cnufftspread.h for spread_params.
-// Must call before any kernel evals done.
-{
+                      SpreadParameters<FloatType>& spread_params) {
   if (upsampling_factor != 2.0) {
     if (kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
       return errors::Internal(
@@ -2665,15 +2663,19 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
   spread_params.ES_halfwidth = (FloatType)ns / 2;   // constants to help ker eval (except Horner)
   spread_params.ES_c = 4.0 / (FloatType)(ns * ns);
 
-  FloatType beta_over_ns = 2.30;         // gives decent betas for default sigma=2.0
-  if (ns == 2) beta_over_ns = 2.20;  // some small-width tweaks...
+  // Set the kernel beta parameter. The following results in reasonable beta
+  // values for upsampling factor of 2.0, with some tweaks for small width
+  // kernels.
+  FloatType beta_over_ns = 2.30;
+  if (ns == 2) beta_over_ns = 2.20;
   if (ns == 3) beta_over_ns = 2.26;
   if (ns == 4) beta_over_ns = 2.38;
-  if (upsampling_factor != 2.0) {          // again, override beta for custom sigma
-    FloatType gamma=0.97;              // must match devel/gen_all_horner_C_code.m
-    beta_over_ns = gamma * kPi<FloatType> * (1-1/(2*upsampling_factor));  // formula based on cutoff
+  // Override beta for non-default oversampling factors.
+  if (upsampling_factor != 2.0) {
+    FloatType gamma = 0.97;  // This value must match the one in generated code.
+    beta_over_ns = gamma * kPi<FloatType> * (1 - 1 / (2 * upsampling_factor));
   }
-  spread_params.ES_beta = beta_over_ns * (FloatType)ns;    // set the kernel beta parameter
+  spread_params.ES_beta = beta_over_ns * (FloatType)ns;
 
   if (spread_params.spread_only)
     spread_params.ES_scale = calculate_scale_factor(rank, spread_params);
@@ -2681,13 +2683,12 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
   return Status::OK();
 }
 
+// Set up the spreader parameters given eps, and pass across various nufft
+// options. Report status of setup_spreader.  Barnett 10/30/17
 template<typename FloatType>
 Status setup_spreader_for_nufft(int rank, FloatType eps,
                                 const Options& options,
-                                SpreadParameters<FloatType>& spread_params)
-// Set up the spreader parameters given eps, and pass across various nufft
-// options. Report status of setup_spreader.  Barnett 10/30/17
-{
+                                SpreadParameters<FloatType>& spread_params) {
   TF_RETURN_IF_ERROR(setup_spreader(
       rank, eps, options.upsampling_factor,
       options.kernel_evaluation_method, spread_params));
@@ -2781,12 +2782,12 @@ Status set_grid_size(int ms,
   return Status::OK();
 }
 
-} // namespace
+}  // namespace
 
 template class Plan<GPUDevice, float>;
 template class Plan<GPUDevice, double>;
 
-} // namespace nufft
-} // namespace tensorflow
+}  // namespace nufft
+}  // namespace tensorflow
 
 #endif // GOOGLE_CUDA

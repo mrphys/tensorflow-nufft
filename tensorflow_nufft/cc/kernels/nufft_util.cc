@@ -146,5 +146,5 @@ template int next_smooth_int<int>(int, int);
 template int64_t next_smooth_int<int64_t>(int64_t, int64_t);
 
 
-} // namespace nufft
-} // namespace tensorflow
+}  // namespace nufft
+}  // namespace tensorflow

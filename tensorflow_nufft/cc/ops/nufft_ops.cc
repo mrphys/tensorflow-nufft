@@ -266,4 +266,4 @@ target: The target point set, for type-2 transforms, or the target grid, for
   result of broadcasting the batch shapes of `source` and `points`.
 )doc");
 
-} // namespace tensorflow
+}  // namespace tensorflow

@@ -60,7 +60,7 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
                                 const Options& options,
                                 SpreadParameters<FloatType> &spread_params);
 
-} // namespace
+}  // namespace
 
 template<typename FloatType>
 Plan<CPUDevice, FloatType>::Plan(
@@ -454,11 +454,11 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
   return Status::OK();
 }
 
-} // namespace
+}  // namespace
 
 // Explicit instatiations.
 template class Plan<CPUDevice, float>;
 template class Plan<CPUDevice, double>;
 
-} // namespace nufft
-} // namespace tensorflow
+}  // namespace nufft
+}  // namespace tensorflow

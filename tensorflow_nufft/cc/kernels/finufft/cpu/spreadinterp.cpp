@@ -547,7 +547,7 @@ int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
       target[1] *= opts.ES_scale;
     }
       }
-    } // end loop over targets in chunk
+    }  // end loop over targets in chunk
         
     // Copy result buffer to output array
     for (int ibuf=0; ibuf<bufsize; ibuf++) {
@@ -556,8 +556,8 @@ int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
       data_nonuniform[2*j+1] = outbuf[2*ibuf+1];              
     }         
         
-      } // end NU targ loop
-  } // end parallel section
+      }  // end NU targ loop
+  }  // end parallel section
   if (opts.verbosity) printf("\tt2 spreading loop: \t%.3g s\n",timer.elapsedsec());
   return 0;
 };

@@ -37,8 +37,6 @@ limitations under the License.
 #include "third_party/gpus/cuda/include/vector_types.h"
 #endif // GOOGLE_CUDA
 
-#include "tensorflow_nufft/cc/kernels/nufft_spread.h"
-
 namespace tensorflow {
 namespace nufft {
 
@@ -57,6 +55,22 @@ enum class SpreadThreading {
   AUTO = 0,                       // Choose automatically.
   SEQUENTIAL_MULTI_THREADED = 1,  // Use sequential multi-threaded spreading.
   PARALLEL_SINGLE_THREADED = 2    // Use parallel single-threaded spreading.
+};
+
+// Specifies whether non-uniform points should be sorted.
+enum class SortPoints {
+  AUTO = -1,  // Choose automatically using a heuristic.
+  NO = 0,     // Do not sort non-uniform points.
+  YES = 1     // Sort non-uniform points.
+};
+
+// Specifies the spread method.
+enum class SpreadMethod {
+  AUTO = -1,
+  NUPTS_DRIVEN = 0,
+  SUBPROBLEM = 1,
+  PAUL = 2,
+  BLOCK_GATHER = 3
 };
 
 // Options for the NUFFT operations. This class is used for both the CPU and the

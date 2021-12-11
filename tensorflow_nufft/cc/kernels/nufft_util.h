@@ -31,8 +31,7 @@ limitations under the License.
 #ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H_
 #define TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H_
 
-#include "tensorflow_nufft/cc/kernels/nufft_options.h"
-#include "tensorflow_nufft/cc/kernels/nufft_spread.h"
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
 
 namespace tensorflow {

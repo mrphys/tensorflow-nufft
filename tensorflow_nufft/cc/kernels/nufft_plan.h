@@ -46,8 +46,6 @@ limitations under the License.
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow_nufft/cc/kernels/fftw_api.h"
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
-#include "tensorflow_nufft/cc/kernels/nufft_spread.h"
-
 
 namespace tensorflow {
 
@@ -120,6 +118,58 @@ enum class TransformType {
 enum class FftDirection {
   FORWARD = -1,
   BACKWARD = 1
+};
+
+// Specifies the direction of spreading.
+enum class SpreadDirection {
+  SPREAD, // non-uniform to uniform
+  INTERP  // uniform to non-uniform
+};
+
+template<typename FloatType>
+struct SpreadParameters {
+
+  // The spread direction (U->NU or NU->U). See enum above.
+  SpreadDirection spread_direction;
+
+  // Whether to sort the non-uniform points.
+  SortPoints sort_points = SortPoints::AUTO;
+
+  // Specifies the spread method.
+  SpreadMethod spread_method = SpreadMethod::AUTO;
+
+  // TODO: revise the following options.
+
+  // This is the main documentation for these options...
+  int nspread;            // w, the kernel width in grid pts
+
+  int pirange;            // 0: NU periodic domain is [0,N), 1: domain [-pi,pi)
+  bool check_bounds;      // 0: don't check NU pts in 3-period range; 1: do
+  int kerevalmeth;        // 0: direct exp(sqrt()), or 1: Horner ppval, fastest
+  bool pad_kernel;            // 0: no pad w to mult of 4, 1: do pad
+                          // (this helps SIMD for kerevalmeth=0, eg on i7).
+  int num_threads;        // # threads for spreadinterp (0: use max avail)
+  int sort_threads;       // # threads for sort (0: auto-choice up to num_threads)
+  int max_subproblem_size; // # pts per t1 subprob; sets extra RAM per thread
+  int flags;              // binary flags for timing only (may give wrong ans
+                          // if changed from 0!). See spreadinterp.h
+  int verbosity;          // 0: silent, 1: small text output, 2: verbose
+  int atomic_threshold;   // num threads before switching spreadSorted to using atomic ops
+  double upsampling_factor;       // sigma, upsampling factor
+  bool spread_only;   // 0: NUFFT, 1: spread or interpolation only
+  // ES kernel specific consts used in fast eval, depend on precision FLT...
+  FloatType ES_beta;
+  FloatType ES_halfwidth;
+  FloatType ES_c;
+  FloatType ES_scale;           // used for spread/interp only
+
+  #if GOOGLE_CUDA
+  // Used for 3D subproblem method. 0 means automatic selection.
+  dim3 gpu_bin_size = {0, 0, 0};
+
+  // Used for 3D spread-block-gather method. 0 means automatic selection.
+  dim3 gpu_obin_size = {0, 0, 0};
+  #endif // GOOGLE_CUDA
 };
 
 template<typename Device, typename FloatType>

@@ -1645,12 +1645,10 @@ Plan<GPUDevice, FloatType>::Plan(
           sizeof(int) * (this->bin_count_ + 1)));
       break;
     case SpreadMethod::PAUL:
-      OP_REQUIRES(context, false,
-                  errors::Unimplemented("Paul spread method not implemented."));
     case SpreadMethod::BLOCK_GATHER:
       OP_REQUIRES(context, false,
-                  errors::Unimplemented(
-                      "Block gather spread method not implemented."));
+                  errors::Unimplemented("Invalid spread method: ",
+                      static_cast<int>(this->options_.spread_method)));
   }
 
   // Perform some actions not needed in spread/interp only mode.
@@ -1704,9 +1702,9 @@ Plan<GPUDevice, FloatType>::Plan(
     }
 
     // Make the cuFFT plan.
-    int elem_count[3];
-    int *input_embed = elem_count;
-    int *output_embed = elem_count;
+    int grid_dims[3];
+    int *input_embed = grid_dims;
+    int *output_embed = grid_dims;
     int input_distance = 0;
     int output_distance = 0;
     int input_stride = 1;
@@ -1714,16 +1712,16 @@ Plan<GPUDevice, FloatType>::Plan(
     int batch_size = this->options_.max_batch_size;
     switch (this->rank_) {
       case 2: {
-        elem_count[0] = this->nf2;
-        elem_count[1] = this->nf1;
+        grid_dims[0] = this->nf2;
+        grid_dims[1] = this->nf1;
         input_distance = input_embed[0] * input_embed[1];
         output_distance = input_distance;
         break;
       }
       case 3: {
-        elem_count[0] = this->nf3;
-        elem_count[1] = this->nf2;
-        elem_count[2] = this->nf1;
+        grid_dims[0] = this->nf3;
+        grid_dims[1] = this->nf2;
+        grid_dims[2] = this->nf1;
         input_distance = input_embed[0] * input_embed[1] * input_embed[2];
         output_distance = input_distance;
         break;
@@ -1734,7 +1732,7 @@ Plan<GPUDevice, FloatType>::Plan(
     }
 
     cufftResult result = cufftPlanMany(
-        &this->fft_plan_, this->rank_, elem_count,
+        &this->fft_plan_, this->rank_, grid_dims,
         input_embed, input_stride, input_distance,
         output_embed, output_stride, output_distance,
         kCufftType<FloatType>, batch_size);
@@ -1762,58 +1760,31 @@ Plan<GPUDevice, FloatType>::~Plan() {
   switch(this->options_.spread_method)
   {
     case SpreadMethod::NUPTS_DRIVEN:
-      {
-        if (this->spread_params_.sort_points == SortPoints::YES) {
-          if (this->idx_nupts_)
-            checkCudaErrors(cudaFree(this->idx_nupts_));
-          if (this->sort_idx_)
-            checkCudaErrors(cudaFree(this->sort_idx_));
-          checkCudaErrors(cudaFree(this->bin_sizes_));
-          checkCudaErrors(cudaFree(this->bin_start_pts_));
-        } else {
-          if (this->idx_nupts_)
-            checkCudaErrors(cudaFree(this->idx_nupts_));
-        }
+      if (this->spread_params_.sort_points == SortPoints::YES) {
+        if (this->idx_nupts_)
+          checkCudaErrors(cudaFree(this->idx_nupts_));
+        if (this->sort_idx_)
+          checkCudaErrors(cudaFree(this->sort_idx_));
+        checkCudaErrors(cudaFree(this->bin_sizes_));
+        checkCudaErrors(cudaFree(this->bin_start_pts_));
+      } else {
+        if (this->idx_nupts_)
+          checkCudaErrors(cudaFree(this->idx_nupts_));
       }
       break;
     case SpreadMethod::SUBPROBLEM:
-      {
-        if (this->idx_nupts_)
-          checkCudaErrors(cudaFree(this->idx_nupts_));
-        if (this->sort_idx_)
-          checkCudaErrors(cudaFree(this->sort_idx_));
-        checkCudaErrors(cudaFree(this->num_subprob_));
-        checkCudaErrors(cudaFree(this->bin_sizes_));
-        checkCudaErrors(cudaFree(this->bin_start_pts_));
-        checkCudaErrors(cudaFree(this->subprob_start_pts_));
-        checkCudaErrors(cudaFree(this->subprob_bins_));
-      }
+      if (this->idx_nupts_)
+        checkCudaErrors(cudaFree(this->idx_nupts_));
+      if (this->sort_idx_)
+        checkCudaErrors(cudaFree(this->sort_idx_));
+      checkCudaErrors(cudaFree(this->num_subprob_));
+      checkCudaErrors(cudaFree(this->bin_sizes_));
+      checkCudaErrors(cudaFree(this->bin_start_pts_));
+      checkCudaErrors(cudaFree(this->subprob_start_pts_));
+      checkCudaErrors(cudaFree(this->subprob_bins_));
       break;
     case SpreadMethod::PAUL:
-      {
-        if (this->idx_nupts_)
-          checkCudaErrors(cudaFree(this->idx_nupts_));
-        if (this->sort_idx_)
-          checkCudaErrors(cudaFree(this->sort_idx_));
-        checkCudaErrors(cudaFree(this->num_subprob_));
-        checkCudaErrors(cudaFree(this->bin_sizes_));
-        checkCudaErrors(cudaFree(this->bin_start_pts_));
-        checkCudaErrors(cudaFree(this->subprob_start_pts_));
-        checkCudaErrors(cudaFree(this->subprob_bins_));
-      }
-      break;
     case SpreadMethod::BLOCK_GATHER:
-      {
-        if (this->idx_nupts_)
-          checkCudaErrors(cudaFree(this->idx_nupts_));
-        if (this->sort_idx_)
-          checkCudaErrors(cudaFree(this->sort_idx_));
-        checkCudaErrors(cudaFree(this->num_subprob_));
-        checkCudaErrors(cudaFree(this->bin_sizes_));
-        checkCudaErrors(cudaFree(this->bin_start_pts_));
-        checkCudaErrors(cudaFree(this->subprob_start_pts_));
-        checkCudaErrors(cudaFree(this->subprob_bins_));
-      }
       break;
   }
 
@@ -1853,12 +1824,9 @@ Status Plan<GPUDevice, FloatType>::set_points(
       checkCudaErrors(cudaMalloc(&this->sort_idx_, num_bytes));
       break;
     case SpreadMethod::PAUL:
-      checkCudaErrors(cudaMalloc(&this->idx_nupts_, num_bytes));
-      checkCudaErrors(cudaMalloc(&this->sort_idx_, num_bytes));
-      break;
     case SpreadMethod::BLOCK_GATHER:
-      checkCudaErrors(cudaMalloc(&this->sort_idx_, num_bytes));
-      break;
+      return errors::Unimplemented("Invalid spread method: ",
+          static_cast<int>(this->options_.spread_method));
   }
   
   TF_RETURN_IF_ERROR(this->init_spreader());
@@ -1985,7 +1953,12 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
     TF_RETURN_IF_ERROR(this->spread_batch(blksize));
 
     // Step 2: FFT
-    cufftResult result = cufftExec<FloatType>(
+    auto result = cufftSetStream(this->fft_plan_, this->device_.stream());
+    if (result != CUFFT_SUCCESS) {
+      return errors::Internal(
+          "Failed to associate cuFFT plan with CUDA stream: ", result);
+    }
+    result = cufftExec<FloatType>(
       this->fft_plan_, this->grid_data_, this->grid_data_,
       static_cast<int>(this->fft_direction_));
     if (result != CUFFT_SUCCESS) {
@@ -2016,8 +1989,13 @@ Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
     TF_RETURN_IF_ERROR(this->deconvolve_batch(blksize));
 
     // Step 2: FFT
-    cudaDeviceSynchronize();
-    cufftResult result = cufftExec<FloatType>(
+    this->device_.synchronize(); // Is this necessary?
+    auto result = cufftSetStream(this->fft_plan_, this->device_.stream());
+    if (result != CUFFT_SUCCESS) {
+      return errors::Internal(
+          "Failed to associate cuFFT plan with CUDA stream: ", result);
+    }
+    result = cufftExec<FloatType>(
       this->fft_plan_, this->grid_data_, this->grid_data_,
       static_cast<int>(this->fft_direction_));
     if (result != CUFFT_SUCCESS) {

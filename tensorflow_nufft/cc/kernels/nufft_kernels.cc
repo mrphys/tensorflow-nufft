@@ -38,78 +38,38 @@ typedef Eigen::GpuDevice GPUDevice;
 
 namespace nufft {
 
-template<>
-int execute<CPUDevice, float>(
-    Plan<CPUDevice, float>* plan,
-    std::complex<float>* c, std::complex<float>* f) {
-  return finufftf_execute(plan, c, f);
-};
+template<typename FloatType>
+const DataType kRealDType = DataTypeToEnum<FloatType>::value;
 
-template<>
-int execute<CPUDevice, double>(
-    Plan<CPUDevice, double>* plan,
-    std::complex<double>* c, std::complex<double>* f) {
-  return finufft_execute(plan, c, f);
-};
+template<typename FloatType>
+const DataType kComplexDType = DataTypeToEnum<std::complex<FloatType>>::value;
 
-template<>
-int interp<CPUDevice, float>(
-    Plan<CPUDevice, float>* plan,
-    std::complex<float>* c, std::complex<float>* f) {
-  return finufftf_interp(plan, c, f);
-};
-
-template<>
-int interp<CPUDevice, double>(
-    Plan<CPUDevice, double>* plan,
-    std::complex<double>* c, std::complex<double>* f) {
-  return finufft_interp(plan, c, f);
-};
-
-template<>
-int spread<CPUDevice, float>(
-    Plan<CPUDevice, float>* plan,
-    std::complex<float>* c, std::complex<float>* f) {
-  return finufftf_spread(plan, c, f);
-};
-
-template<>
-int spread<CPUDevice, double>(
-    Plan<CPUDevice, double>* plan,
-    std::complex<double>* c, std::complex<double>* f) {
-  return finufft_spread(plan, c, f);
-};
-
-}   // namespace nufft
-
-using namespace tensorflow::nufft;
-
-template<typename T>
-struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
+template<typename FloatType>
+struct DoNUFFT<CPUDevice, FloatType> : DoNUFFTBase<CPUDevice, FloatType> {
   Status operator()(OpKernelContext* ctx,
                     TransformType type,
                     int rank,
                     FftDirection fft_direction,
                     int num_transforms,
-                    T tol,
-                    OpType optype,
+                    FloatType tol,
+                    OpType op_type,
                     int64_t nbdims,
                     int64_t* source_bdims,
                     int64_t* points_bdims,
-                    int64_t* nmodes,
+                    int64_t* num_modes,
                     int64_t num_points,
-                    T* points,
-                    std::complex<T>* source,
-                    std::complex<T>* target) {
+                    FloatType* points,
+                    Complex<CPUDevice, FloatType>* source,
+                    Complex<CPUDevice, FloatType>* target) {
     return this->compute(
-      ctx, type, rank, fft_direction, num_transforms, tol, optype,
-      nbdims, source_bdims, points_bdims,
-      nmodes, num_points, points, source, target);
+        ctx, type, rank, fft_direction, num_transforms, tol, op_type,
+        nbdims, source_bdims, points_bdims,
+        num_modes, num_points, points, source, target);
   }
 };
 
 
-template <typename Device, typename T>
+template <typename Device, typename FloatType>
 class NUFFTBaseOp : public OpKernel {
 
  public:
@@ -118,21 +78,18 @@ class NUFFTBaseOp : public OpKernel {
 
   void Compute(OpKernelContext* ctx) override {
 
-    const DataType real_dtype = DataTypeToEnum<T>::value;
-    const DataType complex_dtype = DataTypeToEnum<std::complex<T>>::value;
-
     const Tensor& source = ctx->input(0);
     const Tensor& points = ctx->input(1);
 
-    OP_REQUIRES(ctx, source.dtype() == complex_dtype,
+    OP_REQUIRES(ctx, source.dtype() == kComplexDType<FloatType>,
                 errors::InvalidArgument(
                   "Input `source` must have type ",
-                  DataTypeString(complex_dtype), " but got: ",
+                  DataTypeString(kComplexDType<FloatType>), " but got: ",
                   DataTypeString(source.dtype())));
-    OP_REQUIRES(ctx, points.dtype() == real_dtype,
+    OP_REQUIRES(ctx, points.dtype() == kRealDType<FloatType>,
                 errors::InvalidArgument(
                   "Input `points` must have type ",
-                  DataTypeString(real_dtype), " but got: ",
+                  DataTypeString(kRealDType<FloatType>), " but got: ",
                   DataTypeString(points.dtype())));
     OP_REQUIRES(ctx, points.dims() >= 2,
                 errors::InvalidArgument(
@@ -323,15 +280,15 @@ class NUFFTBaseOp : public OpKernel {
 
     // Reverse points.
     Tensor rpoints;
-    OP_REQUIRES_OK(ctx, ctx->allocate_temp(DataTypeToEnum<T>::value,
+    OP_REQUIRES_OK(ctx, ctx->allocate_temp(kRealDType<FloatType>,
                                            spoints.shape(),
                                            &rpoints));
 
-    OP_REQUIRES_OK(ctx, ::tensorflow::DoReverse<Device, T>(
-      ctx->eigen_device<Device>(),
-      spoints,
-      {spoints.dims() - 1},
-      &rpoints));
+    OP_REQUIRES_OK(ctx, ::tensorflow::DoReverse<Device, FloatType>(
+        ctx->eigen_device<Device>(),
+        spoints,
+        {spoints.dims() - 1},
+        &rpoints));
 
     /// Transpose points to obtain single-dimension arrays.
     Tensor tpoints;
@@ -340,7 +297,7 @@ class NUFFTBaseOp : public OpKernel {
       tpoints_shape.set_dim(i, spoints.dim_size(points_perm[i]));
     }
     
-    OP_REQUIRES_OK(ctx, ctx->allocate_temp(DataTypeToEnum<T>::value,
+    OP_REQUIRES_OK(ctx, ctx->allocate_temp(kRealDType<FloatType>,
                                            tpoints_shape,
                                            &tpoints));
     
@@ -358,16 +315,15 @@ class NUFFTBaseOp : public OpKernel {
         tsource_shape.set_dim(i, ssource.dim_size(source_perm[i]));
       }
       
-      OP_REQUIRES_OK(ctx, ctx->allocate_temp(
-        DataTypeToEnum<std::complex<T>>::value,
-        tsource_shape,
-        &tsource));
+      OP_REQUIRES_OK(ctx, ctx->allocate_temp(kComplexDType<FloatType>,
+                                             tsource_shape,
+                                             &tsource));
       
       OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
-        ctx->eigen_device<Device>(),
-        ssource,
-        source_perm,
-        &tsource));
+          ctx->eigen_device<Device>(),
+          ssource,
+          source_perm,
+          &tsource));
       
       psource = &tsource;
       
@@ -384,7 +340,7 @@ class NUFFTBaseOp : public OpKernel {
       }
       
       OP_REQUIRES_OK(ctx,
-                     ctx->allocate_temp(DataTypeToEnum<std::complex<T>>::value,
+                     ctx->allocate_temp(kComplexDType<FloatType>,
                                         ttarget_shape,
                                         &ttarget));
                 
@@ -402,28 +358,28 @@ class NUFFTBaseOp : public OpKernel {
 
     // Perform operation.
     OP_REQUIRES_OK(ctx, functor_(
-      ctx,
-      transform_type_,
-      static_cast<int>(rank),
-      fft_direction_,
-      num_transforms,
-      static_cast<T>(tol_),
-      op_type_,
-      outer_dims.size(),
-      (int64_t*) psource->shape().dim_sizes().data(),
-      (int64_t*) tpoints.shape().dim_sizes().data(),
-      grid_shape_vec.begin(),
-      num_points,
-      (T*) tpoints.data(),
-      (std::complex<T>*) psource->data(),
-      (std::complex<T>*) ptarget->data()));
+        ctx,
+        transform_type_,
+        static_cast<int>(rank),
+        fft_direction_,
+        num_transforms,
+        static_cast<FloatType>(tol_),
+        op_type_,
+        outer_dims.size(),
+        (int64_t*) psource->shape().dim_sizes().data(),
+        (int64_t*) tpoints.shape().dim_sizes().data(),
+        grid_shape_vec.begin(),
+        num_points,
+        (FloatType*) tpoints.data(),
+        reinterpret_cast<Complex<Device, FloatType>*>(psource->data()),
+        reinterpret_cast<Complex<Device, FloatType>*>(ptarget->data())));
 
     if (transpose_target) {
       OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
-        ctx->eigen_device<Device>(),
-        ttarget,
-        target_iperm,
-        target));
+          ctx->eigen_device<Device>(),
+          ttarget,
+          target_iperm,
+          target));
     }
   }
 
@@ -434,16 +390,16 @@ class NUFFTBaseOp : public OpKernel {
   float tol_;
   OpType op_type_;
 
-  DoNUFFT<Device, T> functor_;
+  DoNUFFT<Device, FloatType> functor_;
 };
 
 
-template <typename Device, typename T>
-class NUFFT : public NUFFTBaseOp<Device, T> {
+template <typename Device, typename FloatType>
+class NUFFT : public NUFFTBaseOp<Device, FloatType> {
 
   public:
 
-  explicit NUFFT(OpKernelConstruction* ctx) : NUFFTBaseOp<Device, T>(ctx) {
+  explicit NUFFT(OpKernelConstruction* ctx) : NUFFTBaseOp<Device, FloatType>(ctx) {
 
     string transform_type_str;
     string fft_direction_str;
@@ -469,12 +425,12 @@ class NUFFT : public NUFFTBaseOp<Device, T> {
 };
 
 
-template <typename Device, typename T>
-class Interp : public NUFFTBaseOp<Device, T> {
+template <typename Device, typename FloatType>
+class Interp : public NUFFTBaseOp<Device, FloatType> {
 
   public:
 
-  explicit Interp(OpKernelConstruction* ctx) : NUFFTBaseOp<Device, T>(ctx) {
+  explicit Interp(OpKernelConstruction* ctx) : NUFFTBaseOp<Device, FloatType>(ctx) {
 
     OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
 
@@ -486,12 +442,12 @@ class Interp : public NUFFTBaseOp<Device, T> {
 };
 
 
-template <typename Device, typename T>
-class Spread : public NUFFTBaseOp<Device, T> {
+template <typename Device, typename FloatType>
+class Spread : public NUFFTBaseOp<Device, FloatType> {
 
   public:
 
-  explicit Spread(OpKernelConstruction* ctx) : NUFFTBaseOp<Device, T>(ctx) {
+  explicit Spread(OpKernelConstruction* ctx) : NUFFTBaseOp<Device, FloatType>(ctx) {
 
     OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
 
@@ -587,4 +543,5 @@ REGISTER_KERNEL_BUILDER(Name("Spread")
                         Spread<GPUDevice, double>);
 #endif  // GOOGLE_CUDA
 
+}  // namespace nufft
 }  // namespace tensorflow

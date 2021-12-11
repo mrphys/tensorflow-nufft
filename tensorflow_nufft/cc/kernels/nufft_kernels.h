@@ -27,50 +27,37 @@ limitations under the License.
 
 
 namespace tensorflow {
+
 namespace nufft {
-
-template<typename Device, typename T>
-int execute(
-    Plan<Device, T>* plan,
-    std::complex<T>* c, std::complex<T>* f);
-
-template<typename Device, typename T>
-int interp(
-    Plan<Device, T>* plan,
-    std::complex<T>* c, std::complex<T>* f);
-
-template<typename Device, typename T>
-int spread(
-    Plan<Device, T>* plan,
-    std::complex<T>* c, std::complex<T>* f);
-
-}   // namespace nufft
 
 enum class OpType { NUFFT, INTERP, SPREAD };
 
-template<typename Device, typename T>
+template<typename Device, typename FloatType>
+using Complex = typename ComplexType<Device, FloatType>::Type;
+
+template<typename Device, typename FloatType>
 struct DoNUFFTBase {
 
   Status compute(OpKernelContext* ctx,
-                 nufft::TransformType type,
+                 TransformType type,
                  int rank,
-                 nufft::FftDirection fft_direction,
+                 FftDirection fft_direction,
                  int num_transforms,
-                 T tol,
-                 OpType optype,
+                 FloatType tol,
+                 OpType op_type,
                  int64_t nbdims,
                  int64_t* source_bdims,
                  int64_t* points_bdims,
-                 int64_t* nmodes,
+                 int64_t* num_modes,
                  int64_t num_points,
-                 T* points,
-                 std::complex<T>* source,
-                 std::complex<T>* target) {
+                 FloatType* points,
+                 Complex<Device, FloatType>* source,
+                 Complex<Device, FloatType>* target) {
 
     // Number of coefficients.
     int num_coeffs = 1;
     for (int d = 0; d < rank; d++) {
-      num_coeffs *= nmodes[d];
+      num_coeffs *= num_modes[d];
     }
 
     // Number of calls to FINUFFT execute.
@@ -98,20 +85,20 @@ struct DoNUFFTBase {
     
     // Obtain pointers to non-uniform strengths and Fourier mode
     // coefficients.
-    std::complex<T>* strengths = nullptr;
-    std::complex<T>* coeffs = nullptr;
+    Complex<Device, FloatType>* strengths = nullptr;
+    Complex<Device, FloatType>* coeffs = nullptr;
     int csrc;
     int ctgt;
     int* pcs;
     int* pcc;
     switch (type) {
-      case nufft::TransformType::TYPE_1: // nonuniform to uniform
+      case TransformType::TYPE_1: // nonuniform to uniform
         strengths = source;
         coeffs = target;
         pcs = &csrc;
         pcc = &ctgt;
         break;
-      case nufft::TransformType::TYPE_2: // uniform to nonuniform
+      case TransformType::TYPE_2: // uniform to nonuniform
         strengths = target;
         coeffs = source;
         pcs = &ctgt;
@@ -120,9 +107,9 @@ struct DoNUFFTBase {
     }
 
     // NUFFT options.
-    nufft::Options options;
+    Options options;
 
-    if (optype != OpType::NUFFT) {
+    if (op_type != OpType::NUFFT) {
       options.spread_only = true;
       options.upsampling_factor = 2.0;
     }
@@ -134,26 +121,24 @@ struct DoNUFFTBase {
 
     // Make inlined vector from pointer to number of modes. TODO: use inlined
     // vector for all of num_modes.
-    gtl::InlinedVector<int, 4> num_modes(rank);
+    gtl::InlinedVector<int, 4> num_modes_vec(rank);
     for (int i = 0; i < rank; ++i) {
-      num_modes[i] = nmodes[i];
+      num_modes_vec[i] = num_modes[i];
     }
 
     // Make the NUFFT plan.
-    auto plan = std::make_unique<nufft::Plan<Device, T>>(
-        ctx, type, rank, num_modes, fft_direction,
+    auto plan = std::make_unique<Plan<Device, FloatType>>(
+        ctx, type, rank, num_modes_vec, fft_direction,
         num_transforms, tol, options);
 
-    int err;
-
     // Pointers to a certain batch.
-    std::complex<T>* bstrengths = nullptr;
-    std::complex<T>* bcoeffs = nullptr;
-    T* points_batch = nullptr;
+    Complex<Device, FloatType>* bstrengths = nullptr;
+    Complex<Device, FloatType>* bcoeffs = nullptr;
+    FloatType* points_batch = nullptr;
 
-    T* points_x = nullptr;
-    T* points_y = nullptr;
-    T* points_z = nullptr;
+    FloatType* points_x = nullptr;
+    FloatType* points_y = nullptr;
+    FloatType* points_z = nullptr;
 
     gtl::InlinedVector<int, 8> source_binds(nbdims);
 
@@ -177,8 +162,8 @@ struct DoNUFFTBase {
       }
 
       // Set the point coordinates.
-      TF_RETURN_IF_ERROR(
-          ctx, plan->set_points(num_points, points_x, points_y, points_z));
+      TF_RETURN_IF_ERROR(plan->set_points(
+          num_points, points_x, points_y, points_z));
 
       // Compute indices.
       csrc = 0;
@@ -197,53 +182,43 @@ struct DoNUFFTBase {
       bcoeffs = coeffs + *pcc * num_transforms * num_coeffs;
 
       // Execute the NUFFT.
-      switch (optype)
-      {
-      case OpType::NUFFT:
-        err = nufft::execute<Device, T>(plan.get(), bstrengths, bcoeffs);
-        if (err > 0) {
-          return errors::Internal("Failed during `nufft::execute`: ", err);
-        }
-        break;
-      case OpType::INTERP:
-        err = nufft::interp<Device, T>(plan.get(), bstrengths, bcoeffs);
-        if (err > 0) {
-          return errors::Internal("Failed during `nufft::interp`: ", err);
-        }
-        break;
-      case OpType::SPREAD:
-        err = nufft::spread<Device, T>(plan.get(), bstrengths, bcoeffs);
-        if (err > 0) {
-          return errors::Internal("Failed during `nufft::spread`: ", err);
-        }
-        break;
+      switch (op_type) {
+        case OpType::NUFFT:
+          TF_RETURN_IF_ERROR(plan->execute(bstrengths, bcoeffs));
+          break;
+        case OpType::INTERP:
+          TF_RETURN_IF_ERROR(plan->interp(bstrengths, bcoeffs));
+          break;
+        case OpType::SPREAD:
+          TF_RETURN_IF_ERROR(plan->spread(bstrengths, bcoeffs));
+          break;
       }
     }
-
     return Status::OK();
   }
 };
 
-template<typename Device, typename T>
-struct DoNUFFT : DoNUFFTBase<Device, T> {
+template<typename Device, typename FloatType>
+struct DoNUFFT : DoNUFFTBase<Device, FloatType> {
 
   Status operator()(OpKernelContext* ctx,
-                    nufft::TransformType type,
+                    TransformType type,
                     int rank,
-                    nufft::FftDirection fft_direction,
+                    FftDirection fft_direction,
                     int num_transforms,
-                    T tol,
-                    OpType optype,
+                    FloatType tol,
+                    OpType op_type,
                     int64_t nbdims,
                     int64_t* source_bdims,
                     int64_t* points_bdims,
-                    int64_t* nmodes,
+                    int64_t* num_modes,
                     int64_t num_points,
-                    T* points,
-                    std::complex<T>* source,
-                    std::complex<T>* target);
+                    FloatType* points,
+                    Complex<Device, FloatType>* source,
+                    Complex<Device, FloatType>* target);
 };
 
+}  // namespace nufft
 }  // namespace tensorflow
 
 #endif  // TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_KERNELS_H_

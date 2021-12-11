@@ -177,6 +177,9 @@ template<typename Device, typename FloatType>
 class PlanBase {
 
  public:
+  // The main data type this plan operates with; either complex float or double.
+  using DType = typename ComplexType<Device, FloatType>::Type;
+
   PlanBase(OpKernelContext* context)
       : device_(context->eigen_device<Device>()) { }
 
@@ -184,6 +187,12 @@ class PlanBase {
                             FloatType* points_x,
                             FloatType* points_y,
                             FloatType* points_z) = 0;
+
+  virtual Status execute(DType* c, DType* f) = 0;
+
+  virtual Status interp(DType* c, DType* f) = 0;
+
+  virtual Status spread(DType* c, DType* f) = 0;
 
  public: // TODO: make protected
 
@@ -223,10 +232,8 @@ template<typename FloatType>
 class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
  public:
-
   // The main data type this plan operates with; either complex float or double.
   using DType = typename ComplexType<CPUDevice, FloatType>::Type;
-
   // The corresponding FFTW type.
   using FftwType = typename fftw::ComplexType<FloatType>::Type;
 
@@ -251,6 +258,12 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
                     FloatType* points_x,
                     FloatType* points_y,
                     FloatType* points_z) override;
+
+  Status execute(DType* c, DType* f) override;
+
+  Status interp(DType* c, DType* f) override;
+
+  Status spread(DType* c, DType* f) override;
 
  public: // TODO: make private.
 
@@ -301,7 +314,6 @@ template<typename FloatType>
 class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
  public:
-
   // The main data type this plan operates with; either complex float or double.
   using DType = typename ComplexType<GPUDevice, FloatType>::Type;
 
@@ -348,11 +360,11 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
 	Melody Shih 07/25/19; Barnett 2/16/21.
   */
-  Status execute(DType* d_c, DType* d_fk);
+  Status execute(DType* d_c, DType* d_fk) override;
 
-  Status interp(DType* d_c, DType* d_fk);
+  Status interp(DType* d_c, DType* d_fk) override;
 
-  Status spread(DType* d_c, DType* d_fk);
+  Status spread(DType* d_c, DType* d_fk) override;
 
  private:
   

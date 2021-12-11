@@ -295,6 +295,68 @@ int set_points_impl<double>(
   return finufft_setpts(plan, M, x, y, z, 0, nullptr, nullptr, nullptr);
 };
 
+// TODO: remove after refactoring execute.
+template<typename FloatType>
+int execute_impl(
+    Plan<CPUDevice, FloatType>* plan,
+    std::complex<FloatType>* c, std::complex<FloatType>* f);
+
+template<>
+int execute_impl<float>(
+    Plan<CPUDevice, float>* plan,
+    std::complex<float>* c, std::complex<float>* f) {
+  return finufftf_execute(plan, c, f);
+};
+
+template<>
+int execute_impl<double>(
+    Plan<CPUDevice, double>* plan,
+    std::complex<double>* c, std::complex<double>* f) {
+  return finufft_execute(plan, c, f);
+};
+
+// TODO: remove after refactoring interp.
+template<typename FloatType>
+int interp_impl(
+    Plan<CPUDevice, FloatType>* plan,
+    std::complex<FloatType>* c, std::complex<FloatType>* f);
+
+template<>
+int interp_impl<float>(
+    Plan<CPUDevice, float>* plan,
+    std::complex<float>* c, std::complex<float>* f) {
+  return finufftf_interp(plan, c, f);
+};
+
+template<>
+int interp_impl<double>(
+    Plan<CPUDevice, double>* plan,
+    std::complex<double>* c, std::complex<double>* f) {
+  return finufft_interp(plan, c, f);
+};
+
+// TODO: remove after refactoring spread.
+template<typename FloatType>
+int spread_impl(
+    Plan<CPUDevice, FloatType>* plan,
+    std::complex<FloatType>* c, std::complex<FloatType>* f);
+
+template<>
+int spread_impl<float>(
+    Plan<CPUDevice, float>* plan,
+    std::complex<float>* c, std::complex<float>* f) {
+  return finufftf_spread(plan, c, f);
+};
+
+template<>
+int spread_impl<double>(
+    Plan<CPUDevice, double>* plan,
+    std::complex<double>* c, std::complex<double>* f) {
+  return finufft_spread(plan, c, f);
+};
+
+// TODO: remove after refactoring spread.
+
 template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::set_points(
     int num_points, FloatType* points_x,
@@ -304,6 +366,36 @@ Status Plan<CPUDevice, FloatType>::set_points(
                                        points_x, points_y, points_z);
   if (err > 1) {
     return errors::Internal("set_points failed with error code ", err);
+  }
+  return Status::OK();
+}
+
+template<typename FloatType>
+Status Plan<CPUDevice, FloatType>::execute(DType* c, DType* f) {
+  // TODO: refactor this implementation.
+  int err = execute_impl<FloatType>(this, c, f);
+  if (err > 1) {
+    return errors::Internal("execute failed with error code ", err);
+  }
+  return Status::OK();
+}
+
+template<typename FloatType>
+Status Plan<CPUDevice, FloatType>::interp(DType* c, DType* f) {
+  // TODO: refactor this implementation.
+  int err = interp_impl<FloatType>(this, c, f);
+  if (err > 1) {
+    return errors::Internal("interp failed with error code ", err);
+  }
+  return Status::OK();
+}
+
+template<typename FloatType>
+Status Plan<CPUDevice, FloatType>::spread(DType* c, DType* f) {
+  // TODO: refactor this implementation.
+  int err = spread_impl<FloatType>(this, c, f);
+  if (err > 1) {
+    return errors::Internal("spread failed with error code ", err);
   }
   return Status::OK();
 }

@@ -18,9 +18,9 @@ limitations under the License.
 
 #include "tensorflow/core/framework/op_kernel.h"
 
+#include "tensorflow_nufft/cc/kernels/nufft_kernels.h"
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
-#include "tensorflow_nufft/cc/kernels/nufft_kernels.h"
 
 
 namespace tensorflow {
@@ -29,103 +29,27 @@ typedef Eigen::GpuDevice GPUDevice;
 
 namespace nufft {
 
-template<>
-int execute<GPUDevice, float>(
-    Plan<GPUDevice, float>* plan,
-    std::complex<float>* c, std::complex<float>* f) {
-  Status s = plan->execute(reinterpret_cast<cuFloatComplex*>(c),
-                           reinterpret_cast<cuFloatComplex*>(f));
-  if (!s.ok()) {
-    return 4;
-  }
-  return 0; 
-};
-
-template<>
-int execute<GPUDevice, double>(
-    Plan<GPUDevice, double>* plan,
-    std::complex<double>* c, std::complex<double>* f) {
-  Status s = plan->execute(reinterpret_cast<cuDoubleComplex*>(c),
-                           reinterpret_cast<cuDoubleComplex*>(f));
-  if (!s.ok()) {
-    return 4;
-  }
-  return 0;
-};
-
-template<>
-int interp<GPUDevice, float>(
-    Plan<GPUDevice, float>* plan,
-    std::complex<float>* c, std::complex<float>* f) {
-  Status s = plan->interp(reinterpret_cast<cuFloatComplex*>(c),
-                          reinterpret_cast<cuFloatComplex*>(f));
-  if (!s.ok()) {
-    return 4;
-  }
-  return 0;
-};
-
-template<>
-int interp<GPUDevice, double>(
-    Plan<GPUDevice, double>* plan,
-    std::complex<double>* c, std::complex<double>* f) {
-  Status s = plan->interp(reinterpret_cast<cuDoubleComplex*>(c),
-                          reinterpret_cast<cuDoubleComplex*>(f));
-  if (!s.ok()) {
-    return 4;
-  }
-  return 0;
-};
-
-template<>
-int spread<GPUDevice, float>(
-    Plan<GPUDevice, float>* plan,
-    std::complex<float>* c, std::complex<float>* f) {
-  Status s = plan->spread(reinterpret_cast<cuFloatComplex*>(c),
-                          reinterpret_cast<cuFloatComplex*>(f));
-  if (!s.ok()) {
-    return 4;
-  }
-  return 0;
-};
-
-template<>
-int spread<GPUDevice, double>(
-    Plan<GPUDevice, double>* plan,
-    std::complex<double>* c, std::complex<double>* f) {
-  Status s = plan->spread(reinterpret_cast<cuDoubleComplex*>(c),
-                          reinterpret_cast<cuDoubleComplex*>(f));
-  if (!s.ok()) {
-    return 4;
-  }
-  return 0;
-};
-
-}  // namespace nufft
-
-using namespace tensorflow::nufft;
-
-template<typename T>
-struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
+template<typename FloatType>
+struct DoNUFFT<GPUDevice, FloatType> : DoNUFFTBase<GPUDevice, FloatType> {
   Status operator()(OpKernelContext* ctx,
                     TransformType type,
                     int rank,
                     FftDirection fft_direction,
                     int num_transforms,
-                    T tol,
-                    OpType optype,
+                    FloatType tol,
+                    OpType op_type,
                     int64_t nbdims,
                     int64_t* source_bdims,
                     int64_t* points_bdims,
-                    int64_t* nmodes,
+                    int64_t* num_modes,
                     int64_t num_points,
-                    T* points,
-                    std::complex<T>* source,
-                    std::complex<T>* target) {
+                    FloatType* points,
+                    Complex<GPUDevice, FloatType>* source,
+                    Complex<GPUDevice, FloatType>* target) {
     return this->compute(
-      ctx, type, rank, fft_direction, num_transforms, tol, optype,
-      nbdims, source_bdims, points_bdims,
-      nmodes, num_points, points, source, target);
+        ctx, type, rank, fft_direction, num_transforms, tol, op_type,
+        nbdims, source_bdims, points_bdims,
+        num_modes, num_points, points, source, target);
   }
 };
 
@@ -133,6 +57,7 @@ struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
 template struct DoNUFFT<GPUDevice, float>;
 template struct DoNUFFT<GPUDevice, double>;
 
+}  // namespace nufft
 }  // namespace tensorflow
 
 #endif  // GOOGLE_CUDA

@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_KERNELS_H_
-#define TENSORFLOW_NUFFT_KERNELS_NUFFT_KERNELS_H_
+#ifndef TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_KERNELS_H_
+#define TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_KERNELS_H_
 
 #include <complex>
 #include <cstdint>
@@ -28,12 +28,6 @@ limitations under the License.
 
 namespace tensorflow {
 namespace nufft {
-
-template<typename Device, typename T>
-int setpts(
-    Plan<Device, T>* plan,
-    int64_t M, T* x, T* y, T* z,
-    int64_t N, T* s, T* t, T* u);
 
 template<typename Device, typename T>
 int execute(
@@ -68,21 +62,21 @@ struct DoNUFFTBase {
                  int64_t* source_bdims,
                  int64_t* points_bdims,
                  int64_t* nmodes,
-                 int64_t npts,
+                 int64_t num_points,
                  T* points,
                  std::complex<T>* source,
                  std::complex<T>* target) {
 
     // Number of coefficients.
-    int ncoeffs = 1;
+    int num_coeffs = 1;
     for (int d = 0; d < rank; d++) {
-      ncoeffs *= nmodes[d];
+      num_coeffs *= nmodes[d];
     }
 
     // Number of calls to FINUFFT execute.
-    int ncalls = 1;
+    int num_calls = 1;
     for (int d = 0; d < nbdims; d++) {
-      ncalls *= points_bdims[d];
+      num_calls *= points_bdims[d];
     }
 
     // Factors to transform linear indices to subindices and viceversa.
@@ -153,44 +147,38 @@ struct DoNUFFTBase {
     int err;
 
     // Pointers to a certain batch.
-    std::complex<T>* bstrengths = NULL;
-    std::complex<T>* bcoeffs = NULL;
-    T* bpoints = NULL;
+    std::complex<T>* bstrengths = nullptr;
+    std::complex<T>* bcoeffs = nullptr;
+    T* points_batch = nullptr;
 
-    T* points_x = NULL;
-    T* points_y = NULL;
-    T* points_z = NULL;
+    T* points_x = nullptr;
+    T* points_y = nullptr;
+    T* points_z = nullptr;
 
     gtl::InlinedVector<int, 8> source_binds(nbdims);
 
-    for (int c = 0; c < ncalls; c++) {
-      
-      bpoints = points + c * npts * rank;
+    for (int c = 0; c < num_calls; c++) {
+
+      points_batch = points + c * num_points * rank;
 
       switch (rank) {
         case 1:
-          points_x = bpoints;
+          points_x = points_batch;
           break;
         case 2:
-          points_x = bpoints;
-          points_y = bpoints + npts;
+          points_x = points_batch;
+          points_y = points_batch + num_points;
           break;
         case 3:
-          points_x = bpoints;
-          points_y = bpoints + npts;
-          points_z = bpoints + npts * 2;
+          points_x = points_batch;
+          points_y = points_batch + num_points;
+          points_z = points_batch + num_points * 2;
           break;
       }
-      
+
       // Set the point coordinates.
-      err = nufft::setpts<Device, T>(
-          plan.get(),
-          npts, points_x, points_y, points_z,
-          0, NULL, NULL, NULL);
-        
-      if (err > 0) {
-        return errors::Internal("Failed during `nufft::setpts`: ", err);
-      }
+      TF_RETURN_IF_ERROR(
+          ctx, plan->set_points(num_points, points_x, points_y, points_z));
 
       // Compute indices.
       csrc = 0;
@@ -205,8 +193,8 @@ struct DoNUFFTBase {
         csrc += source_binds[d] * source_bfactors[d];
       }
 
-      bstrengths = strengths + *pcs * num_transforms * npts;
-      bcoeffs = coeffs + *pcc * num_transforms * ncoeffs;
+      bstrengths = strengths + *pcs * num_transforms * num_points;
+      bcoeffs = coeffs + *pcc * num_transforms * num_coeffs;
 
       // Execute the NUFFT.
       switch (optype)
@@ -250,12 +238,12 @@ struct DoNUFFT : DoNUFFTBase<Device, T> {
                     int64_t* source_bdims,
                     int64_t* points_bdims,
                     int64_t* nmodes,
-                    int64_t npts,
+                    int64_t num_points,
                     T* points,
                     std::complex<T>* source,
                     std::complex<T>* target);
 };
 
-}   // namespace tensorflow
+}  // namespace tensorflow
 
-#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_KERNELS_H_
+#endif  // TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_KERNELS_H_

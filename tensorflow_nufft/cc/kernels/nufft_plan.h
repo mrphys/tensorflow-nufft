@@ -180,6 +180,11 @@ class PlanBase {
   PlanBase(OpKernelContext* context)
       : device_(context->eigen_device<Device>()) { }
 
+  virtual Status set_points(int num_points,
+                            FloatType* points_x,
+                            FloatType* points_y,
+                            FloatType* points_z) = 0;
+
  public: // TODO: make protected
 
   // The type of the transform. See enum above.
@@ -242,7 +247,12 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // accumulated wisdom.
   ~Plan();
 
- public: // TODO: make protected.
+  Status set_points(int num_points,
+                    FloatType* points_x,
+                    FloatType* points_y,
+                    FloatType* points_z) override;
+
+ public: // TODO: make private.
 
   // Number of computations in one batch.
   int batch_size_;
@@ -284,10 +294,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
   FloatType *X, *Y, *Z;  // for t1,2: ptr to user-supplied NU pts (no new allocs).
                    // for t3: allocated as "primed" (scaled) src pts x'_j, etc
-
-  // type 3 specific
-  FloatType *S, *T, *U;  // pointers to user's target NU pts arrays (no new allocs)
-  FloatType *Sp, *Tp, *Up;  // internal primed targs (s'_k, etc), allocated
 };
 
 #if GOOGLE_CUDA
@@ -319,7 +325,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   Status set_points(int num_points,
                     FloatType* points_x,
                     FloatType* points_y,
-                    FloatType* points_z);
+                    FloatType* points_z) override;
 
   /*
 	"exec" stage (single and double precision versions).

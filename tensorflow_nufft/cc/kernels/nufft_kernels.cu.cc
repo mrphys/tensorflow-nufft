@@ -30,30 +30,6 @@ typedef Eigen::GpuDevice GPUDevice;
 namespace nufft {
 
 template<>
-int setpts<GPUDevice, float>(
-    Plan<GPUDevice, float>* plan,
-    int64_t M, float* x, float* y, float* z,
-    int64_t N, float* s, float* t, float* u) {
-  Status st = plan->set_points(M, x, y, z);
-  if (!st.ok()) {
-    return 4;
-  }
-  return 0;
-};
-
-template<>
-int setpts<GPUDevice, double>(
-    Plan<GPUDevice, double>* plan,
-    int64_t M, double* x, double* y, double* z,
-    int64_t N, double* s, double* t, double* u) {
-  Status st = plan->set_points(M, x, y, z);
-  if (!st.ok()) {
-    return 4;
-  }
-  return 0;
-};
-
-template<>
 int execute<GPUDevice, float>(
     Plan<GPUDevice, float>* plan,
     std::complex<float>* c, std::complex<float>* f) {
@@ -125,7 +101,7 @@ int spread<GPUDevice, double>(
   return 0;
 };
 
-}   // namespace nufft
+}  // namespace nufft
 
 using namespace tensorflow::nufft;
 
@@ -142,14 +118,14 @@ struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
                     int64_t* source_bdims,
                     int64_t* points_bdims,
                     int64_t* nmodes,
-                    int64_t npts,
+                    int64_t num_points,
                     T* points,
                     std::complex<T>* source,
                     std::complex<T>* target) {
     return this->compute(
       ctx, type, rank, fft_direction, num_transforms, tol, optype,
       nbdims, source_bdims, points_bdims,
-      nmodes, npts, points, source, target);
+      nmodes, num_points, points, source, target);
   }
 };
 
@@ -157,6 +133,6 @@ struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
 template struct DoNUFFT<GPUDevice, float>;
 template struct DoNUFFT<GPUDevice, double>;
 
-}   // namespace tensorflow
+}  // namespace tensorflow
 
 #endif  // GOOGLE_CUDA

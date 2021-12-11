@@ -39,22 +39,6 @@ typedef Eigen::GpuDevice GPUDevice;
 namespace nufft {
 
 template<>
-int setpts<CPUDevice, float>(
-    Plan<CPUDevice, float>* plan,
-    int64_t M, float* x, float* y, float* z,
-    int64_t N, float* s, float* t, float* u) {
-  return finufftf_setpts(plan, M, x, y, z, N, s, t, u);
-};
-
-template<>
-int setpts<CPUDevice, double>(
-    Plan<CPUDevice, double>* plan,
-    int64_t M, double* x, double* y, double* z,
-    int64_t N, double* s, double* t, double* u) {
-  return finufft_setpts(plan, M, x, y, z, N, s, t, u);
-};
-
-template<>
 int execute<CPUDevice, float>(
     Plan<CPUDevice, float>* plan,
     std::complex<float>* c, std::complex<float>* f) {
@@ -113,14 +97,14 @@ struct DoNUFFT<CPUDevice, T> : DoNUFFTBase<CPUDevice, T> {
                     int64_t* source_bdims,
                     int64_t* points_bdims,
                     int64_t* nmodes,
-                    int64_t npts,
+                    int64_t num_points,
                     T* points,
                     std::complex<T>* source,
                     std::complex<T>* target) {
     return this->compute(
       ctx, type, rank, fft_direction, num_transforms, tol, optype,
       nbdims, source_bdims, points_bdims,
-      nmodes, npts, points, source, target);
+      nmodes, num_points, points, source, target);
   }
 };
 

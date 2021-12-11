@@ -28,8 +28,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H_
-#define TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H_
+#ifndef TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_UTIL_H_
+#define TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_UTIL_H_
 
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
@@ -57,7 +57,7 @@ FloatType evaluate_kernel(FloatType x, const SpreadParameters<FloatType> &opts);
 // overall prefactor of 1/h, which is needed anyway for the correction, and
 // arises because the quadrature weights are scaled for grid units not x units.
 template<typename FloatType>
-void kernel_fseries_1d(int grid_size,     
+void kernel_fseries_1d(int grid_size,
                        const SpreadParameters<FloatType>& spread_params,
                        FloatType* fseries_coeffs);
 
@@ -70,4 +70,4 @@ IntType next_smooth_int(IntType n, IntType b = 1);
 }  // namespace nufft
 }  // namespace tensorflow
 
-#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_UTIL_H_
+#endif  // TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_UTIL_H_

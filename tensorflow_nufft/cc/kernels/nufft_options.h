@@ -35,20 +35,20 @@ limitations under the License.
 
 #if GOOGLE_CUDA
 #include "third_party/gpus/cuda/include/vector_types.h"
-#endif // GOOGLE_CUDA
+#endif  // GOOGLE_CUDA
 
 namespace tensorflow {
 namespace nufft {
 
 enum class ModeOrder {
-  CMCL = 0, // CMCL-style mode order.
-  FFT = 1   // FFT-style mode order.
+  CMCL = 0,  // CMCL-style mode order.
+  FFT = 1    // FFT-style mode order.
 };
 
 enum class KernelEvaluationMethod {
-  AUTO = 0,   // Select automatically.
-  DIRECT = 1, // Direct evaluation of kernel.
-  HORNER = 2  // Evaluate using Horner piecewise polynomial. Faster.
+  AUTO = 0,    // Select automatically.
+  DIRECT = 1,  // Direct evaluation of kernel.
+  HORNER = 2   // Evaluate using Horner piecewise polynomial. Faster.
 };
 
 enum class SpreadThreading {
@@ -149,10 +149,10 @@ struct Options {
   // Used for 3D spread-block-gather method. 0 means automatic selection.
   dim3 gpu_obin_size = {0, 0, 0};
 
-  #endif // GOOGLE_CUDA
+  #endif  // GOOGLE_CUDA
 };
 
 }  // namespace nufft
 }  // namespace tensorflow
 
-#endif // TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_OPTIONS_H_
+#endif  // TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_OPTIONS_H_

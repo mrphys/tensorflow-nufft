@@ -377,7 +377,7 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
       for (int isub=0; isub<nb; isub++) {   // Main loop through the subproblems
         BIGINT M0 = brk[isub+1]-brk[isub];  // # NU pts in this subproblem
         // copy the location and data vectors for the nonuniform points
-        FLT *kx0=(FLT*)malloc(sizeof(FLT)*M0), *ky0=NULL, *kz0=NULL;
+        FLT *kx0=(FLT*)malloc(sizeof(FLT)*M0), *ky0=nullptr, *kz0=nullptr;
         if (N2>1)
           ky0=(FLT*)malloc(sizeof(FLT)*M0);
         if (N3>1)

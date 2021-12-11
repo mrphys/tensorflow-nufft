@@ -30,6 +30,7 @@ limitations under the License.
 
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
+#include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft.h"
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
 #include "tensorflow_nufft/cc/kernels/omp_api.h"
 
@@ -272,6 +273,39 @@ Plan<CPUDevice, FloatType>::~Plan() {
   free(this->phiHat1);
   free(this->phiHat2);
   free(this->phiHat3);
+}
+
+// TODO: remove after refactoring set_points.
+template<typename FloatType>
+int set_points_impl(
+    Plan<CPUDevice, FloatType>* plan,
+    int64_t M, FloatType* x, FloatType* y, FloatType* z);
+
+template<>
+int set_points_impl<float>(
+    Plan<CPUDevice, float>* plan,
+    int64_t M, float* x, float* y, float* z) {
+  return finufftf_setpts(plan, M, x, y, z, 0, nullptr, nullptr, nullptr);
+};
+
+template<>
+int set_points_impl<double>(
+    Plan<CPUDevice, double>* plan,
+    int64_t M, double* x, double* y, double* z) {
+  return finufft_setpts(plan, M, x, y, z, 0, nullptr, nullptr, nullptr);
+};
+
+template<typename FloatType>
+Status Plan<CPUDevice, FloatType>::set_points(
+    int num_points, FloatType* points_x,
+    FloatType* points_y, FloatType* points_z) {
+  // TODO: refactor this implementation.
+  int err = set_points_impl<FloatType>(this, num_points,
+                                       points_x, points_y, points_z);
+  if (err > 1) {
+    return errors::Internal("set_points failed with error code ", err);
+  }
+  return Status::OK();
 }
 
 namespace {

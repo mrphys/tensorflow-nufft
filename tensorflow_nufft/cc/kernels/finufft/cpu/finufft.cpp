@@ -241,7 +241,7 @@ void deconvolveshuffle3d(SpreadDirection dir,FLT prefac,FLT *ker1, FLT *ker2,
 
 // --------- batch helper functions for t1,2 exec: ---------------------------
 
-int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch, CPX* fBatch=NULL)
+int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch, CPX* fBatch=nullptr)
 /*
   Spreads (or interpolates) a batch of batch_size strength vectors in cBatch
   to (or from) the batch of fine working grids p->grid_data_, using the same set of
@@ -263,7 +263,7 @@ int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch
   // But when nthr_outer=1 here, omp par inside the loop sees all threads...
   int nthr_outer = p->options_.spread_threading == SpreadThreading::SEQUENTIAL_MULTI_THREADED ? 1 : batch_size;
 
-  if (fBatch == NULL) {
+  if (fBatch == nullptr) {
     fBatch = (CPX*) p->grid_data_;
   }
 

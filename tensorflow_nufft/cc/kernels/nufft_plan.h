@@ -138,11 +138,11 @@ struct SpreadParameters {
   // Specifies the spread method.
   SpreadMethod spread_method = SpreadMethod::AUTO;
 
+  // If true, do only spreading/interpolation step
+  // (no FFT or amplification/deconvolution).
+  bool spread_only;
+
   // TODO: revise the following options.
-
-  // This is the main documentation for these options...
-  int nspread;            // w, the kernel width in grid pts
-
   int pirange;            // 0: NU periodic domain is [0,N), 1: domain [-pi,pi)
   bool check_bounds;      // 0: don't check NU pts in 3-period range; 1: do
   int kerevalmeth;        // 0: direct exp(sqrt()), or 1: Horner ppval, fastest
@@ -156,12 +156,13 @@ struct SpreadParameters {
   int verbosity;          // 0: silent, 1: small text output, 2: verbose
   int atomic_threshold;   // num threads before switching spreadSorted to using atomic ops
   double upsampling_factor;       // sigma, upsampling factor
-  bool spread_only;   // 0: NUFFT, 1: spread or interpolation only
-  // ES kernel specific consts used in fast eval, depend on precision FLT...
-  FloatType ES_beta;
-  FloatType ES_halfwidth;
-  FloatType ES_c;
-  FloatType ES_scale;           // used for spread/interp only
+
+  // Parameters of the "exponential of semicircle" spreading kernel.
+  int kernel_width;
+  FloatType kernel_beta;
+  FloatType kernel_half_width;
+  FloatType kernel_c;
+  FloatType kernel_scale;
 
   #if GOOGLE_CUDA
   // Used for 3D subproblem method. 0 means automatic selection.

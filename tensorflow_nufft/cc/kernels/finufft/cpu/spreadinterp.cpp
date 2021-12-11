@@ -99,7 +99,7 @@ int spreadinterp(
                       j=0
 
    In each case phi is the spreading kernel, which has support
-   [-opts.nspread/2,opts.nspread/2]. In 2D or 3D, the generalization with
+   [-opts.kernel_width/2,opts.kernel_width/2]. In 2D or 3D, the generalization with
    product of 1D kernels is performed.
    For 1D set N2=N3=1; for 2D set N3=1; for 3D set N1,N2,N3>1.
 
@@ -116,7 +116,7 @@ int spreadinterp(
    If pirange=0, the periodic domain for kx is [0,N1], ky [0,N2], kz [0,N3].
    If pirange=1, the periodic domain is instead [-pi,pi] for each coord.
    The SpreadParameters<FLT> struct must have been set up already by calling setup_kernel.
-   It is assumed that 2*opts.nspread < min(N1,N2,N3), so that the kernel
+   It is assumed that 2*opts.kernel_width < min(N1,N2,N3), so that the kernel
    only ever wraps once when falls below 0 or off the top of a uniform grid
    dimension.
 
@@ -142,7 +142,7 @@ int spreadinterp(
    Returned value:
    0 indicates success; other values have meanings in ../docs/error.rst, with
    following modifications:
-      3 : one or more non-trivial box dimensions is less than 2.nspread.
+      3 : one or more non-trivial box dimensions is less than 2.kernel_width.
       4 : nonuniform points outside [-Nm,2*Nm] or [-3pi,3pi] in at least one
           dimension m=1,2,3.
       5 : failed allocate sort indices
@@ -194,9 +194,9 @@ int spreadcheck(BIGINT N1, BIGINT N2, BIGINT N3, BIGINT M, FLT *kx, FLT *ky,
 {
   CNTime timer;
   // INPUT CHECKING & REPORTING .... cuboid not too small for spreading?
-  int minN = 2*opts.nspread;
+  int minN = 2*opts.kernel_width;
   if (N1<minN || (N2>1 && N2<minN) || (N3>1 && N3<minN)) {
-    fprintf(stderr,"%s error: one or more non-trivial box dims is less than 2.nspread!\n",__func__);
+    fprintf(stderr,"%s error: one or more non-trivial box dims is less than 2.kernel_width!\n",__func__);
     return ERR_SPREAD_BOX_SMALL;
   }
   int ndims = ndims_from_Ns(N1,N2,N3);
@@ -326,7 +326,7 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
   CNTime timer;
   int ndims = ndims_from_Ns(N1,N2,N3);
   BIGINT N=N1*N2*N3;            // output array size
-  int ns=opts.nspread;          // abbrev. for w, kernel width
+  int ns=opts.kernel_width;          // abbrev. for w, kernel width
   int nthr = FINUFFT_GET_MAX_THREADS();  // # threads to use to spread
   if (opts.num_threads>0)
     nthr = min(nthr,opts.num_threads);     // user override up to max avail
@@ -391,7 +391,7 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
           dd0[j*2]=data_nonuniform[kk*2];     // real part
           dd0[j*2+1]=data_nonuniform[kk*2+1]; // imag part
         }
-        // get the subgrid which will include padding by roughly nspread/2
+        // get the subgrid which will include padding by roughly kernel_width/2
         BIGINT offset1,offset2,offset3,size1,size2,size3; // get_subgrid sets
         get_subgrid(offset1,offset2,offset3,size1,size2,size3,M0,kx0,ky0,kz0,ns,ndims);  // sets offsets and sizes
         if (opts.verbosity>1) { // verbose
@@ -438,7 +438,7 @@ int spreadSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
     // in spread/interp only mode, apply scaling factor (Montalt 6/8/2021).
     if (opts.spread_only) {
       for (BIGINT i=0; i<2*N; i++)
-        data_uniform[i] *= opts.ES_scale;
+        data_uniform[i] *= opts.kernel_scale;
     }
 
     return 0;
@@ -454,7 +454,7 @@ int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
 {
   CNTime timer;
   int ndims = ndims_from_Ns(N1,N2,N3);
-  int ns=opts.nspread;          // abbrev. for w, kernel width
+  int ns=opts.kernel_width;          // abbrev. for w, kernel width
   FLT ns2 = (FLT)ns/2;          // half spread width, used as stencil shift
   int nthr = FINUFFT_GET_MAX_THREADS();   // # threads to use to interp
   if (opts.num_threads>0)
@@ -543,8 +543,8 @@ int interpSorted(BIGINT* sort_indices,BIGINT N1, BIGINT N2, BIGINT N3,
 
     // in spread/interp only mode, apply scaling factor (Montalt 6/8/2021).
     if (opts.spread_only) {
-      target[0] *= opts.ES_scale;
-      target[1] *= opts.ES_scale;
+      target[0] *= opts.kernel_scale;
+      target[1] *= opts.kernel_scale;
     }
       }
     }  // end loop over targets in chunk
@@ -569,7 +569,7 @@ static inline void set_kernel_args(FLT *args, FLT x, const SpreadParameters<FLT>
 // Fills vector args[] with kernel arguments x, x+1, ..., x+ns-1.
 // needed for the vectorized kernel eval of Ludvig af K.
 {
-  int ns=opts.nspread;
+  int ns=opts.kernel_width;
   for (int i=0; i<ns; i++)
     args[i] = x + (FLT) i;
 }
@@ -583,8 +583,8 @@ static inline void evaluate_kernel_vector(FLT *ker, FLT *args, const SpreadParam
    Obsolete (replaced by Horner), but keep around for experimentation since
    works for arbitrary beta. Formula must match reference implementation. */
 {
-  FLT b = opts.ES_beta;
-  FLT c = opts.ES_c;
+  FLT b = opts.kernel_beta;
+  FLT c = opts.kernel_c;
   if (!(opts.flags & TF_OMIT_EVALUATE_KERNEL)) {
     // Note (by Ludvig af K): Splitting kernel evaluation into two loops
     // seems to benefit auto-vectorization.
@@ -607,7 +607,7 @@ static inline void evaluate_kernel_vector(FLT *ker, FLT *args, const SpreadParam
   }
   // Separate check from arithmetic (Is this really needed? doesn't slow down)
   for (int i = 0; i < N; i++)
-    if (abs(args[i])>=opts.ES_halfwidth) ker[i] = 0.0;
+    if (abs(args[i])>=opts.kernel_half_width) ker[i] = 0.0;
 }
 
 static inline void eval_kernel_vec_Horner(FLT *ker, const FLT x, const int w,
@@ -802,7 +802,7 @@ void spread_subproblem_1d(BIGINT off1, BIGINT size1,FLT *du,BIGINT M,
    This needed off1 as extra arg. AHB 11/30/20.
 */
 {
-  int ns=opts.nspread;          // a.k.a. w
+  int ns=opts.kernel_width;          // a.k.a. w
   FLT ns2 = (FLT)ns/2;          // half spread width
   for (BIGINT i=0;i<2*size1;++i)         // zero output
     du[i] = 0.0;
@@ -845,7 +845,7 @@ void spread_subproblem_2d(BIGINT off1,BIGINT off2,BIGINT size1,BIGINT size2,
    du (size size1*size2) is complex uniform output array
  */
 {
-  int ns=opts.nspread;
+  int ns=opts.kernel_width;
   FLT ns2 = (FLT)ns/2;          // half spread width
   for (BIGINT i=0;i<2*size1*size2;++i)
     du[i] = 0.0;
@@ -900,7 +900,7 @@ void spread_subproblem_3d(BIGINT off1,BIGINT off2,BIGINT off3,BIGINT size1,
    du (size size1*size2*size3) is uniform complex output array
  */
 {
-  int ns=opts.nspread;
+  int ns=opts.kernel_width;
   FLT ns2 = (FLT)ns/2;          // half spread width
   for (BIGINT i=0;i<2*size1*size2*size3;++i)
     du[i] = 0.0;

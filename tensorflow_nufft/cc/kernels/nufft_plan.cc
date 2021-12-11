@@ -291,8 +291,8 @@ Status set_grid_size(int ms,
   }
 
   // This is required to avoid errors.
-  if (*grid_size < 2 * spread_params.nspread)
-    *grid_size = 2 * spread_params.nspread;
+  if (*grid_size < 2 * spread_params.kernel_width)
+    *grid_size = 2 * spread_params.kernel_width;
 
   // Check if array size is too big.
   if (*grid_size > kMaxArraySize) {
@@ -307,7 +307,7 @@ Status set_grid_size(int ms,
   if (options.spread_only && *grid_size != ms) {
     return errors::Internal(
         "Invalid grid size: ", ms, ". Value should be even, "
-        "larger than the kernel (", 2 * spread_params.nspread, ") and have no prime "
+        "larger than the kernel (", 2 * spread_params.kernel_width, ") and have no prime "
         "factors larger than 5.");
   }
 
@@ -387,7 +387,7 @@ Status setup_spreader(
   // heuristic nthr above which switch OMP critical to atomic (add_wrapped...):
   spread_params.atomic_threshold = 10;   // R Blackwell's value
 
-  int ns = 0;  // Set kernel width w (aka ns, nspread) then copy to spread_params...
+  int ns = 0;  // Set kernel width w (aka ns, kernel_width) then copy to spread_params...
   if (eps < kEpsilon<FloatType>) {
     eps = kEpsilon<FloatType>;
   }
@@ -401,12 +401,12 @@ Status setup_spreader(
   if (ns > kMaxKernelWidth) {         // clip to fit allocated arrays, Horner rules
     ns = kMaxKernelWidth;
   }
-  spread_params.nspread = ns;
+  spread_params.kernel_width = ns;
 
   // setup for reference kernel eval (via formula): select beta width param...
   // (even when kerevalmeth=1, this ker eval needed for FTs in onedim_*_kernel)
-  spread_params.ES_halfwidth = (FloatType)ns / 2;   // constants to help (see below routines)
-  spread_params.ES_c = 4.0 / (FloatType)(ns * ns);
+  spread_params.kernel_half_width = (FloatType)ns / 2;   // constants to help (see below routines)
+  spread_params.kernel_c = 4.0 / (FloatType)(ns * ns);
   FloatType beta_over_ns = 2.30;         // gives decent betas for default sigma=2.0
   if (ns == 2) beta_over_ns = 2.20;  // some small-width tweaks...
   if (ns == 3) beta_over_ns = 2.26;
@@ -415,11 +415,11 @@ Status setup_spreader(
     FloatType gamma = 0.97;              // must match devel/gen_all_horner_C_code.m !
     beta_over_ns = gamma * kPi<FloatType>*(1.0 - 1.0 / (2 * upsampling_factor));  // formula based on cutoff
   }
-  spread_params.ES_beta = beta_over_ns * (FloatType)ns;    // set the kernel beta parameter
+  spread_params.kernel_beta = beta_over_ns * (FloatType)ns;    // set the kernel beta parameter
 
   // Calculate scaling factor for spread/interp only mode.
   if (spread_params.spread_only)
-    spread_params.ES_scale = calculate_scale_factor<FloatType>(rank, spread_params);
+    spread_params.kernel_scale = calculate_scale_factor<FloatType>(rank, spread_params);
 
   return Status::OK();
 }

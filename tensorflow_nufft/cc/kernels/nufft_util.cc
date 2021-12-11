@@ -50,11 +50,11 @@ FloatType calculate_scale_factor(
   FloatType sum = 0.0;
   for(int i = 1; i < n; i++) {
     x += h;
-    sum += exp(opts.ES_beta * sqrt(1.0 - x * x));
+    sum += exp(opts.kernel_beta * sqrt(1.0 - x * x));
   }
   sum += 1.0;
   sum *= h;
-  sum *= sqrt(1.0 / opts.ES_c);
+  sum *= sqrt(1.0 / opts.kernel_c);
   FloatType scale = sum;
   if (rank > 1) { scale *= sum; }
   if (rank > 2) { scale *= sum; }
@@ -63,9 +63,9 @@ FloatType calculate_scale_factor(
 
 template<typename FloatType>
 FloatType evaluate_kernel(FloatType x, const SpreadParameters<FloatType> &opts) {
-  if (abs(x) >= opts.ES_halfwidth)
+  if (abs(x) >= opts.kernel_half_width)
     return 0.0;
-  return exp(opts.ES_beta * sqrt(1.0 - opts.ES_c * x * x));
+  return exp(opts.kernel_beta * sqrt(1.0 - opts.kernel_c * x * x));
 }
 
 template<typename FloatType>
@@ -73,7 +73,7 @@ void kernel_fseries_1d(int grid_size,
                        const SpreadParameters<FloatType>& spread_params,
                        FloatType* fseries_coeffs) {
 
-  FloatType kernel_half_width = spread_params.nspread / 2.0;
+  FloatType kernel_half_width = spread_params.kernel_width / 2.0;
 
   // Number of quadrature nodes in z (from 0 to J/2, reflections will be added).
   int q = static_cast<int>(2 + 3.0 * kernel_half_width);

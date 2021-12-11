@@ -323,7 +323,7 @@ __global__ void Amplify3DKernel(
 }
 
 /* ES ("exp sqrt") kernel evaluation at single real argument:
-    phi(x) = exp(beta.sqrt(1 - (2x/n_s)^2)),    for |x| < nspread/2
+    phi(x) = exp(beta.sqrt(1 - (2x/n_s)^2)),    for |x| < kernel_width/2
     related to an asymptotic approximation to the Kaiser--Bessel, itself an
     approximation to prolate spheroidal wavefunction (PSWF) of order 0.
     This is the "reference implementation", used by eg common/onedim_* 
@@ -1827,7 +1827,7 @@ Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
   thrust::transform(thrust::cuda::par.on(this->device_.stream()), dev_ptr,
                     dev_ptr + 2 * this->num_transforms_ * this->num_points_,
                     dev_ptr, _1 * static_cast<FloatType>(
-                        this->spread_params_.ES_scale));
+                        this->spread_params_.kernel_scale));
 
   return Status::OK();
 }
@@ -1856,7 +1856,7 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
   thrust::transform(thrust::cuda::par.on(this->device_.stream()), dev_ptr,
                     dev_ptr + 2 * this->num_transforms_ * this->mode_count_,
                     dev_ptr, _1 * static_cast<FloatType>(
-                        this->spread_params_.ES_scale));
+                        this->spread_params_.kernel_scale));
 
   return Status::OK();
 }
@@ -1977,10 +1977,10 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
   dim3 threads_per_block;
   dim3 num_blocks;
 
-  int kernel_width=this->spread_params_.nspread;   // psi's support in terms of number of cells
+  int kernel_width=this->spread_params_.kernel_width;   // psi's support in terms of number of cells
   int pirange=this->spread_params_.pirange;
-  FloatType es_c=this->spread_params_.ES_c;
-  FloatType es_beta=this->spread_params_.ES_beta;
+  FloatType es_c=this->spread_params_.kernel_c;
+  FloatType es_beta=this->spread_params_.kernel_beta;
   FloatType sigma=this->spread_params_.upsampling_factor;
 
   GpuComplex<FloatType>* d_c = this->c_;
@@ -2061,9 +2061,9 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
-    int kernel_width = this->spread_params_.nspread;// psi's support in terms of number of cells
-    FloatType es_c=this->spread_params_.ES_c;
-    FloatType es_beta=this->spread_params_.ES_beta;
+    int kernel_width = this->spread_params_.kernel_width;// psi's support in terms of number of cells
+    FloatType es_c=this->spread_params_.kernel_c;
+    FloatType es_beta=this->spread_params_.kernel_beta;
     int max_subprob_size=this->options_.gpu_max_subproblem_size;
 
   GpuComplex<FloatType>* d_c = this->c_;
@@ -2178,9 +2178,9 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
   dim3 threads_per_block;
   dim3 num_blocks;
 
-  int kernel_width=this->spread_params_.nspread;   // psi's support in terms of number of cells
-  FloatType es_c=this->spread_params_.ES_c;
-  FloatType es_beta=this->spread_params_.ES_beta;
+  int kernel_width=this->spread_params_.kernel_width;   // psi's support in terms of number of cells
+  FloatType es_c=this->spread_params_.kernel_c;
+  FloatType es_beta=this->spread_params_.kernel_beta;
   FloatType sigma = this->options_.upsampling_factor;
   int pirange=this->spread_params_.pirange;
 
@@ -2264,9 +2264,9 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
-    int kernel_width = this->spread_params_.nspread;
-    FloatType es_c = this->spread_params_.ES_c;
-    FloatType es_beta = this->spread_params_.ES_beta;
+    int kernel_width = this->spread_params_.kernel_width;
+    FloatType es_c = this->spread_params_.kernel_c;
+    FloatType es_beta = this->spread_params_.kernel_beta;
     int max_subprob_size = this->options_.gpu_max_subproblem_size;
 
   GpuComplex<FloatType>* d_c = this->c_;
@@ -2658,10 +2658,10 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
   if (ns > kMaxKernelWidth) {         // clip to match allocated arrays
     ns = kMaxKernelWidth;
   }
-  spread_params.nspread = ns;
+  spread_params.kernel_width = ns;
 
-  spread_params.ES_halfwidth = (FloatType)ns / 2;   // constants to help ker eval (except Horner)
-  spread_params.ES_c = 4.0 / (FloatType)(ns * ns);
+  spread_params.kernel_half_width = (FloatType)ns / 2;   // constants to help ker eval (except Horner)
+  spread_params.kernel_c = 4.0 / (FloatType)(ns * ns);
 
   // Set the kernel beta parameter. The following results in reasonable beta
   // values for upsampling factor of 2.0, with some tweaks for small width
@@ -2675,10 +2675,10 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
     FloatType gamma = 0.97;  // This value must match the one in generated code.
     beta_over_ns = gamma * kPi<FloatType> * (1 - 1 / (2 * upsampling_factor));
   }
-  spread_params.ES_beta = beta_over_ns * (FloatType)ns;
+  spread_params.kernel_beta = beta_over_ns * (FloatType)ns;
 
   if (spread_params.spread_only)
-    spread_params.ES_scale = calculate_scale_factor(rank, spread_params);
+    spread_params.kernel_scale = calculate_scale_factor(rank, spread_params);
 
   return Status::OK();
 }
@@ -2756,8 +2756,8 @@ Status set_grid_size(int ms,
   }
 
   // This is required to avoid errors.
-  if (*grid_size < 2 * spread_params.nspread)
-    *grid_size = 2 * spread_params.nspread;
+  if (*grid_size < 2 * spread_params.kernel_width)
+    *grid_size = 2 * spread_params.kernel_width;
 
   // Check if array size is too big.
   if (*grid_size > kMaxArraySize) {
@@ -2775,7 +2775,7 @@ Status set_grid_size(int ms,
   if (options.spread_only && *grid_size != ms) {
     return errors::Internal(
         "Invalid grid size: ", ms, ". Value should be even, "
-        "larger than the kernel (", 2 * spread_params.nspread, ") and have no prime "
+        "larger than the kernel (", 2 * spread_params.kernel_width, ") and have no prime "
         "factors larger than 5.");
   }
 

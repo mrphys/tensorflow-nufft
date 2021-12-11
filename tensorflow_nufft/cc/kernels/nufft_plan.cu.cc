@@ -1626,14 +1626,18 @@ Plan<GPUDevice, FloatType>::Plan(
   switch (this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
       if (this->spread_params_.sort_points == SortPoints::YES) {
-        checkCudaErrors(cudaMalloc(&this->bin_sizes_, bin_bytes));
-        checkCudaErrors(cudaMalloc(&this->bin_start_pts_, bin_bytes));
+        this->bin_sizes_ = reinterpret_cast<int*>(
+            this->device_.allocate(bin_bytes));
+        this->bin_start_pts_ = reinterpret_cast<int*>(
+            this->device_.allocate(bin_bytes));
       }
       break;
     case SpreadMethod::SUBPROBLEM:
+      this->bin_sizes_ = reinterpret_cast<int*>(
+          this->device_.allocate(bin_bytes));
+      this->bin_start_pts_ = reinterpret_cast<int*>(
+          this->device_.allocate(bin_bytes));
       checkCudaErrors(cudaMalloc(&this->num_subprob_, bin_bytes));
-      checkCudaErrors(cudaMalloc(&this->bin_sizes_, bin_bytes));
-      checkCudaErrors(cudaMalloc(&this->bin_start_pts_, bin_bytes));
       checkCudaErrors(cudaMalloc(&this->subprob_start_pts_,
           sizeof(int) * (this->bin_count_ + 1)));
       break;
@@ -1750,35 +1754,24 @@ Plan<GPUDevice, FloatType>::~Plan() {
   if (this->fft_plan_)
     cufftDestroy(this->fft_plan_);
 
+  this->device_.deallocate(this->bin_sizes_);
+  this->bin_sizes_ = nullptr;
+  this->device_.deallocate(this->bin_start_pts_);
+  this->bin_start_pts_ = nullptr;
+  this->device_.deallocate(this->subprob_bins_);
+  this->subprob_bins_ = nullptr;
+  this->device_.deallocate(this->idx_nupts_);
+  this->idx_nupts_ = nullptr;
+  this->device_.deallocate(this->sort_idx_);
+  this->sort_idx_ = nullptr;
+
   switch(this->options_.spread_method)
   {
     case SpreadMethod::NUPTS_DRIVEN:
-      if (this->spread_params_.sort_points == SortPoints::YES) {
-        if (this->idx_nupts_)
-          checkCudaErrors(cudaFree(this->idx_nupts_));
-        if (this->sort_idx_)
-          checkCudaErrors(cudaFree(this->sort_idx_));
-        checkCudaErrors(cudaFree(this->bin_sizes_));
-        checkCudaErrors(cudaFree(this->bin_start_pts_));
-      } else {
-        if (this->idx_nupts_)
-          checkCudaErrors(cudaFree(this->idx_nupts_));
-      }
       break;
     case SpreadMethod::SUBPROBLEM:
-      if (this->idx_nupts_)
-        checkCudaErrors(cudaFree(this->idx_nupts_));
-      if (this->sort_idx_)
-        checkCudaErrors(cudaFree(this->sort_idx_));
       checkCudaErrors(cudaFree(this->num_subprob_));
-      checkCudaErrors(cudaFree(this->bin_sizes_));
-      checkCudaErrors(cudaFree(this->bin_start_pts_));
       checkCudaErrors(cudaFree(this->subprob_start_pts_));
-      if (this->subprob_bins_ != nullptr) {
-        // Allocated during `set_points` and therefore not guaranteed to be
-        // allocated.
-        this->device_.deallocate(this->subprob_bins_);
-      }
       break;
     case SpreadMethod::PAUL:
     case SpreadMethod::BLOCK_GATHER:
@@ -1806,19 +1799,26 @@ Status Plan<GPUDevice, FloatType>::set_points(
   this->points_[1] = this->rank_ > 1 ? points_y : nullptr;
   this->points_[2] = this->rank_ > 2 ? points_z : nullptr;
 
-  if (this->sort_idx_ ) checkCudaErrors(cudaFree(this->sort_idx_));
-  if (this->idx_nupts_) checkCudaErrors(cudaFree(this->idx_nupts_));
+  if (this->idx_nupts_ != nullptr)
+    this->device_.deallocate(this->idx_nupts_);
+  if (this->sort_idx_ != nullptr)
+    this->device_.deallocate(this->sort_idx_);
 
   size_t num_bytes = sizeof(int) * this->num_points_;
   switch (this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
-      checkCudaErrors(cudaMalloc(&this->idx_nupts_, num_bytes));
-      if (this->spread_params_.sort_points == SortPoints::YES)
-        checkCudaErrors(cudaMalloc(&this->sort_idx_, num_bytes));
+      this->idx_nupts_ = reinterpret_cast<int*>(
+          this->device_.allocate(num_bytes));      
+      if (this->spread_params_.sort_points == SortPoints::YES) {
+        this->sort_idx_ = reinterpret_cast<int*>(
+            this->device_.allocate(num_bytes));
+      }
       break;
     case SpreadMethod::SUBPROBLEM:
-      checkCudaErrors(cudaMalloc(&this->idx_nupts_, num_bytes));
-      checkCudaErrors(cudaMalloc(&this->sort_idx_, num_bytes));
+      this->idx_nupts_ = reinterpret_cast<int*>(
+          this->device_.allocate(num_bytes));    
+      this->sort_idx_ = reinterpret_cast<int*>(
+          this->device_.allocate(num_bytes));
       break;
     case SpreadMethod::PAUL:
     case SpreadMethod::BLOCK_GATHER:
@@ -2657,10 +2657,10 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
       this->device_.stream(), this->bin_sizes_, this->num_subprob_,
       max_subprob_size, this->bin_count_));
 
-  thrust::device_ptr<int> d_num_subprob(this->num_subprob_);
+  thrust::device_ptr<int> d_subprob_sizes(this->num_subprob_);
   thrust::device_ptr<int> d_subprob_start_pts(this->subprob_start_pts_ + 1);
   thrust::inclusive_scan(thrust::cuda::par.on(this->device_.stream()),
-                         d_num_subprob, d_num_subprob + this->bin_count_,
+                         d_subprob_sizes, d_subprob_sizes + this->bin_count_,
                          d_subprob_start_pts);
   this->device_.memset(this->subprob_start_pts_, 0, sizeof(int));
 

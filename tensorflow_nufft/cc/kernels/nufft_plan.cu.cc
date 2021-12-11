@@ -1746,14 +1746,12 @@ Plan<GPUDevice, FloatType>::Plan(
 template<typename FloatType>
 Plan<GPUDevice, FloatType>::~Plan() {
 
-  // Mult-GPU support: set the CUDA Device ID:
-  int orig_gpu_device_id;
-  cudaGetDevice(& orig_gpu_device_id);
-  cudaSetDevice(this->options_.gpu_device_id);
-
   if (this->fft_plan_)
     cufftDestroy(this->fft_plan_);
 
+  // Free memory allocated on the device. Some of these pointers are not
+  // guaranteed to be allocated, but that's ok because `deallocate` will
+  // perform no operation if passed a null pointer.
   this->device_.deallocate(this->bin_sizes_);
   this->bin_sizes_ = nullptr;
   this->device_.deallocate(this->bin_start_pts_);
@@ -1768,9 +1766,6 @@ Plan<GPUDevice, FloatType>::~Plan() {
   this->idx_nupts_ = nullptr;
   this->device_.deallocate(this->sort_idx_);
   this->sort_idx_ = nullptr;
-
-        // Multi-GPU support: reset the device ID
-        cudaSetDevice(orig_gpu_device_id);
 }
 
 template<typename FloatType>

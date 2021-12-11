@@ -1946,8 +1946,10 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
     this->c_ = d_cstart;
     this->f_ = d_fkstart;
 
-    checkCudaErrors(cudaMemset(this->grid_data_,0,this->options_.max_batch_size*
-        this->grid_size_ * sizeof(DType)));
+    // Set fine grid to zero.
+    size_t grid_bytes = sizeof(DType) * this->grid_size_ *
+                        this->options_.max_batch_size;
+    this->device_.memset(this->grid_data_, 0, grid_bytes);
 
     // Step 1: Spread
     TF_RETURN_IF_ERROR(this->spread_batch(blksize));
@@ -2459,8 +2461,10 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
         break;
     }
   } else {
-    checkCudaErrors(cudaMemset(this->grid_data_,0,this->options_.max_batch_size*this->grid_size_*
-      sizeof(GpuComplex<FloatType>)));
+    // Set fine grid to zero.
+    size_t grid_bytes = sizeof(GpuComplex<FloatType>) * this->grid_size_ *
+                        this->options_.max_batch_size;
+    this->device_.memset(this->grid_data_, 0, grid_bytes);
     switch (this->rank_) {
       case 2:
         for (int t = 0; t < blksize; t++) {
@@ -2663,7 +2667,7 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
   thrust::inclusive_scan(thrust::cuda::par.on(this->device_.stream()),
                          d_num_subprob, d_num_subprob + this->bin_count_,
                          d_subprob_start_pts);
-  checkCudaErrors(cudaMemset(this->subprob_start_pts_, 0, sizeof(int)));
+  this->device_.memset(this->subprob_start_pts_, 0, sizeof(int));
 
   int subprob_count;
   checkCudaErrors(cudaMemcpy(&subprob_count,&this->subprob_start_pts_[this->bin_count_],

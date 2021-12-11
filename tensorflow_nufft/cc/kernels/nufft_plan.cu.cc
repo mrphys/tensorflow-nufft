@@ -38,7 +38,6 @@ limitations under the License.
 #include "tensorflow/core/platform/stream_executor.h"
 #include "tensorflow/core/util/gpu_kernel_helper.h"
 
-#include "tensorflow_nufft/third_party/cuda_samples/helper_cuda.h"
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
 #include "tensorflow_nufft/cc/kernels/omp_api.h"
 
@@ -1637,9 +1636,10 @@ Plan<GPUDevice, FloatType>::Plan(
           this->device_.allocate(bin_bytes));
       this->bin_start_pts_ = reinterpret_cast<int*>(
           this->device_.allocate(bin_bytes));
-      checkCudaErrors(cudaMalloc(&this->num_subprob_, bin_bytes));
-      checkCudaErrors(cudaMalloc(&this->subprob_start_pts_,
-          sizeof(int) * (this->bin_count_ + 1)));
+      this->num_subprob_ = reinterpret_cast<int*>(
+          this->device_.allocate(bin_bytes));
+      this->subprob_start_pts_ = reinterpret_cast<int*>(
+          this->device_.allocate(sizeof(int) * (this->bin_count_ + 1)));
       break;
     case SpreadMethod::PAUL:
     case SpreadMethod::BLOCK_GATHER:
@@ -1760,23 +1760,14 @@ Plan<GPUDevice, FloatType>::~Plan() {
   this->bin_start_pts_ = nullptr;
   this->device_.deallocate(this->subprob_bins_);
   this->subprob_bins_ = nullptr;
+  this->device_.deallocate(this->num_subprob_);
+  this->num_subprob_ = nullptr;
+  this->device_.deallocate(this->subprob_start_pts_);
+  this->subprob_start_pts_ = nullptr;
   this->device_.deallocate(this->idx_nupts_);
   this->idx_nupts_ = nullptr;
   this->device_.deallocate(this->sort_idx_);
   this->sort_idx_ = nullptr;
-
-  switch(this->options_.spread_method)
-  {
-    case SpreadMethod::NUPTS_DRIVEN:
-      break;
-    case SpreadMethod::SUBPROBLEM:
-      checkCudaErrors(cudaFree(this->num_subprob_));
-      checkCudaErrors(cudaFree(this->subprob_start_pts_));
-      break;
-    case SpreadMethod::PAUL:
-    case SpreadMethod::BLOCK_GATHER:
-      break;
-  }
 
         // Multi-GPU support: reset the device ID
         cudaSetDevice(orig_gpu_device_id);

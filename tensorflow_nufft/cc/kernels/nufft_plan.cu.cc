@@ -1510,13 +1510,6 @@ Plan<GPUDevice, FloatType>::Plan(
   this->subprob_count_ = 0;
   this->c_ = nullptr;
   this->f_ = nullptr;
-  this->idx_nupts_ = nullptr;
-  this->sort_idx_ = nullptr;
-  this->num_subprob_ = nullptr;
-  this->bin_sizes_ = nullptr;
-  this->bin_start_pts_ = nullptr;
-  this->subprob_bins_ = nullptr;
-  this->subprob_start_pts_ = nullptr;
 
   // Copy options.
   this->options_ = options;
@@ -1781,7 +1774,11 @@ Plan<GPUDevice, FloatType>::~Plan() {
       checkCudaErrors(cudaFree(this->bin_sizes_));
       checkCudaErrors(cudaFree(this->bin_start_pts_));
       checkCudaErrors(cudaFree(this->subprob_start_pts_));
-      checkCudaErrors(cudaFree(this->subprob_bins_));
+      if (this->subprob_bins_ != nullptr) {
+        // Allocated during `set_points` and therefore not guaranteed to be
+        // allocated.
+        this->device_.deallocate(this->subprob_bins_);
+      }
       break;
     case SpreadMethod::PAUL:
     case SpreadMethod::BLOCK_GATHER:
@@ -2595,8 +2592,6 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
 
   int max_subprob_size = this->options_.gpu_max_subproblem_size;
 
-  if (this->subprob_bins_ != NULL) cudaFree(this->subprob_bins_);
-
   int pirange=this->spread_params_.pirange;
 
   // This may not be necessary.
@@ -2636,22 +2631,22 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
   switch (this->rank_) {
     case 2:
       TF_CHECK_OK(GpuLaunchKernel(
-          CalcInvertofGlobalSortIdx2DKernel<FloatType>,
-          num_blocks, threads_per_block, 0, this->device_.stream(),
-          this->num_points_, this->bin_dims_[0], this->bin_dims_[1], this->num_bins_[0],
-          this->num_bins_[1], this->bin_start_pts_, this->sort_idx_, this->points_[0],
-          this->points_[1], this->idx_nupts_, pirange, this->grid_dims_[0],
-          this->grid_dims_[1]));
+          CalcInvertofGlobalSortIdx2DKernel<FloatType>, num_blocks,
+          threads_per_block, 0, this->device_.stream(), this->num_points_,
+          this->bin_dims_[0], this->bin_dims_[1], this->num_bins_[0],
+          this->num_bins_[1], this->bin_start_pts_, this->sort_idx_,
+          this->points_[0], this->points_[1], this->idx_nupts_, pirange,
+          this->grid_dims_[0], this->grid_dims_[1]));
       break;
     case 3:
       TF_CHECK_OK(GpuLaunchKernel(
-          CalcInvertofGlobalSortIdx3DKernel<FloatType>,
-          num_blocks, threads_per_block, 0, this->device_.stream(),
-          this->num_points_, this->bin_dims_[0],
-          this->bin_dims_[1], this->bin_dims_[2], this->num_bins_[0], this->num_bins_[1], this->num_bins_[2],
-          this->bin_start_pts_, this->sort_idx_, this->points_[0], this->points_[1],
-          this->points_[2], this->idx_nupts_, pirange, this->grid_dims_[0],
-          this->grid_dims_[1], this->grid_dims_[2]));
+          CalcInvertofGlobalSortIdx3DKernel<FloatType>, num_blocks,
+          threads_per_block, 0, this->device_.stream(), this->num_points_,
+          this->bin_dims_[0], this->bin_dims_[1], this->bin_dims_[2],
+          this->num_bins_[0], this->num_bins_[1], this->num_bins_[2],
+          this->bin_start_pts_, this->sort_idx_, this->points_[0],
+          this->points_[1], this->points_[2], this->idx_nupts_, pirange,
+          this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2]));
       break;
     default:
       return errors::Unimplemented("Invalid rank: ", this->rank_);
@@ -2659,8 +2654,8 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
 
   TF_CHECK_OK(GpuLaunchKernel(
       CalcSubproblemKernel, num_blocks, threads_per_block, 0,
-      this->device_.stream(), this->bin_sizes_, this->num_subprob_, max_subprob_size,
-      this->bin_count_));
+      this->device_.stream(), this->bin_sizes_, this->num_subprob_,
+      max_subprob_size, this->bin_count_));
 
   thrust::device_ptr<int> d_num_subprob(this->num_subprob_);
   thrust::device_ptr<int> d_subprob_start_pts(this->subprob_start_pts_ + 1);
@@ -2669,10 +2664,17 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
                          d_subprob_start_pts);
   this->device_.memset(this->subprob_start_pts_, 0, sizeof(int));
 
-  int subprob_count;
-  checkCudaErrors(cudaMemcpy(&subprob_count,&this->subprob_start_pts_[this->bin_count_],
-    sizeof(int),cudaMemcpyDeviceToHost));
-  checkCudaErrors(cudaMalloc(&this->subprob_bins_,subprob_count*sizeof(int)));
+  this->device_.memcpyDeviceToHost(&this->subprob_count_,
+                                   &this->subprob_start_pts_[this->bin_count_],
+                                   sizeof(int));
+
+  // Maybe deallocate before allocating, as this function could be called more
+  // than once during the lifetime of the plan.
+  if (this->subprob_bins_ != nullptr)
+    this->device_.deallocate(this->subprob_bins_);
+  size_t subprob_bytes = this->subprob_count_ * sizeof(int);
+  this->subprob_bins_ = reinterpret_cast<int*>(
+      this->device_.allocate(subprob_bytes));
 
   num_blocks = (this->bin_count_ + 1024 - 1) / 1024;
   threads_per_block = 1024;
@@ -2681,8 +2683,6 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
       MapBinToSubproblemKernel, num_blocks, threads_per_block, 0,
       this->device_.stream(), this->subprob_bins_, this->subprob_start_pts_,
       this->num_subprob_, this->bin_count_));
-
-  this->subprob_count_ = subprob_count;
 
   return Status::OK();
 }

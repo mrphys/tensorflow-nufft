@@ -1472,32 +1472,10 @@ Plan<GPUDevice, FloatType>::Plan(
   OP_REQUIRES(context, rank == num_modes.size(),
               errors::InvalidArgument("num_modes must have size equal to rank"));
 
-  // auto* stream = context->op_device_context()->stream();
-  // OP_REQUIRES(context, stream, errors::Internal("No GPU stream available."));
 
-  // int device_id = stream->parent()->device_ordinal();
-
-  GPUDevice device = context->eigen_device<GPUDevice>();
-
-  // std::cout << "device_id = " << device_id << std::endl;
-  // cudaSetDevice(0);
-
-  
   // TODO: check options.
   //  - If mode_order == FFT, raise unimplemented error.
   //  - If check_bounds == true, raise unimplemented error.
-
-        // Mult-GPU support: set the CUDA Device ID:
-        int orig_gpu_device_id;
-        cudaGetDevice(& orig_gpu_device_id);
-        // if (spread_params == NULL) {
-        //     // options might not be supplied to this function => assume device
-        //     // 0 by default
-        //     cudaSetDevice(0);
-        // } else {
-        cudaSetDevice(options.gpu_device_id);
-        // }
-
 
   // Initialize all values to 0. TODO: move to initialization list.
   this->nf1 = 0;
@@ -1692,7 +1670,7 @@ Plan<GPUDevice, FloatType>::Plan(
 
       // Now copy coefficients to device.
       size_t num_bytes = sizeof(FloatType) * num_coeffs;
-      device.memcpyHostToDevice(
+      this->device_.memcpyHostToDevice(
           reinterpret_cast<void*>(this->fseries_data_[i]),
           reinterpret_cast<void*>(kernel_fseries_host_data[i]),
           num_bytes);
@@ -1738,9 +1716,6 @@ Plan<GPUDevice, FloatType>::Plan(
                 errors::Internal(
                     "cufftPlanMany failed with code: ", result));
   }
-
-  // Multi-GPU support: reset the device ID
-  cudaSetDevice(orig_gpu_device_id);
 }
 
 template<typename FloatType>
@@ -1774,11 +1749,6 @@ Status Plan<GPUDevice, FloatType>::set_points(
     FloatType* points_x,
     FloatType* points_y,
     FloatType* points_z) {
-
-  // Mult-GPU support: set the CUDA Device ID:
-  int orig_gpu_device_id;
-  cudaGetDevice(& orig_gpu_device_id);
-  cudaSetDevice(this->options_.gpu_device_id);
 
   this->num_points_ = num_points;
   this->points_[0] = points_x;
@@ -1814,18 +1784,11 @@ Status Plan<GPUDevice, FloatType>::set_points(
   
   TF_RETURN_IF_ERROR(this->init_spreader());
 
-  // Multi-GPU support: reset the device ID
-  cudaSetDevice(orig_gpu_device_id);
-
   return Status::OK();
 }
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
-        // Mult-GPU support: set the CUDA Device ID:
-        int orig_gpu_device_id;
-        cudaGetDevice(& orig_gpu_device_id);
-        cudaSetDevice(this->options_.gpu_device_id);
 
 	switch (this->type_) {
     case TransformType::TYPE_1:
@@ -1837,19 +1800,11 @@ Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
     case TransformType::TYPE_3:
       return errors::Unimplemented("type 3 transform is not implemented");
   }
-
-        // Multi-GPU support: reset the device ID
-        cudaSetDevice(orig_gpu_device_id);
-
 	return Status::OK();
 }
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
-	// Mult-GPU support: set the CUDA Device ID:
-	int orig_gpu_device_id;
-	cudaGetDevice(& orig_gpu_device_id);
-	cudaSetDevice(this->options_.gpu_device_id);
 
 	int blksize;
   DType* d_fkstart;
@@ -1873,19 +1828,12 @@ Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
                     dev_ptr + 2 * this->num_transforms_ * this->num_points_,
                     dev_ptr, _1 * static_cast<FloatType>(
                         this->spread_params_.ES_scale));
-  
-	// Multi-GPU support: reset the device ID
-	cudaSetDevice(orig_gpu_device_id);
 
 	return Status::OK();
 }
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
-	// Mult-GPU support: set the CUDA Device ID:
-	int orig_gpu_device_id;
-	cudaGetDevice(& orig_gpu_device_id);
-	cudaSetDevice(this->options_.gpu_device_id);
 
 	int blksize;
   DType* d_fkstart;
@@ -1909,9 +1857,6 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
                     dev_ptr + 2 * this->num_transforms_ * this->mode_count_,
                     dev_ptr, _1 * static_cast<FloatType>(
                         this->spread_params_.ES_scale));
-
-	// Multi-GPU support: reset the device ID
-	cudaSetDevice(orig_gpu_device_id);
 
 	return Status::OK();
 }

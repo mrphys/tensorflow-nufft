@@ -135,9 +135,6 @@ struct Options {
   // Used for 3D spread-block-gather method. 0 means automatic selection.
   dim3 gpu_obin_size = {0, 0, 0};
 
-  // TODO: remove
-  int gpu_device_id = 0;
-
   #endif // GOOGLE_CUDA
 };
 

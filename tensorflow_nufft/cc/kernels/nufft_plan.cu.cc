@@ -41,8 +41,8 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
 #include "tensorflow_nufft/cc/kernels/omp_api.h"
 
-// NU coord handling macro: if p is true, rescales from [-pi,pi] to [0,N], then
-// folds *only* one period below and above, ie [-N,2N], into the domain [0,N]...
+// NU coord handling macro: if p is true, rescales from [-pi, pi] to [0, N], then
+// folds *only* one period below and above, ie [-N, 2N], into the domain [0, N]...
 #define RESCALE(x, N, p) (p ? \
          ((x * kOneOverTwoPi<FloatType> + (x < -kPi<FloatType> ? 1.5 : \
          (x >= kPi<FloatType> ? -0.5 : 0.5)))*N) : \
@@ -111,7 +111,7 @@ __global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_siz
     int* sortidx, int pirange) {
   int binidx, binx, biny;
   int oldidx;
-  FloatType x_rescaled,y_rescaled;
+  FloatType x_rescaled, y_rescaled;
   for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i+=gridDim.x * blockDim.x) {
     x_rescaled = RESCALE(x[i], nf1, pirange);
     y_rescaled = RESCALE(y[i], nf2, pirange);
@@ -137,7 +137,7 @@ __global__ void CalcBinSizeNoGhost3DKernel(int M, int nf1, int nf2, int nf3,
     int* sortidx, int pirange) {
   int binidx, binx, biny, binz;
   int oldidx;
-  FloatType x_rescaled,y_rescaled,z_rescaled;
+  FloatType x_rescaled, y_rescaled, z_rescaled;
   for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i+=gridDim.x * blockDim.x) {
     x_rescaled = RESCALE(x[i], nf1, pirange);
     y_rescaled = RESCALE(y[i], nf2, pirange);
@@ -161,7 +161,7 @@ __global__ void CalcBinSizeNoGhost3DKernel(int M, int nf1, int nf2, int nf3,
 
 template<typename FloatType>
 __global__ void CalcInvertofGlobalSortIdx2DKernel(int M, int bin_size_x, int bin_size_y, 
-    int nbinx,int nbiny, int* bin_startpts, int* sortidx, FloatType *x, FloatType *y, 
+    int nbinx, int nbiny, int* bin_startpts, int* sortidx, FloatType *x, FloatType *y, 
     int* index, int pirange, int nf1, int nf2) {
   int binx, biny;
   int binidx;
@@ -186,9 +186,9 @@ __global__ void CalcInvertofGlobalSortIdx3DKernel(int M, int bin_size_x, int bin
     int bin_size_z, int nbinx, int nbiny, int nbinz, int* bin_startpts,
     int* sortidx, FloatType *x, FloatType *y, FloatType *z, int* index, int pirange, int nf1,
     int nf2, int nf3) {
-  int binx,biny,binz;
+  int binx, biny, binz;
   int binidx;
-  FloatType x_rescaled,y_rescaled,z_rescaled;
+  FloatType x_rescaled, y_rescaled, z_rescaled;
   for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i+=gridDim.x * blockDim.x) {
     x_rescaled = RESCALE(x[i], nf1, pirange);
     y_rescaled = RESCALE(y[i], nf2, pirange);
@@ -202,7 +202,7 @@ __global__ void CalcInvertofGlobalSortIdx3DKernel(int M, int bin_size_x, int bin
     binz = floor(z_rescaled / bin_size_z);
     binz = binz >= nbinz ? binz - 1 : binz;
     binz = binz < 0 ? 0 : binz;
-    binidx = CalcGlobalIdxV2(binx,biny,binz,nbinx,nbiny,nbinz);
+    binidx = CalcGlobalIdxV2(binx, biny, binz, nbinx, nbiny, nbinz);
 
     index[bin_startpts[binidx]+sortidx[i]] = i;
   }
@@ -331,10 +331,10 @@ __global__ void Amplify3DKernel(
 template<typename FloatType>
 static __forceinline__ __device__ FloatType EvaluateKernel(
     FloatType x, FloatType es_c, FloatType es_beta, int ns) {
-  return abs(x) < ns / 2.0 ? exp(es_beta * (sqrt(1.0 - es_c * x*x))) : 0.0;
+  return abs(x) < ns / 2.0 ? exp(es_beta * (sqrt(1.0 - es_c * x * x))) : 0.0;
 }
 
-// Fill ker[] with Horner piecewise poly approx to [-w / 2,w / 2] ES kernel eval at
+// Fill ker[] with Horner piecewise poly approx to [-w / 2, w / 2] ES kernel eval at
 // x_j = x + j,  for j = 0,..,w - 1.  Thus x in [-w / 2,-w / 2 + 1].   w is aka ns.
 // This is the current evaluation method, since it's faster (except i7 w = 16).
 // Two upsampfacs implemented. Params must match ref formula. Barnett 4 / 24 / 18
@@ -342,7 +342,7 @@ template<typename FloatType>
 static __inline__ __device__ void EvaluateKernelVectorHorner(
     FloatType *ker, const FloatType x, const int w, 
     const double upsampling_factor) {
-  FloatType z = 2 * x + w - 1.0;         // scale so local grid offset z in [-1,1]
+  FloatType z = 2 * x + w - 1.0;         // scale so local grid offset z in [-1, 1]
   // insert the auto - generated code which expects z, w args, writes to ker...
   if (upsampling_factor == 2.0) {     // floating point equality is fine here
     #include "tensorflow_nufft/cc/kernels/kernel_horner_sigma2.inc"
@@ -353,7 +353,7 @@ template<typename FloatType>
 static __inline__ __device__ void EvaluateKernelVector(
     FloatType *ker, const FloatType x, const double w, const double es_c, 
     const double es_beta) {
-  for (int i = 0; i<w; i++) {
+  for (int i = 0; i < w; i++) {
     ker[i] = EvaluateKernel<FloatType>(abs(x + i), es_c, es_beta, w);		
   }
 }
@@ -362,7 +362,7 @@ template<typename FloatType>
 __global__ void SpreadNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, 
     const int ns, int nf1, int nf2, FloatType es_c, FloatType es_beta, int *idxnupts, 
     int pirange) {
-  int xstart,ystart,xend,yend;
+  int xstart, ystart, xend, yend;
   int xx, yy, ix, iy;
   int outidx;
   FloatType ker1[kMaxKernelWidth];
@@ -371,7 +371,7 @@ __global__ void SpreadNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex
   FloatType x_rescaled, y_rescaled;
   FloatType kervalue1, kervalue2;
   GpuComplex<FloatType> cnow;
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i+=blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < M; i+=blockDim.x * gridDim.x) {
     x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
     cnow = c[idxnupts[i]];
@@ -383,8 +383,8 @@ __global__ void SpreadNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex
 
     FloatType x1=(FloatType)xstart - x_rescaled;
     FloatType y1=(FloatType)ystart - y_rescaled;
-    EvaluateKernelVector(ker1,x1,ns,es_c,es_beta);
-    EvaluateKernelVector(ker2,y1,ns,es_c,es_beta);
+    EvaluateKernelVector(ker1, x1, ns, es_c, es_beta);
+    EvaluateKernelVector(ker2, y1, ns, es_c, es_beta);
     for (yy = ystart; yy<=yend; yy++) {
       for (xx = xstart; xx<=xend; xx++) {
         ix = xx < 0 ? xx + nf1 : (xx > nf1 - 1 ? xx - nf1 : xx);
@@ -422,8 +422,8 @@ __global__ void SpreadNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
 
     FloatType x1=(FloatType)xstart - x_rescaled;
     FloatType y1=(FloatType)ystart - y_rescaled;
-    EvaluateKernelVectorHorner(ker1,x1,ns,sigma);
-    EvaluateKernelVectorHorner(ker2,y1,ns,sigma);
+    EvaluateKernelVectorHorner(ker1, x1, ns, sigma);
+    EvaluateKernelVectorHorner(ker2, y1, ns, sigma);
     for (yy = ystart; yy<=yend; yy++) {
       for (xx = xstart; xx<=xend; xx++) {
         ix = xx < 0 ? xx + nf1 : (xx > nf1 - 1 ? xx - nf1 : xx);
@@ -457,7 +457,7 @@ __global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
-  int xstart,ystart,xend,yend;
+  int xstart, ystart, xend, yend;
   int subpidx = blockIdx.x;
   int bidx = subprob_bins[subpidx];
   int binsubp_idx = subpidx - subprob_start_pts[bidx];
@@ -494,8 +494,8 @@ __global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
 
     FloatType x1=(FloatType)xstart + xoffset - x_rescaled;
     FloatType y1=(FloatType)ystart + yoffset - y_rescaled;
-    EvaluateKernelVector(ker1,x1,ns,es_c,es_beta);
-    EvaluateKernelVector(ker2,y1,ns,es_c,es_beta);
+    EvaluateKernelVector(ker1, x1, ns, es_c, es_beta);
+    EvaluateKernelVector(ker2, y1, ns, es_c, es_beta);
 
     for (int yy = ystart; yy<=yend; yy++) {
       iy = yy + ceil(ns / 2.0);
@@ -539,7 +539,7 @@ __global__ void SpreadSubproblemHorner2DKernel(FloatType *x, FloatType *y, GpuCo
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
-  int xstart,ystart,xend,yend;
+  int xstart, ystart, xend, yend;
   int subpidx = blockIdx.x;
   int bidx = subprob_bins[subpidx];
   int binsubp_idx = subpidx - subprob_start_pts[bidx];
@@ -575,8 +575,8 @@ __global__ void SpreadSubproblemHorner2DKernel(FloatType *x, FloatType *y, GpuCo
     xend   = floor(x_rescaled + ns / 2.0)-xoffset;
     yend   = floor(y_rescaled + ns / 2.0)-yoffset;
 
-    EvaluateKernelVectorHorner(ker1,xstart + xoffset - x_rescaled,ns,sigma);
-    EvaluateKernelVectorHorner(ker2,ystart + yoffset - y_rescaled,ns,sigma);
+    EvaluateKernelVectorHorner(ker1, xstart + xoffset - x_rescaled, ns, sigma);
+    EvaluateKernelVectorHorner(ker2, ystart + yoffset - y_rescaled, ns, sigma);
 
     for (int yy = ystart; yy<=yend; yy++) {
       iy = yy + ceil(ns / 2.0);
@@ -665,8 +665,8 @@ __global__ void InterpNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
     FloatType ker1[kMaxKernelWidth];
     FloatType ker2[kMaxKernelWidth];
 
-    EvaluateKernelVectorHorner(ker1,xstart - x_rescaled,ns,sigma);
-        EvaluateKernelVectorHorner(ker2,ystart - y_rescaled,ns,sigma);
+    EvaluateKernelVectorHorner(ker1, xstart - x_rescaled, ns, sigma);
+        EvaluateKernelVectorHorner(ker2, ystart - y_rescaled, ns, sigma);
 
     for (int yy = ystart; yy<=yend; yy++) {
       FloatType disy = abs(y_rescaled - yy);
@@ -697,7 +697,7 @@ __global__ void InterpSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
-  int xstart,ystart,xend,yend;
+  int xstart, ystart, xend, yend;
   int subpidx = blockIdx.x;
   int bidx = subprob_bins[subpidx];
   int binsubp_idx = subpidx - subprob_start_pts[bidx];
@@ -767,7 +767,7 @@ __global__ void InterpSubproblemHorner2DKernel(
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
-  int xstart,ystart,xend,yend;
+  int xstart, ystart, xend, yend;
   int subpidx = blockIdx.x;
   int bidx = subprob_bins[subpidx];
   int binsubp_idx = subpidx - subprob_start_pts[bidx];
@@ -815,8 +815,8 @@ __global__ void InterpSubproblemHorner2DKernel(
     xend   = floor(x_rescaled + ns / 2.0)-xoffset;
     yend   = floor(y_rescaled + ns / 2.0)-yoffset;
 
-    EvaluateKernelVectorHorner(ker1,xstart + xoffset - x_rescaled,ns,sigma);
-    EvaluateKernelVectorHorner(ker2,ystart + yoffset - y_rescaled,ns,sigma);
+    EvaluateKernelVectorHorner(ker1, xstart + xoffset - x_rescaled, ns, sigma);
+    EvaluateKernelVectorHorner(ker2, ystart + yoffset - y_rescaled, ns, sigma);
     
     for (int yy = ystart; yy<=yend; yy++) {
       FloatType disy = abs(y_rescaled-(yy + yoffset));
@@ -865,9 +865,9 @@ __global__ void SpreadNuptsDrivenHorner3DKernel(
     FloatType y1=(FloatType)ystart - y_rescaled;
     FloatType z1=(FloatType)zstart - z_rescaled;
 
-    EvaluateKernelVectorHorner(ker1,x1,ns,sigma);
-    EvaluateKernelVectorHorner(ker2,y1,ns,sigma);
-    EvaluateKernelVectorHorner(ker3,z1,ns,sigma);
+    EvaluateKernelVectorHorner(ker1, x1, ns, sigma);
+    EvaluateKernelVectorHorner(ker2, y1, ns, sigma);
+    EvaluateKernelVectorHorner(ker3, z1, ns, sigma);
     for (zz = zstart; zz<=zend; zz++) {
       ker3val = ker3[zz - zstart];
       for (yy = ystart; yy<=yend; yy++) {
@@ -917,9 +917,9 @@ void SpreadNuptsDriven3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComp
     FloatType y1=(FloatType)ystart - y_rescaled;
     FloatType z1=(FloatType)zstart - z_rescaled;
 
-    EvaluateKernelVector(ker1,x1,ns,es_c,es_beta);
-    EvaluateKernelVector(ker2,y1,ns,es_c,es_beta);
-    EvaluateKernelVector(ker3,z1,ns,es_c,es_beta);
+    EvaluateKernelVector(ker1, x1, ns, es_c, es_beta);
+    EvaluateKernelVector(ker2, y1, ns, es_c, es_beta);
+    EvaluateKernelVector(ker3, z1, ns, es_c, es_beta);
     for (zz = zstart; zz<=zend; zz++) {
       ker3val = ker3[zz - zstart];
       for (yy = ystart; yy<=yend; yy++) {
@@ -953,10 +953,10 @@ __global__ void SpreadSubproblemHorner3DKernel(
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
-  int xstart,ystart,xend,yend,zstart,zend;
+  int xstart, ystart, xend, yend, zstart, zend;
   int bidx = subprob_bins[blockIdx.x];
   int binsubp_idx = blockIdx.x - subprob_start_pts[bidx];
-  int ix,iy,iz,outidx;
+  int ix, iy, iz, outidx;
   int ptstart = binstartpts[bidx]+binsubp_idx * max_subprob_size;
   int nupts = min(max_subprob_size, bin_sizes[bidx]-binsubp_idx * max_subprob_size);
 
@@ -982,9 +982,9 @@ __global__ void SpreadSubproblemHorner3DKernel(
     FloatType ker3[kMaxKernelWidth];
 
     int nuptsidx = idxnupts[ptstart + i];
-    x_rescaled = RESCALE(x[nuptsidx],nf1,pirange);
-    y_rescaled = RESCALE(y[nuptsidx],nf2,pirange);
-    z_rescaled = RESCALE(z[nuptsidx],nf3,pirange);
+    x_rescaled = RESCALE(x[nuptsidx],nf1, pirange);
+    y_rescaled = RESCALE(y[nuptsidx],nf2, pirange);
+    z_rescaled = RESCALE(z[nuptsidx],nf3, pirange);
     cnow = c[nuptsidx];
 
     xstart = ceil(x_rescaled - ns / 2.0)-xoffset;
@@ -995,9 +995,9 @@ __global__ void SpreadSubproblemHorner3DKernel(
     yend   = floor(y_rescaled + ns / 2.0)-yoffset;
     zend   = floor(z_rescaled + ns / 2.0)-zoffset;
 
-    EvaluateKernelVectorHorner(ker1,xstart + xoffset - x_rescaled,ns,sigma);
-    EvaluateKernelVectorHorner(ker2,ystart + yoffset - y_rescaled,ns,sigma);
-    EvaluateKernelVectorHorner(ker3,zstart + zoffset - z_rescaled,ns,sigma);
+    EvaluateKernelVectorHorner(ker1, xstart + xoffset - x_rescaled, ns, sigma);
+    EvaluateKernelVectorHorner(ker2, ystart + yoffset - y_rescaled, ns, sigma);
+    EvaluateKernelVectorHorner(ker3, zstart + zoffset - z_rescaled, ns, sigma);
 
       for (int zz = zstart; zz<=zend; zz++) {
       FloatType kervalue3 = ker3[zz - zstart];
@@ -1059,7 +1059,7 @@ __global__ void SpreadSubproblem3DKernel(
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
-  int xstart,ystart,xend,yend,zstart,zend;
+  int xstart, ystart, xend, yend, zstart, zend;
   int subpidx = blockIdx.x;
   int bidx = subprob_bins[subpidx];
   int binsubp_idx = subpidx - subprob_start_pts[bidx];
@@ -1103,9 +1103,9 @@ __global__ void SpreadSubproblem3DKernel(
     FloatType y1=(FloatType)ystart + yoffset - y_rescaled;
     FloatType z1=(FloatType)zstart + zoffset - z_rescaled;
 
-    EvaluateKernelVector(ker1,x1,ns,es_c,es_beta);
-    EvaluateKernelVector(ker2,y1,ns,es_c,es_beta);
-    EvaluateKernelVector(ker3,z1,ns,es_c,es_beta);
+    EvaluateKernelVector(ker1, x1, ns, es_c, es_beta);
+    EvaluateKernelVector(ker2, y1, ns, es_c, es_beta);
+    EvaluateKernelVector(ker3, z1, ns, es_c, es_beta);
 #if 1
     for (int zz = zstart; zz<=zend; zz++) {
       FloatType kervalue3 = ker3[zz - zstart];
@@ -1227,9 +1227,9 @@ void InterpNuptsDrivenHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, G
     FloatType ker2[kMaxKernelWidth];
     FloatType ker3[kMaxKernelWidth];
 
-    EvaluateKernelVectorHorner(ker1,xstart - x_rescaled,ns,sigma);
-    EvaluateKernelVectorHorner(ker2,ystart - y_rescaled,ns,sigma);
-    EvaluateKernelVectorHorner(ker3,zstart - z_rescaled,ns,sigma);
+    EvaluateKernelVectorHorner(ker1, xstart - x_rescaled, ns, sigma);
+    EvaluateKernelVectorHorner(ker2, ystart - y_rescaled, ns, sigma);
+    EvaluateKernelVectorHorner(ker3, zstart - z_rescaled, ns, sigma);
 
     for (int zz = zstart; zz<=zend; zz++) {
       FloatType kervalue3 = ker3[zz - zstart];
@@ -1264,7 +1264,7 @@ void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
-  int xstart,ystart,xend,yend,zstart,zend;
+  int xstart, ystart, xend, yend, zstart, zend;
   int subpidx = blockIdx.x;
   int bidx = subprob_bins[subpidx];
   int binsubp_idx = subpidx - subprob_start_pts[bidx];
@@ -1359,7 +1359,7 @@ void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, Gp
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
-  int xstart,ystart,xend,yend,zstart,zend;
+  int xstart, ystart, xend, yend, zstart, zend;
   int subpidx = blockIdx.x;
   int bidx = subprob_bins[subpidx];
   int binsubp_idx = subpidx - subprob_start_pts[bidx];
@@ -1416,9 +1416,9 @@ void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, Gp
     yend   = floor(y_rescaled + ns / 2.0)-yoffset;
     zend   = floor(z_rescaled + ns / 2.0)-zoffset;
 
-    EvaluateKernelVectorHorner(ker1,xstart + xoffset - x_rescaled,ns,sigma);
-    EvaluateKernelVectorHorner(ker2,ystart + yoffset - y_rescaled,ns,sigma);
-    EvaluateKernelVectorHorner(ker3,zstart + zoffset - z_rescaled,ns,sigma);
+    EvaluateKernelVectorHorner(ker1, xstart + xoffset - x_rescaled, ns, sigma);
+    EvaluateKernelVectorHorner(ker2, ystart + yoffset - y_rescaled, ns, sigma);
+    EvaluateKernelVectorHorner(ker3, zstart + zoffset - z_rescaled, ns, sigma);
       for (int zz = zstart; zz<=zend; zz++) {
       FloatType kervalue3 = ker3[zz - zstart];
       iz = zz + ceil(ns / 2.0);

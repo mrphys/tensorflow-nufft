@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="tfft.nudft" href="tfft.nudft.html" /><link rel="prev" title="tfft.interp" href="tfft.interp.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
-        <title>tfft.spread - tensorflow-nufft 0.4.0 documentation</title>
+        <title>tfft.spread - TensorFlow NUFFT Documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=0254c309f5cadf746f1a613e7677379ac9c8cdcd" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
@@ -123,7 +123,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="../index.html"><div class="brand">tensorflow-nufft 0.4.0 documentation</div></a>
+      <a href="../index.html"><div class="brand">TensorFlow NUFFT Documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -146,7 +146,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
   
   
-  <span class="sidebar-brand-text">tensorflow-nufft 0.4.0 documentation</span>
+  <span class="sidebar-brand-text">TensorFlow NUFFT Documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -215,7 +215,7 @@ where <code class="docutils literal notranslate"><span class="pre">M</span></cod
 batch dimensions of <code class="docutils literal notranslate"><span class="pre">source</span></code>. <code class="docutils literal notranslate"><span class="pre">N</span></code> must be 1, 2 or 3 and must be equal to the
 rank of <code class="docutils literal notranslate"><span class="pre">grid_shape</span></code>. The non-uniform coordinates must be in units of
 radians/pixel, i.e., in the range <code class="docutils literal notranslate"><span class="pre">[-pi,</span> <span class="pre">pi]</span></code>.</p></li>
-<li><p><strong>grid_shape</strong> – A <code class="docutils literal notranslate"><span class="pre">tf.TensorShape</span></code> or list of <code class="docutils literal notranslate"><span class="pre">ints</span></code>.
+<li><p><strong>grid_shape</strong> – A <code class="docutils literal notranslate"><span class="pre">Tensor</span></code>. Must be one of the following types: <code class="docutils literal notranslate"><span class="pre">int32</span></code>, <code class="docutils literal notranslate"><span class="pre">int64</span></code>.
 The shape of the output grid.</p></li>
 <li><p><strong>tol</strong> – An optional <code class="docutils literal notranslate"><span class="pre">float</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">1e-06</span></code>.
 The desired relative precision. Should be in the range <code class="docutils literal notranslate"><span class="pre">[1e-06,</span> <span class="pre">1e-01]</span></code>

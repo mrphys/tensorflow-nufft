@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="prev" title="tfft.nudft" href="../_nufft_ops/tfft.nudft.html" />
 
     <meta name="generator" content="sphinx-4.2.0, furo 2021.10.09"/>
-        <title>Example: MRI Application - tensorflow-nufft 0.4.0 documentation</title>
+        <title>Example: MRI Application - TensorFlow NUFFT Documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?digest=0254c309f5cadf746f1a613e7677379ac9c8cdcd" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?digest=16fb25fabf47304eee183a5e9af80b1ba98259b1" />
@@ -123,7 +123,7 @@
       </label>
     </div>
     <div class="header-center">
-      <a href="../index.html"><div class="brand">tensorflow-nufft 0.4.0 documentation</div></a>
+      <a href="../index.html"><div class="brand">TensorFlow NUFFT Documentation</div></a>
     </div>
     <div class="header-right">
       <div class="theme-toggle-container theme-toggle-header">
@@ -146,7 +146,7 @@
       <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
   
   
-  <span class="sidebar-brand-text">tensorflow-nufft 0.4.0 documentation</span>
+  <span class="sidebar-brand-text">TensorFlow NUFFT Documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
   <input class="sidebar-search" placeholder=Search name="q" aria-label="Search">
@@ -446,19 +446,17 @@ div.rendered_html tbody tr:hover {
 <p>In this example we take an image of the Shepp-Logan phantom and we evaluate the forward NUFFT on a set of points defining a radial <em>k</em>-space trajectory. Then, we use the the adjoint NUFFT to recover the image from the radial <em>k</em>-space data.</p>
 <section id="Prepare-data">
 <h2>Prepare data<a class="headerlink" href="#Prepare-data" title="Permalink to this headline">¶</a></h2>
-<p>Let’s begin by creating an example image. We will use the Shepp-Logan phantom, provided by <a class="reference external" href="https://pypi.org/project/scikit-image/">scikit-image</a>.</p>
+<p>Let’s begin by creating an example image. We will use a Shepp-Logan phantom, generated using <a class="reference external" href="https://pypi.org/project/tensorflow-mri/">TensorFlow MRI</a>.</p>
 <div class="nbinput docutils container">
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
 </pre></div>
 </div>
 <div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre>
-<span></span><span class="kn">import</span> <span class="nn">skimage.data</span>
-<span class="kn">import</span> <span class="nn">skimage.transform</span>
-<span class="kn">import</span> <span class="nn">tensorflow</span> <span class="k">as</span> <span class="nn">tf</span>
+<span></span><span class="kn">import</span> <span class="nn">tensorflow</span> <span class="k">as</span> <span class="nn">tf</span>
+<span class="kn">import</span> <span class="nn">tensorflow_mri</span> <span class="k">as</span> <span class="nn">tfmr</span>
 
 <span class="n">grid_shape</span> <span class="o">=</span> <span class="p">[</span><span class="mi">256</span><span class="p">,</span> <span class="mi">256</span><span class="p">]</span>
-<span class="n">image</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">convert_to_tensor</span><span class="p">(</span><span class="n">skimage</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span>
-    <span class="n">skimage</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shepp_logan_phantom</span><span class="p">(),</span> <span class="n">grid_shape</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">'float32'</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">complex64</span><span class="p">)</span>
+<span class="n">image</span> <span class="o">=</span> <span class="n">tfmr</span><span class="o">.</span><span class="n">phantom</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">grid_shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">complex64</span><span class="p">)</span>
 
 <span class="nb">print</span><span class="p">(</span><span class="s2">"image: </span><span class="se">\n</span><span class="s2"> - shape: </span><span class="si">{}</span><span class="se">\n</span><span class="s2"> - dtype: </span><span class="si">{}</span><span class="s2">"</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">image</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
 </pre></div>
@@ -474,7 +472,7 @@ image:
  - dtype: &lt;dtype: 'complex64'&gt;
 </pre></div></div>
 </div>
-<p>Let us also create a <em>k</em>-space trajectory. In this example we will create a radial trajectory using the <a class="reference external" href="https://pypi.org/project/tensorflow-mri/">TensorFlow MRI</a> package.</p>
+<p>Let us also create a <em>k</em>-space trajectory. In this example we will create a radial trajectory, also using TensorFlow MRI.</p>
 <div class="nbinput docutils container">
 <div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
 </pre></div>
@@ -498,7 +496,7 @@ image:
 points:
  - shape: (119296, 2)
  - dtype: &lt;dtype: 'float32'&gt;
- - range: [-3.141521453857422, 3.1415927410125732]
+ - range: [-3.1415927410125732, 3.141521453857422]
 </pre></div></div>
 </div>
 <p>The trajectory should have shape <code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">M,</span> <span class="pre">N]</span></code>, where <code class="docutils literal notranslate"><span class="pre">M</span></code> is the number of points and <code class="docutils literal notranslate"><span class="pre">N</span></code> is the number of dimensions. Any additional dimensions <code class="docutils literal notranslate"><span class="pre">...</span></code> will be treated as batch dimensions.</p>
@@ -556,7 +554,7 @@ kspace:
  - dtype: &lt;dtype: 'complex64'&gt;
 </pre></div></div>
 </div>
-<p>We are using a type-2 transform (uniform to nonuniform) and a backward FFT (image domain to frequency domain). These are the default values for <code class="docutils literal notranslate"><span class="pre">transform_type</span></code> and <code class="docutils literal notranslate"><span class="pre">fft_direction</span></code>, so providing them was not necessary in this case.</p>
+<p>We are using a type-2 transform (uniform to nonuniform) and a forward FFT (image domain to frequency domain). These are the default values for <code class="docutils literal notranslate"><span class="pre">transform_type</span></code> and <code class="docutils literal notranslate"><span class="pre">fft_direction</span></code>, so providing them was not necessary in this case.</p>
 </section>
 <section id="Adjoint-transform-(k-space-to-image)">
 <h2>Adjoint transform (<em>k</em>-space to image)<a class="headerlink" href="#Adjoint-transform-(k-space-to-image)" title="Permalink to this headline">¶</a></h2>
@@ -618,7 +616,8 @@ Text(0.5, 1.0, 'Image after forward\nand adjoint NUFFT')
 <div class="prompt empty docutils container">
 </div>
 <div class="output_area docutils container">
-<img alt="../_images/examples_mri_app_17_1.svg" src="../_images/examples_mri_app_17_1.svg"/></div>
+<img alt="../_images/examples_mri_app_17_1.png" src="../_images/examples_mri_app_17_1.png"/>
+</div>
 </div>
 </section>
 </section>

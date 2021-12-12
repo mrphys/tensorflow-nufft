@@ -74,7 +74,8 @@ function main() {
   cp ${PIP_FILE_PREFIX}README.rst "${TMPDIR}"
   cp ${PIP_FILE_PREFIX}requirements.txt "${TMPDIR}"
   rsync -avm -L --exclude='*.h' --exclude='*.cc' --exclude='*.o'              \
-    --exclude='*_test.py' --exclude='__pycache__/*'                           \
+    --exclude='*.inc' --exclude='*.cpp' --exclude='*.a' --exclude='*.txt'     \
+    --exclude='*.c' --exclude='*_test.py' --exclude='__pycache__/*'                           \
     ${PIP_FILE_PREFIX}tensorflow_nufft "${TMPDIR}"
 
   pushd ${TMPDIR}

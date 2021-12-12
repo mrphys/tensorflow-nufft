@@ -4,7 +4,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-  http://www.apache.org/licenses/LICENSE-2.0
+  http://www.apache.org/licenses/LICENSE - 2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,13 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-/* Copyright 2017-2021 The Simons Foundation. All Rights Reserved.
+/* Copyright 2017 - 2021 The Simons Foundation. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-  http://www.apache.org/licenses/LICENSE-2.0
+  http://www.apache.org/licenses/LICENSE - 2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -45,7 +45,7 @@ limitations under the License.
 // folds *only* one period below and above, ie [-N, 2N], into the domain [0, N]...
 #define RESCALE(x, N, p) (p ? \
          ((x * kOneOverTwoPi<FloatType> + (x < -kPi<FloatType> ? 1.5 : \
-         (x >= kPi<FloatType> ? -0.5 : 0.5)))*N) : \
+         (x >= kPi<FloatType> ? -0.5 : 0.5))) * N) : \
          (x < 0 ? x + N : (x >= N ? x - N : x)))
 
 namespace tensorflow {
@@ -112,7 +112,7 @@ __global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_siz
   int binidx, binx, biny;
   int oldidx;
   FloatType x_rescaled, y_rescaled;
-  for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i+=gridDim.x * blockDim.x) {
+  for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i += gridDim.x * blockDim.x) {
     x_rescaled = RESCALE(x[i], nf1, pirange);
     y_rescaled = RESCALE(y[i], nf2, pirange);
     binx = floor(x_rescaled / bin_size_x);
@@ -138,7 +138,7 @@ __global__ void CalcBinSizeNoGhost3DKernel(int M, int nf1, int nf2, int nf3,
   int binidx, binx, biny, binz;
   int oldidx;
   FloatType x_rescaled, y_rescaled, z_rescaled;
-  for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i+=gridDim.x * blockDim.x) {
+  for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i += gridDim.x * blockDim.x) {
     x_rescaled = RESCALE(x[i], nf1, pirange);
     y_rescaled = RESCALE(y[i], nf2, pirange);
     z_rescaled = RESCALE(z[i], nf3, pirange);
@@ -166,7 +166,7 @@ __global__ void CalcInvertofGlobalSortIdx2DKernel(int M, int bin_size_x, int bin
   int binx, biny;
   int binidx;
   FloatType x_rescaled, y_rescaled;
-  for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i+=gridDim.x * blockDim.x) {
+  for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i += gridDim.x * blockDim.x) {
     x_rescaled = RESCALE(x[i], nf1, pirange);
     y_rescaled = RESCALE(y[i], nf2, pirange);
     binx = floor(x_rescaled / bin_size_x);
@@ -189,7 +189,7 @@ __global__ void CalcInvertofGlobalSortIdx3DKernel(int M, int bin_size_x, int bin
   int binx, biny, binz;
   int binidx;
   FloatType x_rescaled, y_rescaled, z_rescaled;
-  for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i+=gridDim.x * blockDim.x) {
+  for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i += gridDim.x * blockDim.x) {
     x_rescaled = RESCALE(x[i], nf1, pirange);
     y_rescaled = RESCALE(y[i], nf2, pirange);
     z_rescaled = RESCALE(z[i], nf3, pirange);
@@ -209,7 +209,7 @@ __global__ void CalcInvertofGlobalSortIdx3DKernel(int M, int bin_size_x, int bin
 }
 
 __global__ void TrivialGlobalSortIdxKernel(int M, int* index) {
-  for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i+=gridDim.x * blockDim.x) {
+  for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<M; i += gridDim.x * blockDim.x) {
     index[i] = i;
   }
 }
@@ -217,7 +217,7 @@ __global__ void TrivialGlobalSortIdxKernel(int M, int* index) {
 __global__ void CalcSubproblemKernel(int* bin_sizes, int* num_subprob, int max_subprob_size,
     int numbins) {
   for (int i = threadIdx.x + blockIdx.x * blockDim.x; i<numbins;
-    i+=gridDim.x * blockDim.x) {
+    i += gridDim.x * blockDim.x) {
     num_subprob[i]=ceil(bin_sizes[i]/(float) max_subprob_size);
   }
 }
@@ -240,7 +240,7 @@ __global__ void Deconvolve2DKernel(
     int ms, int mt, int nf1, int nf2, GpuComplex<FloatType>* fw, GpuComplex<FloatType> *fk, 
     FloatType *fwkerhalf1, FloatType *fwkerhalf2)
 {
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<ms * mt; i+=blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<ms * mt; i += blockDim.x * gridDim.x) {
     int k1 = i % ms;
     int k2 = i / ms;
     int outidx = k1 + k2 * ms;
@@ -259,7 +259,7 @@ __global__ void Deconvolve3DKernel(
     int ms, int mt, int mu, int nf1, int nf2, int nf3, GpuComplex<FloatType>* fw, 
     GpuComplex<FloatType> *fk, FloatType *fwkerhalf1, FloatType *fwkerhalf2, FloatType *fwkerhalf3)
 {
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<ms * mt * mu; i+=blockDim.x*
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<ms * mt * mu; i += blockDim.x*
     gridDim.x) {
     int k1 = i % ms;
     int k2 = (i / ms) % mt;
@@ -285,7 +285,7 @@ __global__ void Amplify2DKernel(
     int ms, int mt, int nf1, int nf2, GpuComplex<FloatType>* fw, GpuComplex<FloatType> *fk, 
     FloatType *fwkerhalf1, FloatType *fwkerhalf2)
 {
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<ms * mt; i+=blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < ms * mt; i += blockDim.x * gridDim.x) {
     int k1 = i % ms;
     int k2 = i / ms;
     int inidx = k1 + k2 * ms;
@@ -304,8 +304,8 @@ __global__ void Amplify3DKernel(
     int ms, int mt, int mu, int nf1, int nf2, int nf3, GpuComplex<FloatType>* fw, 
     GpuComplex<FloatType> *fk, FloatType *fwkerhalf1, FloatType *fwkerhalf2, FloatType *fwkerhalf3)
 {
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<ms * mt * mu; 
-    i+=blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < ms * mt * mu; 
+    i += blockDim.x * gridDim.x) {
     int k1 = i % ms;
     int k2 = (i / ms) % mt;
     int k3 = (i / ms / mt);
@@ -371,7 +371,7 @@ __global__ void SpreadNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex
   FloatType x_rescaled, y_rescaled;
   FloatType kervalue1, kervalue2;
   GpuComplex<FloatType> cnow;
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < M; i+=blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < M; i += blockDim.x * gridDim.x) {
     x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
     cnow = c[idxnupts[i]];
@@ -381,8 +381,8 @@ __global__ void SpreadNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex
     xend = floor(x_rescaled + ns / 2.0);
     yend = floor(y_rescaled + ns / 2.0);
 
-    FloatType x1=(FloatType)xstart - x_rescaled;
-    FloatType y1=(FloatType)ystart - y_rescaled;
+    FloatType x1 = (FloatType)xstart - x_rescaled;
+    FloatType y1 = (FloatType)ystart - y_rescaled;
     EvaluateKernelVector(ker1, x1, ns, es_c, es_beta);
     EvaluateKernelVector(ker2, y1, ns, es_c, es_beta);
     for (yy = ystart; yy<=yend; yy++) {
@@ -411,7 +411,7 @@ __global__ void SpreadNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
 
   FloatType x_rescaled, y_rescaled;
   GpuComplex<FloatType> cnow;
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i+=blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i += blockDim.x * gridDim.x) {
     x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
     cnow = c[idxnupts[i]];
@@ -420,8 +420,8 @@ __global__ void SpreadNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
     int xend = floor(x_rescaled + ns / 2.0);
     int yend = floor(y_rescaled + ns / 2.0);
 
-    FloatType x1=(FloatType)xstart - x_rescaled;
-    FloatType y1=(FloatType)ystart - y_rescaled;
+    FloatType x1 = (FloatType)xstart - x_rescaled;
+    FloatType y1 = (FloatType)ystart - y_rescaled;
     EvaluateKernelVectorHorner(ker1, x1, ns, sigma);
     EvaluateKernelVectorHorner(ker2, y1, ns, sigma);
     for (yy = ystart; yy<=yend; yy++) {
@@ -466,14 +466,14 @@ __global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
   int ptstart = binstartpts[bidx]+binsubp_idx * max_subprob_size;
   int nupts = min(max_subprob_size, bin_sizes[bidx]-binsubp_idx * max_subprob_size);
 
-  int xoffset=(bidx % nbinx)*bin_size_x;
-  int yoffset=(bidx / nbinx)*bin_size_y;
+  int xoffset = (bidx % nbinx) * bin_size_x;
+  int yoffset = (bidx / nbinx) * bin_size_y;
 
-  int N = (bin_size_x + 2 * ceil(ns / 2.0))*(bin_size_y + 2 * ceil(ns / 2.0));
+  int N = (bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0));
   FloatType ker1[kMaxKernelWidth];
   FloatType ker2[kMaxKernelWidth];
   
-  for (int i = threadIdx.x; i<N; i+=blockDim.x) {
+  for (int i = threadIdx.x; i<N; i += blockDim.x) {
     fwshared[i].x = 0.0;
     fwshared[i].y = 0.0;
   }
@@ -481,29 +481,29 @@ __global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
 
   FloatType x_rescaled, y_rescaled;
   GpuComplex<FloatType> cnow;
-  for (int i = threadIdx.x; i<nupts; i+=blockDim.x) {
+  for (int i = threadIdx.x; i<nupts; i += blockDim.x) {
     int idx = ptstart + i;
     x_rescaled = RESCALE(x[idxnupts[idx]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[idx]], nf2, pirange);
     cnow = c[idxnupts[idx]];
 
-    xstart = ceil(x_rescaled - ns / 2.0)-xoffset;
-    ystart = ceil(y_rescaled - ns / 2.0)-yoffset;
-    xend   = floor(x_rescaled + ns / 2.0)-xoffset;
-    yend   = floor(y_rescaled + ns / 2.0)-yoffset;
+    xstart = ceil(x_rescaled - ns / 2.0) - xoffset;
+    ystart = ceil(y_rescaled - ns / 2.0) - yoffset;
+    xend   = floor(x_rescaled + ns / 2.0) - xoffset;
+    yend   = floor(y_rescaled + ns / 2.0) - yoffset;
 
-    FloatType x1=(FloatType)xstart + xoffset - x_rescaled;
-    FloatType y1=(FloatType)ystart + yoffset - y_rescaled;
+    FloatType x1 = (FloatType)xstart + xoffset - x_rescaled;
+    FloatType y1 = (FloatType)ystart + yoffset - y_rescaled;
     EvaluateKernelVector(ker1, x1, ns, es_c, es_beta);
     EvaluateKernelVector(ker2, y1, ns, es_c, es_beta);
 
     for (int yy = ystart; yy<=yend; yy++) {
       iy = yy + ceil(ns / 2.0);
-      if (iy >= (bin_size_y + (int) ceil(ns / 2.0)*2) || iy<0) break;
+      if (iy >= (bin_size_y + (int) ceil(ns / 2.0) * 2) || iy<0) break;
       for (int xx = xstart; xx<=xend; xx++) {
         ix = xx + ceil(ns / 2.0);
-        if (ix >= (bin_size_x + (int) ceil(ns / 2.0)*2) || ix<0) break;
-        outidx = ix + iy*(bin_size_x + ceil(ns / 2.0)*2);
+        if (ix >= (bin_size_x + (int) ceil(ns / 2.0) * 2) || ix<0) break;
+        outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2);
         FloatType kervalue1 = ker1[xx - xstart];
         FloatType kervalue2 = ker2[yy - ystart];
         atomicAdd(&fwshared[outidx].x, cnow.x * kervalue1 * kervalue2);
@@ -513,16 +513,16 @@ __global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
   }
   __syncthreads();
   /* write to global memory */
-  for (int k = threadIdx.x; k<N; k+=blockDim.x) {
+  for (int k = threadIdx.x; k<N; k += blockDim.x) {
     int i = k % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
     int j = k /( bin_size_x + 2 * ceil(ns / 2.0) );
-    ix = xoffset - ceil(ns / 2.0)+i;
-    iy = yoffset - ceil(ns / 2.0)+j;
+    ix = xoffset - ceil(ns / 2.0) + i;
+    iy = yoffset - ceil(ns / 2.0) + j;
     if (ix < (nf1 + ceil(ns / 2.0)) && iy < (nf2 + ceil(ns / 2.0))) {
       ix = ix < 0 ? ix + nf1 : (ix > nf1 - 1 ? ix - nf1 : ix);
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       outidx = ix + iy * nf1;
-      int sharedidx = i + j*(bin_size_x + ceil(ns / 2.0)*2);
+      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2);
       atomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
       atomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
     }
@@ -547,16 +547,16 @@ __global__ void SpreadSubproblemHorner2DKernel(FloatType *x, FloatType *y, GpuCo
   int ptstart = binstartpts[bidx]+binsubp_idx * max_subprob_size;
   int nupts = min(max_subprob_size, bin_sizes[bidx]-binsubp_idx * max_subprob_size);
 
-  int xoffset=(bidx % nbinx)*bin_size_x;
-  int yoffset=(bidx / nbinx)*bin_size_y;
+  int xoffset = (bidx % nbinx) * bin_size_x;
+  int yoffset = (bidx / nbinx) * bin_size_y;
 
-  int N = (bin_size_x + 2 * ceil(ns / 2.0))*(bin_size_y + 2 * ceil(ns / 2.0));
+  int N = (bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0));
   
   FloatType ker1[kMaxKernelWidth];
   FloatType ker2[kMaxKernelWidth];
 
 
-  for (int i = threadIdx.x; i<N; i+=blockDim.x) {
+  for (int i = threadIdx.x; i<N; i += blockDim.x) {
     fwshared[i].x = 0.0;
     fwshared[i].y = 0.0;
   }
@@ -564,28 +564,28 @@ __global__ void SpreadSubproblemHorner2DKernel(FloatType *x, FloatType *y, GpuCo
 
   FloatType x_rescaled, y_rescaled;
   GpuComplex<FloatType> cnow;
-  for (int i = threadIdx.x; i<nupts; i+=blockDim.x) {
+  for (int i = threadIdx.x; i<nupts; i += blockDim.x) {
     int idx = ptstart + i;
     x_rescaled = RESCALE(x[idxnupts[idx]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[idx]], nf2, pirange);
     cnow = c[idxnupts[idx]];
 
-    xstart = ceil(x_rescaled - ns / 2.0)-xoffset;
-    ystart = ceil(y_rescaled - ns / 2.0)-yoffset;
-    xend   = floor(x_rescaled + ns / 2.0)-xoffset;
-    yend   = floor(y_rescaled + ns / 2.0)-yoffset;
+    xstart = ceil(x_rescaled - ns / 2.0) - xoffset;
+    ystart = ceil(y_rescaled - ns / 2.0) - yoffset;
+    xend   = floor(x_rescaled + ns / 2.0) - xoffset;
+    yend   = floor(y_rescaled + ns / 2.0) - yoffset;
 
     EvaluateKernelVectorHorner(ker1, xstart + xoffset - x_rescaled, ns, sigma);
     EvaluateKernelVectorHorner(ker2, ystart + yoffset - y_rescaled, ns, sigma);
 
     for (int yy = ystart; yy<=yend; yy++) {
       iy = yy + ceil(ns / 2.0);
-      if (iy >= (bin_size_y + (int) ceil(ns / 2.0)*2) || iy<0) break;
+      if (iy >= (bin_size_y + (int) ceil(ns / 2.0) * 2) || iy<0) break;
       FloatType kervalue2 = ker2[yy - ystart];
       for (int xx = xstart; xx<=xend; xx++) {
         ix = xx + ceil(ns / 2.0);
-        if (ix >= (bin_size_x + (int) ceil(ns / 2.0)*2) || ix<0) break;
-        outidx = ix + iy*(bin_size_x+ (int) ceil(ns / 2.0)*2);
+        if (ix >= (bin_size_x + (int) ceil(ns / 2.0) * 2) || ix<0) break;
+        outidx = ix + iy * (bin_size_x+ (int) ceil(ns / 2.0) * 2);
         FloatType kervalue1 = ker1[xx - xstart];
         atomicAdd(&fwshared[outidx].x, cnow.x * kervalue1 * kervalue2);
         atomicAdd(&fwshared[outidx].y, cnow.y * kervalue1 * kervalue2);
@@ -595,16 +595,16 @@ __global__ void SpreadSubproblemHorner2DKernel(FloatType *x, FloatType *y, GpuCo
   __syncthreads();
 
   /* write to global memory */
-  for (int k = threadIdx.x; k<N; k+=blockDim.x) {
+  for (int k = threadIdx.x; k<N; k += blockDim.x) {
     int i = k % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
     int j = k /( bin_size_x + 2 * ceil(ns / 2.0) );
-    ix = xoffset - ceil(ns / 2.0)+i;
-    iy = yoffset - ceil(ns / 2.0)+j;
+    ix = xoffset - ceil(ns / 2.0) + i;
+    iy = yoffset - ceil(ns / 2.0) + j;
     if (ix < (nf1 + ceil(ns / 2.0)) && iy < (nf2 + ceil(ns / 2.0))) {
       ix = ix < 0 ? ix + nf1 : (ix > nf1 - 1 ? ix - nf1 : ix);
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       outidx = ix + iy * nf1;
-      int sharedidx = i + j*(bin_size_x + ceil(ns / 2.0)*2);
+      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2);
       atomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
       atomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
     }
@@ -615,7 +615,7 @@ template<typename FloatType>
 __global__ void InterpNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, const int ns,
            int nf1, int nf2, FloatType es_c, FloatType es_beta, int* idxnupts, int pirange)
 {
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i+=blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i += blockDim.x * gridDim.x) {
 
     FloatType x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     FloatType y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
@@ -650,7 +650,7 @@ template<typename FloatType>
 __global__ void InterpNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, 
   const int ns, int nf1, int nf2, FloatType sigma, int* idxnupts, int pirange)
 {
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i+=blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i += blockDim.x * gridDim.x) {
     FloatType x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     FloatType y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
 
@@ -706,20 +706,20 @@ __global__ void InterpSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
   int ptstart = binstartpts[bidx]+binsubp_idx * max_subprob_size;
   int nupts = min(max_subprob_size, bin_sizes[bidx]-binsubp_idx * max_subprob_size);
 
-  int xoffset=(bidx % nbinx)*bin_size_x;
-  int yoffset=(bidx / nbinx)*bin_size_y;
-  int N = (bin_size_x + 2 * ceil(ns / 2.0))*(bin_size_y + 2 * ceil(ns / 2.0));
+  int xoffset = (bidx % nbinx) * bin_size_x;
+  int yoffset = (bidx / nbinx) * bin_size_y;
+  int N = (bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0));
 
-  for (int k = threadIdx.x;k<N; k+=blockDim.x) {
+  for (int k = threadIdx.x;k<N; k += blockDim.x) {
     int i = k % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
     int j = k /( bin_size_x + 2 * ceil(ns / 2.0) );
-    ix = xoffset - ceil(ns / 2.0)+i;
-    iy = yoffset - ceil(ns / 2.0)+j;
+    ix = xoffset - ceil(ns / 2.0) + i;
+    iy = yoffset - ceil(ns / 2.0) + j;
     if (ix < (nf1 + ceil(ns / 2.0)) && iy < (nf2 + ceil(ns / 2.0))) {
       ix = ix < 0 ? ix + nf1 : (ix > nf1 - 1 ? ix - nf1 : ix);
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       outidx = ix + iy * nf1;
-      int sharedidx = i + j*(bin_size_x + ceil(ns / 2.0)*2);
+      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2);
       fwshared[sharedidx].x = fw[outidx].x;
       fwshared[sharedidx].y = fw[outidx].y;
     }
@@ -728,26 +728,26 @@ __global__ void InterpSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
 
   FloatType x_rescaled, y_rescaled;
   GpuComplex<FloatType> cnow;
-  for (int i = threadIdx.x; i<nupts; i+=blockDim.x) {
+  for (int i = threadIdx.x; i<nupts; i += blockDim.x) {
     int idx = ptstart + i;
     x_rescaled = RESCALE(x[idxnupts[idx]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[idx]], nf2, pirange);
     cnow.x = 0.0;
     cnow.y = 0.0;
 
-    xstart = ceil(x_rescaled - ns / 2.0)-xoffset;
-    ystart = ceil(y_rescaled - ns / 2.0)-yoffset;
-    xend   = floor(x_rescaled + ns / 2.0)-xoffset;
-    yend   = floor(y_rescaled + ns / 2.0)-yoffset;
+    xstart = ceil(x_rescaled - ns / 2.0) - xoffset;
+    ystart = ceil(y_rescaled - ns / 2.0) - yoffset;
+    xend   = floor(x_rescaled + ns / 2.0) - xoffset;
+    yend   = floor(y_rescaled + ns / 2.0) - yoffset;
 
     for (int yy = ystart; yy<=yend; yy++) {
-      FloatType disy = abs(y_rescaled-(yy + yoffset));
+      FloatType disy = abs(y_rescaled - (yy + yoffset));
       FloatType kervalue2 = EvaluateKernel(disy, es_c, es_beta, ns);
       for (int xx = xstart; xx<=xend; xx++) {
         ix = xx + ceil(ns / 2.0);
         iy = yy + ceil(ns / 2.0);
-        outidx = ix + iy*(bin_size_x + ceil(ns / 2.0)*2);
-        FloatType disx = abs(x_rescaled-(xx + xoffset));
+        outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2);
+        FloatType disx = abs(x_rescaled - (xx + xoffset));
         FloatType kervalue1 = EvaluateKernel(disx, es_c, es_beta, ns);
         cnow.x += fwshared[outidx].x * kervalue1 * kervalue2;
         cnow.y += fwshared[outidx].y * kervalue1 * kervalue2;
@@ -776,22 +776,22 @@ __global__ void InterpSubproblemHorner2DKernel(
   int ptstart = binstartpts[bidx]+binsubp_idx * max_subprob_size;
   int nupts = min(max_subprob_size, bin_sizes[bidx]-binsubp_idx * max_subprob_size);
 
-  int xoffset=(bidx % nbinx)*bin_size_x;
-  int yoffset=(bidx / nbinx)*bin_size_y;
+  int xoffset = (bidx % nbinx) * bin_size_x;
+  int yoffset = (bidx / nbinx) * bin_size_y;
 
-  int N = (bin_size_x + 2 * ceil(ns / 2.0))*(bin_size_y + 2 * ceil(ns / 2.0));
+  int N = (bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0));
 
 
-  for (int k = threadIdx.x;k<N; k+=blockDim.x) {
+  for (int k = threadIdx.x;k<N; k += blockDim.x) {
     int i = k % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
     int j = k /( bin_size_x + 2 * ceil(ns / 2.0) );
-    ix = xoffset - ceil(ns / 2.0)+i;
-    iy = yoffset - ceil(ns / 2.0)+j;
+    ix = xoffset - ceil(ns / 2.0) + i;
+    iy = yoffset - ceil(ns / 2.0) + j;
     if (ix < (nf1 + ceil(ns / 2.0)) && iy < (nf2 + ceil(ns / 2.0))) {
       ix = ix < 0 ? ix + nf1 : (ix > nf1 - 1 ? ix - nf1 : ix);
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       outidx = ix + iy * nf1;
-      int sharedidx = i + j*(bin_size_x + ceil(ns / 2.0)*2);
+      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2);
       fwshared[sharedidx].x = fw[outidx].x;
       fwshared[sharedidx].y = fw[outidx].y;
     }
@@ -803,28 +803,28 @@ __global__ void InterpSubproblemHorner2DKernel(
 
   FloatType x_rescaled, y_rescaled;
   GpuComplex<FloatType> cnow;
-  for (int i = threadIdx.x; i<nupts; i+=blockDim.x) {
+  for (int i = threadIdx.x; i<nupts; i += blockDim.x) {
     int idx = ptstart + i;
     x_rescaled = RESCALE(x[idxnupts[idx]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[idx]], nf2, pirange);
     cnow.x = 0.0;
     cnow.y = 0.0;
 
-    xstart = ceil(x_rescaled - ns / 2.0)-xoffset;
-    ystart = ceil(y_rescaled - ns / 2.0)-yoffset;
-    xend   = floor(x_rescaled + ns / 2.0)-xoffset;
-    yend   = floor(y_rescaled + ns / 2.0)-yoffset;
+    xstart = ceil(x_rescaled - ns / 2.0) - xoffset;
+    ystart = ceil(y_rescaled - ns / 2.0) - yoffset;
+    xend   = floor(x_rescaled + ns / 2.0) - xoffset;
+    yend   = floor(y_rescaled + ns / 2.0) - yoffset;
 
     EvaluateKernelVectorHorner(ker1, xstart + xoffset - x_rescaled, ns, sigma);
     EvaluateKernelVectorHorner(ker2, ystart + yoffset - y_rescaled, ns, sigma);
     
     for (int yy = ystart; yy<=yend; yy++) {
-      FloatType disy = abs(y_rescaled-(yy + yoffset));
+      FloatType disy = abs(y_rescaled - (yy + yoffset));
       FloatType kervalue2 = ker2[yy - ystart];
       for (int xx = xstart; xx<=xend; xx++) {
         ix = xx + ceil(ns / 2.0);
         iy = yy + ceil(ns / 2.0);
-        outidx = ix + iy*(bin_size_x + ceil(ns / 2.0)*2);
+        outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2);
     
         FloatType kervalue1 = ker1[xx - xstart];
         cnow.x += fwshared[outidx].x * kervalue1 * kervalue2;
@@ -849,7 +849,7 @@ __global__ void SpreadNuptsDrivenHorner3DKernel(
   FloatType ker1val, ker2val, ker3val;
 
   FloatType x_rescaled, y_rescaled, z_rescaled;
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i+=blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i += blockDim.x * gridDim.x) {
     x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
     z_rescaled = RESCALE(z[idxnupts[i]], nf3, pirange);
@@ -861,9 +861,9 @@ __global__ void SpreadNuptsDrivenHorner3DKernel(
     int yend = floor(y_rescaled + ns / 2.0);
     int zend = floor(z_rescaled + ns / 2.0);
 
-    FloatType x1=(FloatType)xstart - x_rescaled;
-    FloatType y1=(FloatType)ystart - y_rescaled;
-    FloatType z1=(FloatType)zstart - z_rescaled;
+    FloatType x1 = (FloatType)xstart - x_rescaled;
+    FloatType y1 = (FloatType)ystart - y_rescaled;
+    FloatType z1 = (FloatType)zstart - z_rescaled;
 
     EvaluateKernelVectorHorner(ker1, x1, ns, sigma);
     EvaluateKernelVectorHorner(ker2, y1, ns, sigma);
@@ -901,7 +901,7 @@ void SpreadNuptsDriven3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComp
 
   FloatType x_rescaled, y_rescaled, z_rescaled;
   FloatType ker1val, ker2val, ker3val;
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i+=blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i += blockDim.x * gridDim.x) {
     x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
     z_rescaled = RESCALE(z[idxnupts[i]], nf3, pirange);
@@ -913,9 +913,9 @@ void SpreadNuptsDriven3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComp
     int yend = floor(y_rescaled + ns / 2.0);
     int zend = floor(z_rescaled + ns / 2.0);
 
-    FloatType x1=(FloatType)xstart - x_rescaled;
-    FloatType y1=(FloatType)ystart - y_rescaled;
-    FloatType z1=(FloatType)zstart - z_rescaled;
+    FloatType x1 = (FloatType)xstart - x_rescaled;
+    FloatType y1 = (FloatType)ystart - y_rescaled;
+    FloatType z1 = (FloatType)zstart - z_rescaled;
 
     EvaluateKernelVector(ker1, x1, ns, es_c, es_beta);
     EvaluateKernelVector(ker2, y1, ns, es_c, es_beta);
@@ -960,15 +960,15 @@ __global__ void SpreadSubproblemHorner3DKernel(
   int ptstart = binstartpts[bidx]+binsubp_idx * max_subprob_size;
   int nupts = min(max_subprob_size, bin_sizes[bidx]-binsubp_idx * max_subprob_size);
 
-  int xoffset=(bidx % nbinx)*bin_size_x;
-  int yoffset=((bidx / nbinx)%nbiny)*bin_size_y;
-  int zoffset=(bidx/ (nbinx * nbiny))*bin_size_z;
+  int xoffset = (bidx % nbinx) * bin_size_x;
+  int yoffset = ((bidx / nbinx)%nbiny) * bin_size_y;
+  int zoffset = (bidx/ (nbinx * nbiny)) * bin_size_z;
 
-  int N = (bin_size_x + 2 * ceil(ns / 2.0))*(bin_size_y + 2 * ceil(ns / 2.0))*
+  int N = (bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0))*
     (bin_size_z + 2 * ceil(ns / 2.0));
 
 
-  for (int i = threadIdx.x; i<N; i+=blockDim.x) {
+  for (int i = threadIdx.x; i<N; i += blockDim.x) {
     fwshared[i].x = 0.0;
     fwshared[i].y = 0.0;
   }
@@ -976,7 +976,7 @@ __global__ void SpreadSubproblemHorner3DKernel(
   FloatType x_rescaled, y_rescaled, z_rescaled;
   GpuComplex<FloatType> cnow;
 
-  for (int i = threadIdx.x; i<nupts; i+=blockDim.x) {
+  for (int i = threadIdx.x; i<nupts; i += blockDim.x) {
     FloatType ker1[kMaxKernelWidth];
     FloatType ker2[kMaxKernelWidth];
     FloatType ker3[kMaxKernelWidth];
@@ -987,13 +987,13 @@ __global__ void SpreadSubproblemHorner3DKernel(
     z_rescaled = RESCALE(z[nuptsidx],nf3, pirange);
     cnow = c[nuptsidx];
 
-    xstart = ceil(x_rescaled - ns / 2.0)-xoffset;
-    ystart = ceil(y_rescaled - ns / 2.0)-yoffset;
-    zstart = ceil(z_rescaled - ns / 2.0)-zoffset;
+    xstart = ceil(x_rescaled - ns / 2.0) - xoffset;
+    ystart = ceil(y_rescaled - ns / 2.0) - yoffset;
+    zstart = ceil(z_rescaled - ns / 2.0) - zoffset;
 
-    xend   = floor(x_rescaled + ns / 2.0)-xoffset;
-    yend   = floor(y_rescaled + ns / 2.0)-yoffset;
-    zend   = floor(z_rescaled + ns / 2.0)-zoffset;
+    xend   = floor(x_rescaled + ns / 2.0) - xoffset;
+    yend   = floor(y_rescaled + ns / 2.0) - yoffset;
+    zend   = floor(z_rescaled + ns / 2.0) - zoffset;
 
     EvaluateKernelVectorHorner(ker1, xstart + xoffset - x_rescaled, ns, sigma);
     EvaluateKernelVectorHorner(ker2, ystart + yoffset - y_rescaled, ns, sigma);
@@ -1002,17 +1002,17 @@ __global__ void SpreadSubproblemHorner3DKernel(
       for (int zz = zstart; zz<=zend; zz++) {
       FloatType kervalue3 = ker3[zz - zstart];
       iz = zz + ceil(ns / 2.0);
-      if (iz >= (bin_size_z + (int) ceil(ns / 2.0)*2) || iz<0) break;
+      if (iz >= (bin_size_z + (int) ceil(ns / 2.0) * 2) || iz<0) break;
       for (int yy = ystart; yy<=yend; yy++) {
         FloatType kervalue2 = ker2[yy - ystart];
         iy = yy + ceil(ns / 2.0);
-        if (iy >= (bin_size_y + (int) ceil(ns / 2.0)*2) || iy<0) break;
+        if (iy >= (bin_size_y + (int) ceil(ns / 2.0) * 2) || iy<0) break;
         for (int xx = xstart; xx<=xend; xx++) {
           ix = xx + ceil(ns / 2.0);
-          if (ix >= (bin_size_x + (int) ceil(ns / 2.0)*2) || ix<0) break;
-          outidx = ix + iy*(bin_size_x + ceil(ns / 2.0)*2)+
-            iz*(bin_size_x + ceil(ns / 2.0)*2)*
-               (bin_size_y + ceil(ns / 2.0)*2);
+          if (ix >= (bin_size_x + (int) ceil(ns / 2.0) * 2) || ix<0) break;
+          outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2)+
+            iz * (bin_size_x + ceil(ns / 2.0) * 2)*
+               (bin_size_y + ceil(ns / 2.0) * 2);
           FloatType kervalue1 = ker1[xx - xstart];
           atomicAdd(&fwshared[outidx].x, cnow.x * kervalue1 * kervalue2*
             kervalue3);
@@ -1024,15 +1024,15 @@ __global__ void SpreadSubproblemHorner3DKernel(
   }
   __syncthreads();
   /* write to global memory */
-  for (int n = threadIdx.x; n<N; n+=blockDim.x) {
+  for (int n = threadIdx.x; n<N; n += blockDim.x) {
     int i = n % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
     int j = (int) (n /(bin_size_x + 2 * ceil(ns / 2.0))) %
         (int) (bin_size_y + 2 * ceil(ns / 2.0));
-    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0))*(bin_size_y + 2 * ceil(ns / 2.0)));
+    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0)));
 
-    ix = xoffset - ceil(ns / 2.0)+i;
-    iy = yoffset - ceil(ns / 2.0)+j;
-    iz = zoffset - ceil(ns / 2.0)+k;
+    ix = xoffset - ceil(ns / 2.0) + i;
+    iy = yoffset - ceil(ns / 2.0) + j;
+    iz = zoffset - ceil(ns / 2.0) + k;
 
     if (ix<(nf1 + ceil(ns / 2.0)) &&
        iy<(nf2 + ceil(ns / 2.0)) &&
@@ -1041,8 +1041,8 @@ __global__ void SpreadSubproblemHorner3DKernel(
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       iz = iz < 0 ? iz + nf3 : (iz > nf3 - 1 ? iz - nf3 : iz);
       outidx = ix + iy * nf1 + iz * nf1 * nf2;
-      int sharedidx = i + j*(bin_size_x + ceil(ns / 2.0)*2)+
-        k*(bin_size_x + ceil(ns / 2.0)*2)*(bin_size_y + ceil(ns / 2.0)*2);
+      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2)+
+        k * (bin_size_x + ceil(ns / 2.0) * 2) * (bin_size_y + ceil(ns / 2.0) * 2);
       atomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
       atomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
     }
@@ -1067,21 +1067,21 @@ __global__ void SpreadSubproblem3DKernel(
   int ptstart = binstartpts[bidx]+binsubp_idx * max_subprob_size;
   int nupts = min(max_subprob_size, bin_sizes[bidx]-binsubp_idx * max_subprob_size);
 
-  int xoffset=(bidx % nbinx)*bin_size_x;
-  int yoffset=((bidx / nbinx)%nbiny)*bin_size_y;
-  int zoffset=(bidx/ (nbinx * nbiny))*bin_size_z;
+  int xoffset = (bidx % nbinx) * bin_size_x;
+  int yoffset = ((bidx / nbinx)%nbiny) * bin_size_y;
+  int zoffset = (bidx/ (nbinx * nbiny)) * bin_size_z;
 
-  int N = (bin_size_x + 2 * ceil(ns / 2.0))*(bin_size_y + 2 * ceil(ns / 2.0))*
+  int N = (bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0))*
     (bin_size_z + 2 * ceil(ns / 2.0));
 
-  for (int i = threadIdx.x; i<N; i+=blockDim.x) {
+  for (int i = threadIdx.x; i<N; i += blockDim.x) {
     fwshared[i].x = 0.0;
     fwshared[i].y = 0.0;
   }
   __syncthreads();
   FloatType x_rescaled, y_rescaled, z_rescaled;
   GpuComplex<FloatType> cnow;
-  for (int i = threadIdx.x; i<nupts; i+=blockDim.x) {
+  for (int i = threadIdx.x; i<nupts; i += blockDim.x) {
     FloatType ker1[kMaxKernelWidth];
     FloatType ker2[kMaxKernelWidth];
     FloatType ker3[kMaxKernelWidth];
@@ -1091,17 +1091,17 @@ __global__ void SpreadSubproblem3DKernel(
     z_rescaled = RESCALE(z[idxnupts[idx]], nf3, pirange);
     cnow = c[idxnupts[idx]];
 
-    xstart = ceil(x_rescaled - ns / 2.0)-xoffset;
-    ystart = ceil(y_rescaled - ns / 2.0)-yoffset;
-    zstart = ceil(z_rescaled - ns / 2.0)-zoffset;
+    xstart = ceil(x_rescaled - ns / 2.0) - xoffset;
+    ystart = ceil(y_rescaled - ns / 2.0) - yoffset;
+    zstart = ceil(z_rescaled - ns / 2.0) - zoffset;
 
-    xend   = floor(x_rescaled + ns / 2.0)-xoffset;
-    yend   = floor(y_rescaled + ns / 2.0)-yoffset;
-    zend   = floor(z_rescaled + ns / 2.0)-zoffset;
+    xend   = floor(x_rescaled + ns / 2.0) - xoffset;
+    yend   = floor(y_rescaled + ns / 2.0) - yoffset;
+    zend   = floor(z_rescaled + ns / 2.0) - zoffset;
 
-    FloatType x1=(FloatType)xstart + xoffset - x_rescaled;
-    FloatType y1=(FloatType)ystart + yoffset - y_rescaled;
-    FloatType z1=(FloatType)zstart + zoffset - z_rescaled;
+    FloatType x1 = (FloatType)xstart + xoffset - x_rescaled;
+    FloatType y1 = (FloatType)ystart + yoffset - y_rescaled;
+    FloatType z1 = (FloatType)zstart + zoffset - z_rescaled;
 
     EvaluateKernelVector(ker1, x1, ns, es_c, es_beta);
     EvaluateKernelVector(ker2, y1, ns, es_c, es_beta);
@@ -1110,18 +1110,18 @@ __global__ void SpreadSubproblem3DKernel(
     for (int zz = zstart; zz<=zend; zz++) {
       FloatType kervalue3 = ker3[zz - zstart];
       iz = zz + ceil(ns / 2.0);
-      if (iz >= (bin_size_z + (int) ceil(ns / 2.0)*2) || iz<0) break;
+      if (iz >= (bin_size_z + (int) ceil(ns / 2.0) * 2) || iz<0) break;
       for (int yy = ystart; yy<=yend; yy++) {
         FloatType kervalue2 = ker2[yy - ystart];
         iy = yy + ceil(ns / 2.0);
-        if (iy >= (bin_size_y + (int) ceil(ns / 2.0)*2) || iy<0) break;
+        if (iy >= (bin_size_y + (int) ceil(ns / 2.0) * 2) || iy<0) break;
         for (int xx = xstart; xx<=xend; xx++) {
           FloatType kervalue1 = ker1[xx - xstart];
           ix = xx + ceil(ns / 2.0);
-          if (ix >= (bin_size_x + (int) ceil(ns / 2.0)*2) || ix<0) break;
-          outidx = ix + iy*(bin_size_x + ceil(ns / 2.0)*2)+
-               iz*(bin_size_x + ceil(ns / 2.0)*2)*
-                    (bin_size_y + ceil(ns / 2.0)*2);
+          if (ix >= (bin_size_x + (int) ceil(ns / 2.0) * 2) || ix<0) break;
+          outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2)+
+               iz * (bin_size_x + ceil(ns / 2.0) * 2)*
+                    (bin_size_y + ceil(ns / 2.0) * 2);
 #if 1
           atomicAdd(&fwshared[outidx].x, cnow.x * kervalue1 * kervalue2*
             kervalue3);
@@ -1135,21 +1135,21 @@ __global__ void SpreadSubproblem3DKernel(
   }
   __syncthreads();
   /* write to global memory */
-  for (int n = threadIdx.x; n<N; n+=blockDim.x) {
+  for (int n = threadIdx.x; n < N; n += blockDim.x) {
     int i = n % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
     int j = (int) (n /(bin_size_x + 2 * ceil(ns / 2.0))) % (int) (bin_size_y + 2 * ceil(ns / 2.0));
-    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0))*(bin_size_y + 2 * ceil(ns / 2.0)));
+    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0)));
 
-    ix = xoffset - ceil(ns / 2.0)+i;
-    iy = yoffset - ceil(ns / 2.0)+j;
-    iz = zoffset - ceil(ns / 2.0)+k;
+    ix = xoffset - ceil(ns / 2.0) + i;
+    iy = yoffset - ceil(ns / 2.0) + j;
+    iz = zoffset - ceil(ns / 2.0) + k;
     if (ix<(nf1 + ceil(ns / 2.0)) && iy<(nf2 + ceil(ns / 2.0)) && iz<(nf3 + ceil(ns / 2.0))) {
       ix = ix < 0 ? ix + nf1 : (ix > nf1 - 1 ? ix - nf1 : ix);
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       iz = iz < 0 ? iz + nf3 : (iz > nf3 - 1 ? iz - nf3 : iz);
       outidx = ix + iy * nf1 + iz * nf1 * nf2;
-      int sharedidx = i + j*(bin_size_x + ceil(ns / 2.0)*2)+
-        k*(bin_size_x + ceil(ns / 2.0)*2)*(bin_size_y + ceil(ns / 2.0)*2);
+      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2)+
+        k * (bin_size_x + ceil(ns / 2.0) * 2) * (bin_size_y + ceil(ns / 2.0) * 2);
       atomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
       atomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
     }
@@ -1162,7 +1162,7 @@ void InterpNuptsDriven3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComp
   const int ns, int nf1, int nf2, int nf3, FloatType es_c, FloatType es_beta,
   int *idxnupts, int pirange)
 {
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i+=blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < M; i += blockDim.x * gridDim.x) {
     FloatType x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     FloatType y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
     FloatType z_rescaled = RESCALE(z[idxnupts[i]], nf3, pirange);
@@ -1206,7 +1206,7 @@ void InterpNuptsDrivenHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, G
   int M, const int ns, int nf1, int nf2, int nf3, FloatType sigma, int *idxnupts,
   int pirange)
 {
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i+=blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i += blockDim.x * gridDim.x) {
     FloatType x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     FloatType y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
     FloatType z_rescaled = RESCALE(z[idxnupts[i]], nf3, pirange);
@@ -1273,29 +1273,29 @@ void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
   int ptstart = binstartpts[bidx]+binsubp_idx * max_subprob_size;
   int nupts = min(max_subprob_size, bin_sizes[bidx]-binsubp_idx * max_subprob_size);
 
-  int xoffset=(bidx % nbinx)*bin_size_x;
-  int yoffset=((bidx / nbinx)%nbiny)*bin_size_y;
-  int zoffset=(bidx/ (nbinx * nbiny))*bin_size_z;
+  int xoffset = (bidx % nbinx) * bin_size_x;
+  int yoffset = ((bidx / nbinx)%nbiny) * bin_size_y;
+  int zoffset = (bidx/ (nbinx * nbiny)) * bin_size_z;
 
-  int N = (bin_size_x + 2 * ceil(ns / 2.0))*(bin_size_y + 2 * ceil(ns / 2.0))*
+  int N = (bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0))*
       (bin_size_z + 2 * ceil(ns / 2.0));
 
 #if 1
-  for (int n = threadIdx.x;n<N; n+=blockDim.x) {
+  for (int n = threadIdx.x;n<N; n += blockDim.x) {
     int i = n % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
     int j = (int) (n /(bin_size_x + 2 * ceil(ns / 2.0))) % (int) (bin_size_y + 2 * ceil(ns / 2.0));
-    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0))*(bin_size_y + 2 * ceil(ns / 2.0)));
+    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0)));
 
-    ix = xoffset - ceil(ns / 2.0)+i;
-    iy = yoffset - ceil(ns / 2.0)+j;
-    iz = zoffset - ceil(ns / 2.0)+k;
+    ix = xoffset - ceil(ns / 2.0) + i;
+    iy = yoffset - ceil(ns / 2.0) + j;
+    iz = zoffset - ceil(ns / 2.0) + k;
     if (ix<(nf1 + ceil(ns / 2.0)) && iy<(nf2 + ceil(ns / 2.0)) && iz<(nf3 + ceil(ns / 2.0))) {
       ix = ix < 0 ? ix + nf1 : (ix > nf1 - 1 ? ix - nf1 : ix);
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       iz = iz < 0 ? iz + nf3 : (iz > nf3 - 1 ? iz - nf3 : iz);
       outidx = ix + iy * nf1 + iz * nf1 * nf2;
-      int sharedidx = i + j*(bin_size_x + ceil(ns / 2.0)*2)+
-        k*(bin_size_x + ceil(ns / 2.0)*2)*(bin_size_y + ceil(ns / 2.0)*2);
+      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2)+
+        k * (bin_size_x + ceil(ns / 2.0) * 2) * (bin_size_y + ceil(ns / 2.0) * 2);
       fwshared[sharedidx].x = fw[outidx].x;
       fwshared[sharedidx].y = fw[outidx].y;
     }
@@ -1305,7 +1305,7 @@ void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
 
   FloatType x_rescaled, y_rescaled, z_rescaled;
   GpuComplex<FloatType> cnow;
-  for (int i = threadIdx.x; i<nupts; i+=blockDim.x) {
+  for (int i = threadIdx.x; i<nupts; i += blockDim.x) {
     int idx = ptstart + i;
     x_rescaled = RESCALE(x[idxnupts[idx]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[idx]], nf2, pirange);
@@ -1313,12 +1313,12 @@ void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
     cnow.x = 0.0;
     cnow.y = 0.0;
 
-    xstart = ceil(x_rescaled - ns / 2.0)-xoffset;
-    ystart = ceil(y_rescaled - ns / 2.0)-yoffset;
-    zstart = ceil(z_rescaled - ns / 2.0)-zoffset;
-    xend   = floor(x_rescaled + ns / 2.0)-xoffset;
-    yend   = floor(y_rescaled + ns / 2.0)-yoffset;
-    zend   = floor(z_rescaled + ns / 2.0)-zoffset;
+    xstart = ceil(x_rescaled - ns / 2.0) - xoffset;
+    ystart = ceil(y_rescaled - ns / 2.0) - yoffset;
+    zstart = ceil(z_rescaled - ns / 2.0) - zoffset;
+    xend   = floor(x_rescaled + ns / 2.0) - xoffset;
+    yend   = floor(y_rescaled + ns / 2.0) - yoffset;
+    zend   = floor(z_rescaled + ns / 2.0) - zoffset;
 
 
       for (int zz = zstart; zz<=zend; zz++) {
@@ -1331,9 +1331,9 @@ void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
         iy = yy + ceil(ns / 2.0);
         for (int xx = xstart; xx<=xend; xx++) {
           ix = xx + ceil(ns / 2.0);
-          outidx = ix + iy*(bin_size_x + ceil(ns / 2.0)*2)+
-            iz*(bin_size_x + ceil(ns / 2.0)*2)*
-               (bin_size_y + ceil(ns / 2.0)*2);
+          outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2)+
+            iz * (bin_size_x + ceil(ns / 2.0) * 2)*
+               (bin_size_y + ceil(ns / 2.0) * 2);
 
           FloatType disx = abs(x_rescaled - xx);
           FloatType kervalue1 = EvaluateKernel(disx, es_c, es_beta, ns);
@@ -1368,28 +1368,28 @@ void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, Gp
   int ptstart = binstartpts[bidx]+binsubp_idx * max_subprob_size;
   int nupts = min(max_subprob_size, bin_sizes[bidx]-binsubp_idx * max_subprob_size);
 
-  int xoffset=(bidx % nbinx)*bin_size_x;
-  int yoffset=((bidx / nbinx)%nbiny)*bin_size_y;
-  int zoffset=(bidx/ (nbinx * nbiny))*bin_size_z;
+  int xoffset = (bidx % nbinx) * bin_size_x;
+  int yoffset = ((bidx / nbinx)%nbiny) * bin_size_y;
+  int zoffset = (bidx/ (nbinx * nbiny)) * bin_size_z;
 
-  int N = (bin_size_x + 2 * ceil(ns / 2.0))*(bin_size_y + 2 * ceil(ns / 2.0))*
+  int N = (bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0))*
       (bin_size_z + 2 * ceil(ns / 2.0));
 
-  for (int n = threadIdx.x;n<N; n+=blockDim.x) {
+  for (int n = threadIdx.x; n < N; n += blockDim.x) {
     int i = n % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
     int j = (int) (n /(bin_size_x + 2 * ceil(ns / 2.0))) % (int) (bin_size_y + 2 * ceil(ns / 2.0));
-    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0))*(bin_size_y + 2 * ceil(ns / 2.0)));
+    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0)));
 
-    ix = xoffset - ceil(ns / 2.0)+i;
-    iy = yoffset - ceil(ns / 2.0)+j;
-    iz = zoffset - ceil(ns / 2.0)+k;
-    if (ix<(nf1 + ceil(ns / 2.0)) && iy<(nf2 + ceil(ns / 2.0)) && iz<(nf3 + ceil(ns / 2.0))) {
+    ix = xoffset - ceil(ns / 2.0) + i;
+    iy = yoffset - ceil(ns / 2.0) + j;
+    iz = zoffset - ceil(ns / 2.0) + k;
+    if (ix<(nf1 + ceil(ns / 2.0)) && iy < (nf2 + ceil(ns / 2.0)) && iz < (nf3 + ceil(ns / 2.0))) {
       ix = ix < 0 ? ix + nf1 : (ix > nf1 - 1 ? ix - nf1 : ix);
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       iz = iz < 0 ? iz + nf3 : (iz > nf3 - 1 ? iz - nf3 : iz);
       outidx = ix + iy * nf1 + iz * nf1 * nf2;
-      int sharedidx = i + j*(bin_size_x + ceil(ns / 2.0)*2)+
-        k*(bin_size_x + ceil(ns / 2.0)*2)*(bin_size_y + ceil(ns / 2.0)*2);
+      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2)+
+        k * (bin_size_x + ceil(ns / 2.0) * 2) * (bin_size_y + ceil(ns / 2.0) * 2);
       fwshared[sharedidx].x = fw[outidx].x;
       fwshared[sharedidx].y = fw[outidx].y;
     }
@@ -1400,7 +1400,7 @@ void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, Gp
   FloatType ker3[kMaxKernelWidth];
   FloatType x_rescaled, y_rescaled, z_rescaled;
   GpuComplex<FloatType> cnow;
-  for (int i = threadIdx.x; i<nupts; i+=blockDim.x) {
+  for (int i = threadIdx.x; i<nupts; i += blockDim.x) {
     int idx = ptstart + i;
     x_rescaled = RESCALE(x[idxnupts[idx]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[idx]], nf2, pirange);
@@ -1408,13 +1408,13 @@ void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, Gp
     cnow.x = 0.0;
     cnow.y = 0.0;
 
-    xstart = ceil(x_rescaled - ns / 2.0)-xoffset;
-    ystart = ceil(y_rescaled - ns / 2.0)-yoffset;
-    zstart = ceil(z_rescaled - ns / 2.0)-zoffset;
+    xstart = ceil(x_rescaled - ns / 2.0) - xoffset;
+    ystart = ceil(y_rescaled - ns / 2.0) - yoffset;
+    zstart = ceil(z_rescaled - ns / 2.0) - zoffset;
 
-    xend   = floor(x_rescaled + ns / 2.0)-xoffset;
-    yend   = floor(y_rescaled + ns / 2.0)-yoffset;
-    zend   = floor(z_rescaled + ns / 2.0)-zoffset;
+    xend   = floor(x_rescaled + ns / 2.0) - xoffset;
+    yend   = floor(y_rescaled + ns / 2.0) - yoffset;
+    zend   = floor(z_rescaled + ns / 2.0) - zoffset;
 
     EvaluateKernelVectorHorner(ker1, xstart + xoffset - x_rescaled, ns, sigma);
     EvaluateKernelVectorHorner(ker2, ystart + yoffset - y_rescaled, ns, sigma);
@@ -1427,9 +1427,9 @@ void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, Gp
         iy = yy + ceil(ns / 2.0);
         for (int xx = xstart; xx<=xend; xx++) {
           ix = xx + ceil(ns / 2.0);
-          outidx = ix + iy*(bin_size_x + ceil(ns / 2.0)*2)+
-               iz*(bin_size_x + ceil(ns / 2.0)*2)*
-                  (bin_size_y + ceil(ns / 2.0)*2);
+          outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2)+
+               iz * (bin_size_x + ceil(ns / 2.0) * 2)*
+                  (bin_size_y + ceil(ns / 2.0) * 2);
           FloatType kervalue1 = ker1[xx - xstart];
           cnow.x += fwshared[outidx].x * kervalue1 * kervalue2 * kervalue3;
           cnow.y += fwshared[outidx].y * kervalue1 * kervalue2 * kervalue3;
@@ -2598,7 +2598,7 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
 namespace {
 
 // Initializes spreader kernel parameters given desired NUFFT tol eps,
-// upsampling factor (=sigma in paper, or R in Dutt - Rokhlin), and ker eval meth
+// upsampling factor ( = sigma in paper, or R in Dutt - Rokhlin), and ker eval meth
 // Also sets all default options in SpreadParameters<FloatType>.
 // Must call before any kernel evals done.
 template<typename FloatType>
@@ -2628,9 +2628,9 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
   }
 
   // Set kernel width w (aka ns) and ES kernel beta parameter, in spread_params...
-  int ns = std::ceil(-log10(eps / (FloatType)10.0));   // 1 digit per power of ten
+  int ns = std::ceil( - log10(eps / (FloatType)10.0));   // 1 digit per power of ten
   if (upsampling_factor != 2.0)           // override ns for custom sigma
-    ns = std::ceil(-log(eps) / (kPi<FloatType> * sqrt(1.0 - 1.0 / upsampling_factor)));  // formula, gamma = 1
+    ns = std::ceil( - log(eps) / (kPi<FloatType> * sqrt(1.0 - 1.0 / upsampling_factor)));  // formula, gamma = 1
   ns = max(2, ns);               // we don't have ns = 1 version yet
   if (ns > kMaxKernelWidth) {         // clip to match allocated arrays
     ns = kMaxKernelWidth;
@@ -2733,20 +2733,20 @@ Status set_grid_size(int ms,
   }
 
   // This is required to avoid errors.
-  if (*grid_size < 2 * spread_params.kernel_width)
+  if ( * grid_size < 2 * spread_params.kernel_width)
     *grid_size = 2 * spread_params.kernel_width;
 
   // Check if array size is too big.
-  if (*grid_size > kMaxArraySize) {
+  if ( * grid_size > kMaxArraySize) {
     return errors::Internal(
         "Upsampled dim size too big: ", *grid_size, " > ", kMaxArraySize);
   }
 
   // Find the next smooth integer.
   if (options.spread_method == SpreadMethod::BLOCK_GATHER)
-    *grid_size = next_smooth_int(*grid_size, bin_size);
+    *grid_size = next_smooth_int( * grid_size, bin_size);
   else
-    *grid_size = next_smooth_int(*grid_size);
+    *grid_size = next_smooth_int( * grid_size);
 
   // For spread / interp only mode, make sure that the grid size is valid.
   if (options.spread_only && *grid_size != ms) {

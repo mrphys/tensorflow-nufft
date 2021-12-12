@@ -177,7 +177,7 @@ lint: $(wildcard tensorflow_nufft/python/ops/*.py)
 	pylint --rcfile=pylintrc tensorflow_nufft/python
 
 cpplint:
-	python2.7 cpplint.py $(CXXSOURCES) $(CUSOURCES) $(CXXHEADERS)
+	python2.7 tools/lint/cpplint.py $(CXXSOURCES) $(CUSOURCES) $(CXXHEADERS)
 
 docs: $(TARGET)
 	ln -sf tensorflow_nufft tfft

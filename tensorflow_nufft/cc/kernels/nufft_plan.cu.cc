@@ -837,9 +837,9 @@ __global__ void InterpSubproblemHorner2DKernel(
 
 template<typename FloatType>
 __global__ void SpreadNuptsDrivenHorner3DKernel(
-    FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw,
-    int M, const int ns, int nf1, int nf2, int nf3, FloatType sigma, int* idxnupts,
-    int pirange) {
+    FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
+    FloatType sigma, int* idxnupts, int pirange) {
   int xx, yy, zz, ix, iy, iz;
   int outidx;
   FloatType ker1[kMaxKernelWidth];
@@ -888,11 +888,10 @@ __global__ void SpreadNuptsDrivenHorner3DKernel(
 }
 
 template<typename FloatType>
-__global__
-void SpreadNuptsDriven3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M,
-  const int ns, int nf1, int nf2, int nf3, FloatType es_c, FloatType es_beta,
-  int* idxnupts, int pirange)
-{
+__global__ void SpreadNuptsDriven3DKernel(
+    FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
+    FloatType es_c, FloatType es_beta, int* idxnupts, int pirange) {
   int xx, yy, zz, ix, iy, iz;
   int outidx;
   FloatType ker1[kMaxKernelWidth];
@@ -1053,8 +1052,9 @@ template<typename FloatType>
 __global__ void SpreadSubproblem3DKernel(
     FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
     GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
-    FloatType es_c, FloatType es_beta, int* binstartpts, int* bin_sizes, int bin_size_x, int bin_size_y, int bin_size_z,
-    int* subprob_bins, int* subprob_start_pts, int* num_subprob, int max_subprob_size,
+    FloatType es_c, FloatType es_beta, int* binstartpts, int* bin_sizes,
+    int bin_size_x, int bin_size_y, int bin_size_z, int* subprob_bins,
+    int* subprob_start_pts, int* num_subprob, int max_subprob_size,
     int nbinx, int nbiny, int nbinz, int* idxnupts, int pirange) {
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
@@ -1106,32 +1106,28 @@ __global__ void SpreadSubproblem3DKernel(
     EvaluateKernelVector(ker1, x1, ns, es_c, es_beta);
     EvaluateKernelVector(ker2, y1, ns, es_c, es_beta);
     EvaluateKernelVector(ker3, z1, ns, es_c, es_beta);
-#if 1
     for (int zz = zstart; zz<=zend; zz++) {
       FloatType kervalue3 = ker3[zz - zstart];
       iz = zz + ceil(ns / 2.0);
-      if (iz >= (bin_size_z + (int) ceil(ns / 2.0) * 2) || iz<0) break;
+      if (iz >= (bin_size_z + (int) ceil(ns / 2.0) * 2) || iz < 0) break;
       for (int yy = ystart; yy<=yend; yy++) {
         FloatType kervalue2 = ker2[yy - ystart];
         iy = yy + ceil(ns / 2.0);
-        if (iy >= (bin_size_y + (int) ceil(ns / 2.0) * 2) || iy<0) break;
+        if (iy >= (bin_size_y + (int) ceil(ns / 2.0) * 2) || iy < 0) break;
         for (int xx = xstart; xx<=xend; xx++) {
           FloatType kervalue1 = ker1[xx - xstart];
           ix = xx + ceil(ns / 2.0);
-          if (ix >= (bin_size_x + (int) ceil(ns / 2.0) * 2) || ix<0) break;
+          if (ix >= (bin_size_x + (int) ceil(ns / 2.0) * 2) || ix < 0) break;
           outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2)+
                iz * (bin_size_x + ceil(ns / 2.0) * 2)*
                     (bin_size_y + ceil(ns / 2.0) * 2);
-#if 1
-          atomicAdd(&fwshared[outidx].x, cnow.x * kervalue1 * kervalue2*
-            kervalue3);
-          atomicAdd(&fwshared[outidx].y, cnow.y * kervalue1 * kervalue2*
-            kervalue3);
-#endif
+          atomicAdd(&fwshared[outidx].x,
+                    cnow.x * kervalue1 * kervalue2 * kervalue3);
+          atomicAdd(&fwshared[outidx].y,
+                    cnow.y * kervalue1 * kervalue2 * kervalue3);
         }
       }
     }
-#endif
   }
   __syncthreads();
   /* write to global memory */
@@ -1157,11 +1153,10 @@ __global__ void SpreadSubproblem3DKernel(
 }
 
 template<typename FloatType>
-__global__
-void InterpNuptsDriven3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M,
-  const int ns, int nf1, int nf2, int nf3, FloatType es_c, FloatType es_beta,
-  int *idxnupts, int pirange)
-{
+__global__ void InterpNuptsDriven3DKernel(
+    FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
+    FloatType es_c, FloatType es_beta, int *idxnupts, int pirange) {
   for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < M; i += blockDim.x * gridDim.x) {
     FloatType x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     FloatType y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
@@ -1201,11 +1196,10 @@ void InterpNuptsDriven3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComp
 }
 
 template<typename FloatType>
-__global__
-void InterpNuptsDrivenHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw,
-  int M, const int ns, int nf1, int nf2, int nf3, FloatType sigma, int *idxnupts,
-  int pirange)
-{
+__global__ void InterpNuptsDrivenHorner3DKernel(
+    FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
+    FloatType sigma, int *idxnupts, int pirange) {
   for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i += blockDim.x * gridDim.x) {
     FloatType x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     FloatType y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
@@ -1253,14 +1247,13 @@ void InterpNuptsDrivenHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, G
 }
 
 template<typename FloatType>
-__global__
-void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw,
-  int M, const int ns, int nf1, int nf2, int nf3, FloatType es_c, FloatType es_beta,
-  int* binstartpts, int* bin_sizes, int bin_size_x, int bin_size_y,
-  int bin_size_z, int* subprob_bins, int* subprob_start_pts, int* num_subprob,
-  int max_subprob_size, int nbinx, int nbiny, int nbinz, int* idxnupts,
-  int pirange)
-{
+__global__ void InterpSubproblem3DKernel(
+    FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
+    FloatType es_c, FloatType es_beta, int* binstartpts, int* bin_sizes,
+    int bin_size_x, int bin_size_y, int bin_size_z, int* subprob_bins,
+    int* subprob_start_pts, int* num_subprob, int max_subprob_size, int nbinx,
+    int nbiny, int nbinz, int* idxnupts, int pirange) {
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
@@ -1280,7 +1273,6 @@ void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
   int N = (bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0))*
       (bin_size_z + 2 * ceil(ns / 2.0));
 
-#if 1
   for (int n = threadIdx.x;n<N; n += blockDim.x) {
     int i = n % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
     int j = (int) (n /(bin_size_x + 2 * ceil(ns / 2.0))) % (int) (bin_size_y + 2 * ceil(ns / 2.0));
@@ -1300,7 +1292,7 @@ void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
       fwshared[sharedidx].y = fw[outidx].y;
     }
   }
-#endif
+
   __syncthreads();
 
   FloatType x_rescaled, y_rescaled, z_rescaled;
@@ -1348,14 +1340,13 @@ void InterpSubproblem3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuCompl
 }
 
 template<typename FloatType>
-__global__
-void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw,
-  int M, const int ns, int nf1, int nf2, int nf3, FloatType sigma, int* binstartpts,
-  int* bin_sizes, int bin_size_x, int bin_size_y, int bin_size_z,
-  int* subprob_bins, int* subprob_start_pts, int* num_subprob,
-  int max_subprob_size, int nbinx, int nbiny, int nbinz, int* idxnupts,
-  int pirange)
-{
+__global__ void InterpSubproblemHorner3DKernel(
+    FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
+    FloatType sigma, int* binstartpts, int* bin_sizes, int bin_size_x,
+    int bin_size_y, int bin_size_z, int* subprob_bins, int* subprob_start_pts,
+    int* num_subprob, int max_subprob_size, int nbinx, int nbiny, int nbinz,
+    int* idxnupts, int pirange) {
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
@@ -1525,7 +1516,8 @@ Status Plan<GPUDevice, FloatType>::initialize(
   this->num_modes_[0] = num_modes[0];
   this->num_modes_[1] = (this->rank_ > 1) ? num_modes[1] : 1;
   this->num_modes_[2] = (this->rank_ > 2) ? num_modes[2] : 1;
-  this->mode_count_ = this->num_modes_[0] * this->num_modes_[1] * this->num_modes_[2];
+  this->mode_count_ = this->num_modes_[0] * this->num_modes_[1] *
+                      this->num_modes_[2];
 
   // Set the bin sizes.
   set_bin_sizes(type, rank, this->options_);
@@ -1576,7 +1568,8 @@ Status Plan<GPUDevice, FloatType>::initialize(
   this->num_bins_[2] = 1;
   this->bin_count_ = 1;
   for (int i = 0; i < this->rank_; i++) {
-    this->num_bins_[i] = (this->grid_dims_[i] + this->bin_dims_[i] - 1) / this->bin_dims_[i];
+    this->num_bins_[i] =
+        (this->grid_dims_[i] + this->bin_dims_[i] - 1) / this->bin_dims_[i];
     this->bin_count_ *= this->num_bins_[i];
   }
 

@@ -1444,47 +1444,44 @@ void InterpSubproblemHorner3DKernel(FloatType *x, FloatType *y, FloatType *z, Gp
 }  // namespace
 
 template<typename FloatType>
-Plan<GPUDevice, FloatType>::Plan(
-    OpKernelContext* context,
+Status Plan<GPUDevice, FloatType>::initialize(
     TransformType type,
     int rank,
     int* num_modes,
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
-    const Options& options) 
-    : PlanBase<GPUDevice, FloatType>(context),
-      idx_nupts_(nullptr),
-      sort_idx_(nullptr),
-      num_subprob_(nullptr),
-      bin_sizes_(nullptr),
-      bin_start_pts_(nullptr),
-      subprob_bins_(nullptr),
-      subprob_start_pts_(nullptr) {
+    const Options& options) {
 
-  OP_REQUIRES(context,
-              type != TransformType::TYPE_3,
-              errors::Unimplemented("type-3 transforms are not implemented"));
-  OP_REQUIRES(context, rank >= 2 && rank <= 3,
-              errors::InvalidArgument("rank must be 2 or 3"));
-  OP_REQUIRES(context, num_transforms >= 1,
-              errors::InvalidArgument("num_transforms must be >= 1"));
+  this->idx_nupts_ = nullptr;
+  this->sort_idx_ = nullptr;
+  this->num_subprob_ = nullptr;
+  this->bin_sizes_ = nullptr;
+  this->bin_start_pts_ = nullptr;
+  this->subprob_bins_ = nullptr;
+  this->subprob_start_pts_ = nullptr;
+  this->subprob_count_ = 0;
+  this->c_ = nullptr;
+  this->f_ = nullptr;
 
+  if (type == TransformType::TYPE_3) {
+    return errors::Unimplemented("type-3 transforms are not implemented");
+  }
+  if (rank < 2 || rank > 3) {
+    return errors::Unimplemented("rank ", rank, " is not implemented");
+  }
+  if (num_transforms < 1) {
+    return errors::InvalidArgument("num_transforms must be >= 1");
+  }
 
   // TODO: check options.
   //  - If mode_order == FFT, raise unimplemented error.
   //  - If check_bounds == true, raise unimplemented error.
 
   // Initialize all values to 0. TODO: move to initialization list.
-  this->nf1 = 0;
-  this->nf2 = 0;
-  this->nf3 = 0;
   this->ms = 0;
   this->mt = 0;
   this->mu = 0;
-  this->subprob_count_ = 0;
-  this->c_ = nullptr;
-  this->f_ = nullptr;
 
   // Copy options.
   this->options_ = options;
@@ -1526,9 +1523,8 @@ Plan<GPUDevice, FloatType>::Plan(
   this->spread_params_.spread_only = this->options_.spread_only;
 
   // Setup spreading options.
-  OP_REQUIRES_OK(context,
-                 setup_spreader_for_nufft(
-                    rank, tol, this->options_, this->spread_params_));
+  TF_RETURN_IF_ERROR(setup_spreader_for_nufft(
+      rank, tol, this->options_, this->spread_params_));
 
   this->rank_ = rank;
   this->ms = num_modes[0];
@@ -1545,28 +1541,26 @@ Plan<GPUDevice, FloatType>::Plan(
   set_bin_sizes(type, rank, this->options_);
 
   // Set the grid sizes.
-  int nf1 = 1, nf2 = 1, nf3 = 1;
-  OP_REQUIRES_OK(context,
-                 set_grid_size(this->ms, this->options_.gpu_obin_size.x,
-                               this->options_, this->spread_params_, &nf1));
+  TF_RETURN_IF_ERROR(set_grid_size(
+      this->ms, this->options_.gpu_obin_size.x,
+      this->options_, this->spread_params_, &this->grid_dims_[0]));
   if (rank > 1) {
-    OP_REQUIRES_OK(context,
-                   set_grid_size(this->mt, this->options_.gpu_obin_size.y,
-                                 this->options_, this->spread_params_, &nf2));
+    TF_RETURN_IF_ERROR(set_grid_size(
+        this->mt, this->options_.gpu_obin_size.y,
+        this->options_, this->spread_params_, &this->grid_dims_[1]));
+  } else {
+    this->grid_dims_[1] = 1;
   }
   if (rank > 2) {
-    OP_REQUIRES_OK(context,
-                   set_grid_size(this->mu, this->options_.gpu_obin_size.z,
-                                 this->options_, this->spread_params_, &nf3));
+    TF_RETURN_IF_ERROR(set_grid_size(
+        this->mu, this->options_.gpu_obin_size.z,
+        this->options_, this->spread_params_, &this->grid_dims_[2]));
+  } else {
+    this->grid_dims_[2] = 1;
   }
 
-  this->nf1 = nf1;
-  this->nf2 = nf2;
-  this->nf3 = nf3;
-  this->grid_dims_[0] = nf1;
-  this->grid_dims_[1] = nf2;
-  this->grid_dims_[2] = nf3;
-  this->grid_size_ = nf1 * nf2 * nf3;
+  this->grid_size_ = this->grid_dims_[0] * this->grid_dims_[1] *
+                     this->grid_dims_[2];
   this->fft_direction_ = fft_direction;
   this->num_transforms_ = num_transforms;
   this->type_ = type;
@@ -1619,18 +1613,16 @@ Plan<GPUDevice, FloatType>::Plan(
       break;
     case SpreadMethod::PAUL:
     case SpreadMethod::BLOCK_GATHER:
-      OP_REQUIRES(context, false,
-                  errors::Unimplemented("Invalid spread method: ",
-                      static_cast<int>(this->options_.spread_method)));
+      return errors::Unimplemented("Invalid spread method: ",
+          static_cast<int>(this->options_.spread_method));
   }
 
   // Perform some actions not needed in spread/interp only mode.
   if (!this->options_.spread_only) {
     // Allocate fine grid and set convenience pointer.
-    int num_grid_elements = this->nf1 * this->nf2 * this->nf3;
-    OP_REQUIRES_OK(context, context->allocate_temp(
+    TF_RETURN_IF_ERROR(this->context_->allocate_temp(
         DataTypeToEnum<std::complex<FloatType>>::value,
-        TensorShape({num_grid_elements * this->options_.max_batch_size}),
+        TensorShape({this->grid_size_ * this->options_.max_batch_size}),
         &this->grid_tensor_));
     this->grid_data_ = reinterpret_cast<DType*>(
         this->grid_tensor_.flat<std::complex<FloatType>>().data());
@@ -1638,31 +1630,28 @@ Plan<GPUDevice, FloatType>::Plan(
     // For each dimension, calculate Fourier coefficients of the kernel for
     // deconvolution. The computation is performed on the CPU before
     // transferring the results the GPU.
-    int grid_sizes[3] = {this->nf1, this->nf2, this->nf3};
     Tensor kernel_fseries_host[3];
     FloatType* kernel_fseries_host_data[3];
     for (int i = 0; i < this->rank_; i++) {
 
       // Number of Fourier coefficients.      
-      int num_coeffs = grid_sizes[i] / 2 + 1;
+      int num_coeffs = this->grid_dims_[i] / 2 + 1;
 
       // Allocate host memory and calculate the Fourier series on the CPU.
       AllocatorAttributes attr;
       attr.set_on_host(true);
-      OP_REQUIRES_OK(context, context->allocate_temp(
-                                  DataTypeToEnum<FloatType>::value,
-                                  TensorShape({num_coeffs}),
-                                  &kernel_fseries_host[i], attr));
+      TF_RETURN_IF_ERROR(this->context_->allocate_temp(
+          DataTypeToEnum<FloatType>::value, TensorShape({num_coeffs}),
+          &kernel_fseries_host[i], attr));
       kernel_fseries_host_data[i] = reinterpret_cast<FloatType*>(
           kernel_fseries_host[i].flat<FloatType>().data());
-      kernel_fseries_1d(grid_sizes[i], this->spread_params_,
+      kernel_fseries_1d(this->grid_dims_[i], this->spread_params_,
                         kernel_fseries_host_data[i]);
 
       // Allocate device memory and save convenience accessors.
-      OP_REQUIRES_OK(context, context->allocate_temp(
-                                  DataTypeToEnum<FloatType>::value,
-                                  TensorShape({num_coeffs}),
-                                  &this->fseries_tensor_[i]));
+      TF_RETURN_IF_ERROR(this->context_->allocate_temp(
+          DataTypeToEnum<FloatType>::value, TensorShape({num_coeffs}),
+          &this->fseries_tensor_[i]));
       this->fseries_data_[i] = reinterpret_cast<FloatType*>(
           this->fseries_tensor_[i].flat<FloatType>().data());
 
@@ -1675,9 +1664,9 @@ Plan<GPUDevice, FloatType>::Plan(
     }
 
     // Make the cuFFT plan.
-    int grid_dims[3];
-    int *input_embed = grid_dims;
-    int *output_embed = grid_dims;
+    int fft_dims[3];
+    int *input_embed = fft_dims;
+    int *output_embed = fft_dims;
     int input_distance = 0;
     int output_distance = 0;
     int input_stride = 1;
@@ -1685,35 +1674,35 @@ Plan<GPUDevice, FloatType>::Plan(
     int batch_size = this->options_.max_batch_size;
     switch (this->rank_) {
       case 2: {
-        grid_dims[0] = this->nf2;
-        grid_dims[1] = this->nf1;
+        fft_dims[0] = this->grid_dims_[1];
+        fft_dims[1] = this->grid_dims_[0];
         input_distance = input_embed[0] * input_embed[1];
         output_distance = input_distance;
         break;
       }
       case 3: {
-        grid_dims[0] = this->nf3;
-        grid_dims[1] = this->nf2;
-        grid_dims[2] = this->nf1;
+        fft_dims[0] = this->grid_dims_[2];
+        fft_dims[1] = this->grid_dims_[1];
+        fft_dims[2] = this->grid_dims_[0];
         input_distance = input_embed[0] * input_embed[1] * input_embed[2];
         output_distance = input_distance;
         break;
       }
       default:
-        OP_REQUIRES(context, false,
-                    errors::Unimplemented("Invalid rank: ", this->rank_));
+        return errors::Unimplemented("Invalid rank: ", this->rank_);
     }
 
     cufftResult result = cufftPlanMany(
-        &this->fft_plan_, this->rank_, grid_dims,
+        &this->fft_plan_, this->rank_, fft_dims,
         input_embed, input_stride, input_distance,
         output_embed, output_stride, output_distance,
         kCufftType<FloatType>, batch_size);
 
-    OP_REQUIRES(context, result == CUFFT_SUCCESS,
-                errors::Internal(
-                    "cufftPlanMany failed with code: ", result));
+    if (result != CUFFT_SUCCESS) {
+      return errors::Internal("cufftPlanMany failed with code: ", result);
+    }   
   }
+  return Status::OK();
 }
 
 template<typename FloatType>

@@ -357,7 +357,7 @@ class NUFFTBaseOp : public OpKernel {
       std::swap(grid_shape_vec[0], grid_shape_vec[2]);   
 
     // Perform operation.
-    OP_REQUIRES_OK(ctx, functor_(
+    OP_REQUIRES_OK(ctx, DoNUFFT<Device, FloatType>()(
         ctx,
         transform_type_,
         static_cast<int>(rank),
@@ -389,8 +389,6 @@ class NUFFTBaseOp : public OpKernel {
   FftDirection fft_direction_;
   float tol_;
   OpType op_type_;
-
-  DoNUFFT<Device, FloatType> functor_;
 };
 
 

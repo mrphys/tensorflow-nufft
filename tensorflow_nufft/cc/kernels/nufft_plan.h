@@ -181,8 +181,28 @@ class PlanBase {
   using DType = typename ComplexType<Device, FloatType>::Type;
 
   PlanBase(OpKernelContext* context)
-      : device_(context->eigen_device<Device>()) { }
+      : context_(context),
+        device_(context->eigen_device<Device>()) { }
 
+  // Frees any dynamically allocated memory not handled by the op kernel
+  // context, destroys the FFT plan and cleans up persistent FFTW data such as
+  // accumulated wisdom.
+  virtual ~PlanBase() { }
+
+  // Initializes a new NUFFT plan. Allocates memory for internal working arrays,
+  // evaluates spreading kernel coefficients, and instantiates the FFT plan.
+  virtual Status initialize(TransformType type,
+                            int rank,
+                            int* num_modes,
+                            FftDirection fft_direction,
+                            int num_transforms,
+                            FloatType tol,
+                            const Options& options) = 0;
+
+  // Sets the number and coordinates of the non-uniform points. Allocates GPU
+  // arrays with the required sizes. Rescales the non-uniform points to the
+  // range used by the spreader. Determines the spreader parameters that depend
+  // on the non-uniform points.
   virtual Status set_points(int num_points,
                             FloatType* points_x,
                             FloatType* points_y,
@@ -214,6 +234,8 @@ class PlanBase {
   int grid_dims_[3];
   // The total element count of the fine grid.
   int grid_size_;
+  // Pointer to the op kernel context.
+  OpKernelContext* context_;
   // Reference to the active device.
   const Device& device_;
 };
@@ -230,22 +252,18 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // The corresponding FFTW type.
   using FftwType = typename fftw::ComplexType<FloatType>::Type;
 
-  // Creates a new NUFFT plan for the CPU. Allocates memory for internal working
-  // arrays, evaluates spreading kernel coefficients, and instantiates the FFT
-  // plan.
-  Plan(OpKernelContext* context,
-       TransformType type,
-       int rank,
-       int* num_modes,
-       FftDirection fft_direction,
-       int num_transforms,
-       FloatType tol,
-       const Options& options);
+  Plan(OpKernelContext* context)
+      : PlanBase<CPUDevice, FloatType>(context) { }
 
-  // Frees any dynamically allocated memory not handled by the op kernel
-  // context, destroys the FFT plan and cleans up persistent FFTW data such as
-  // accumulated wisdom.
   ~Plan();
+
+  Status initialize(TransformType type,
+                    int rank,
+                    int* num_modes,
+                    FftDirection fft_direction,
+                    int num_transforms,
+                    FloatType tol,
+                    const Options& options) override;
 
   Status set_points(int num_points,
                     FloatType* points_x,
@@ -308,23 +326,21 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // The main data type this plan operates with; either complex float or double.
   using DType = typename ComplexType<GPUDevice, FloatType>::Type;
 
-  Plan(OpKernelContext* context,
-       TransformType type,
-       int rank,
-       int* num_modes,
-       FftDirection fft_direction,
-       int num_transforms,
-       FloatType tol,
-       const Options& options);
+  Plan(OpKernelContext* context)
+      : PlanBase<GPUDevice, FloatType>(context) { }
 
   // Frees any dynamically allocated memory not handled by the op kernel and
   // destroys the FFT plan.
   ~Plan();
 
-  // Sets the number and coordinates of the non-uniform points. Allocates GPU
-  // arrays with the required sizes. Rescales the non-uniform points to the
-  // range used by the spreader. Determines the spreader parameters that depend
-  // on the non-uniform points.
+  Status initialize(TransformType type,
+                    int rank,
+                    int* num_modes,
+                    FftDirection fft_direction,
+                    int num_transforms,
+                    FloatType tol,
+                    const Options& options) override;
+  
   Status set_points(int num_points,
                     FloatType* points_x,
                     FloatType* points_y,
@@ -449,11 +465,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // The total bin count.
   int bin_count_;
 
-  
-
-  int nf1;
-  int nf2;
-  int nf3;
   int ms;
   int mt;
   int mu;

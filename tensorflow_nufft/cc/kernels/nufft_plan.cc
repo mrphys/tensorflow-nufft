@@ -60,24 +60,24 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
 }  // namespace
 
 template<typename FloatType>
-Plan<CPUDevice, FloatType>::Plan(
-    OpKernelContext* context,
+Status Plan<CPUDevice, FloatType>::initialize(
     TransformType type,
     int rank,
     int* num_modes,
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
-    const Options& options)
-    : PlanBase<CPUDevice, FloatType>(context) {
+    const Options& options) {
 
-  OP_REQUIRES(context,
-              type != TransformType::TYPE_3,
-              errors::Unimplemented("type-3 transforms are not implemented"));
-  OP_REQUIRES(context, rank >= 1 && rank <= 3,
-              errors::InvalidArgument("rank must be 1, 2 or 3"));
-  OP_REQUIRES(context, num_transforms >= 1,
-              errors::InvalidArgument("num_transforms must be >= 1"));
+  if (type == TransformType::TYPE_3) {
+    return errors::Unimplemented("type-3 transforms are not implemented");
+  }
+  if (rank < 1 || rank > 3) {
+    return errors::Unimplemented("rank ", rank, " is not implemented");
+  }
+  if (num_transforms < 1) {
+    return errors::InvalidArgument("num_transforms must be >= 1");
+  }
 
   // Store input values to plan.
   this->rank_ = rank;
@@ -128,9 +128,8 @@ Plan<CPUDevice, FloatType>::Plan(
   }
 
   // Populate the spreader options.
-  OP_REQUIRES_OK(context,
-                 setup_spreader_for_nufft(
-                    rank, tol, this->options_, this->spread_params_));
+  TF_RETURN_IF_ERROR(setup_spreader_for_nufft(
+      rank, tol, this->options_, this->spread_params_));
 
   // set others as defaults (or unallocated for arrays)...
   this->X = nullptr; this->Y = nullptr; this->Z = nullptr;
@@ -160,18 +159,18 @@ Plan<CPUDevice, FloatType>::Plan(
     this->spread_params_.spread_direction = SpreadDirection::INTERP;
   
   // Determine fine grid sizes.
-  OP_REQUIRES_OK(
-      context, set_grid_size(
-          this->num_modes_[0], this->options_, this->spread_params_, &this->grid_dims_[0]));
+  TF_RETURN_IF_ERROR(set_grid_size(
+      this->num_modes_[0], this->options_, this->spread_params_,
+      &this->grid_dims_[0]));
   if (rank > 1) {
-    OP_REQUIRES_OK(
-        context, set_grid_size(
-            this->num_modes_[1], this->options_, this->spread_params_, &this->grid_dims_[1]));
+    TF_RETURN_IF_ERROR(set_grid_size(
+        this->num_modes_[1], this->options_, this->spread_params_,
+        &this->grid_dims_[1]));
   }
   if (rank > 2) {
-    OP_REQUIRES_OK(
-        context, set_grid_size(
-            this->num_modes_[2], this->options_, this->spread_params_, &this->grid_dims_[2]));
+    TF_RETURN_IF_ERROR(set_grid_size(
+        this->num_modes_[2], this->options_, this->spread_params_,
+        &this->grid_dims_[2]));
   }
 
   // Get Fourier coefficients of spreading kernel along each fine grid
@@ -194,19 +193,18 @@ Plan<CPUDevice, FloatType>::Plan(
   if (rank > 2)
     this->grid_size_ *= this->grid_dims_[2];
 
-  OP_REQUIRES(context, this->grid_size_ * this->batch_size_ <= kMaxArraySize,
-              errors::Internal(
-                  "size of internal fine grid is larger than maximum allowed: ",
-                  this->grid_size_ * this->batch_size_, " > ",
-                  kMaxArraySize));
+  if (this->grid_size_ * this->batch_size_ > kMaxArraySize) {
+    return errors::Internal(
+        "size of internal fine grid is larger than maximum allowed: ",
+        this->grid_size_ * this->batch_size_, " > ",
+        kMaxArraySize);
+  }
 
   // Allocate the working fine grid through the op kernel context. We allocate a
   // flat array, since we'll only use this tensor through a raw pointer anyway.
   TensorShape fine_grid_shape({this->grid_size_ * this->batch_size_});
-  OP_REQUIRES_OK(context,
-                 context->allocate_temp(
-                    DataTypeToEnum<DType>::value,
-                    fine_grid_shape, &this->grid_tensor_));
+  TF_RETURN_IF_ERROR(this->context_->allocate_temp(
+      DataTypeToEnum<DType>::value, fine_grid_shape, &this->grid_tensor_));
   this->grid_data_ = reinterpret_cast<FftwType*>(
       this->grid_tensor_.flat<DType>().data());
 
@@ -240,6 +238,8 @@ Plan<CPUDevice, FloatType>::Plan(
         /* int sign */ static_cast<int>(this->fft_direction_),
         /* unsigned flags */ this->options_.fftw_flags);
   }
+
+  return Status::OK();
 }
 
 template<typename FloatType>

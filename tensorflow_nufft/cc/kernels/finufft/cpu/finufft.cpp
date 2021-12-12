@@ -267,15 +267,15 @@ int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch
     fBatch = (CPX*) p->grid_data_;
   }
 
-  BIGINT grid_size_0 = p->grid_sizes_[0];
+  BIGINT grid_size_0 = p->grid_dims_[0];
   BIGINT grid_size_1 = 1;
   BIGINT grid_size_2 = 1;
-  if (p->rank_ > 1) grid_size_1 = p->grid_sizes_[1];
-  if (p->rank_ > 2) grid_size_2 = p->grid_sizes_[2];
+  if (p->rank_ > 1) grid_size_1 = p->grid_dims_[1];
+  if (p->rank_ > 2) grid_size_2 = p->grid_dims_[2];
 
   #pragma omp parallel for num_threads(nthr_outer)
   for (int i=0; i<batch_size; i++) {
-    CPX *fwi = fBatch + i*p->num_grid_points_;  // start of i'th fw array in wkspace
+    CPX *fwi = fBatch + i*p->grid_size_;  // start of i'th fw array in wkspace
     CPX *ci = cBatch + i*p->nj;            // start of i'th c array in cBatch
     spreadinterpSorted(p->sortIndices, grid_size_0, grid_size_1, grid_size_2,
                        (FLT*)fwi, p->nj, p->X, p->Y, p->Z,
@@ -299,21 +299,21 @@ int deconvolveBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* fkBatch)
   // since deconvolveshuffle?d are single-thread, omp par seems to help here...
 #pragma omp parallel for num_threads(batch_size)
   for (int i=0; i<batch_size; i++) {
-    FFTW_CPX *fwi = p->grid_data_ + i*p->num_grid_points_;  // start of i'th fw array in wkspace
-    CPX *fki = fkBatch + i*p->num_modes_total_;           // start of i'th fk array in fkBatch
+    FFTW_CPX *fwi = p->grid_data_ + i*p->grid_size_;  // start of i'th fw array in wkspace
+    CPX *fki = fkBatch + i*p->mode_count_;           // start of i'th fk array in fkBatch
     
     if (p->rank_ == 1)
       deconvolveshuffle1d(p->spread_params_.spread_direction, 1.0, p->phiHat1,
                           p->num_modes_[0], (FLT *)fki,
-                          p->grid_sizes_[0], fwi, p->options_.mode_order);
+                          p->grid_dims_[0], fwi, p->options_.mode_order);
     else if (p->rank_ == 2)
       deconvolveshuffle2d(p->spread_params_.spread_direction,1.0, p->phiHat1,
                           p->phiHat2, p->num_modes_[0], p->num_modes_[1], (FLT *)fki,
-                          p->grid_sizes_[0], p->grid_sizes_[1], fwi, p->options_.mode_order);
+                          p->grid_dims_[0], p->grid_dims_[1], fwi, p->options_.mode_order);
     else
       deconvolveshuffle3d(p->spread_params_.spread_direction, 1.0, p->phiHat1,
                           p->phiHat2, p->phiHat3, p->num_modes_[0], p->num_modes_[1], p->num_modes_[2],
-                          (FLT *)fki, p->grid_sizes_[0], p->grid_sizes_[1], p->grid_sizes_[2],
+                          (FLT *)fki, p->grid_dims_[0], p->grid_dims_[1], p->grid_dims_[2],
                           fwi, p->options_.mode_order);
   }
   return 0;
@@ -343,11 +343,11 @@ int FINUFFT_SETPTS(Plan<CPUDevice, FLT>* p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj
   CNTime timer; timer.start();
   p->nj = nj;    // the user only now chooses how many NU (x,y,z) pts
 
-  BIGINT grid_size_0 = p->grid_sizes_[0];
+  BIGINT grid_size_0 = p->grid_dims_[0];
   BIGINT grid_size_1 = 1;
   BIGINT grid_size_2 = 1;
-  if (p->rank_ > 1) grid_size_1 = p->grid_sizes_[1];
-  if (p->rank_ > 2) grid_size_2 = p->grid_sizes_[2];
+  if (p->rank_ > 1) grid_size_1 = p->grid_dims_[1];
+  if (p->rank_ > 2) grid_size_2 = p->grid_dims_[2];
 
   if (p->type_ != TransformType::TYPE_3) {  // ------------------ TYPE 1,2 SETPTS -------------------
                      // (all we can do is check and maybe bin-sort the NU pts)
@@ -387,7 +387,7 @@ int FINUFFT_SPREADINTERP(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk) {
     int thisBatchSize = min(p->num_transforms_ - b*p->batch_size_, p->batch_size_);
     int bB = b*p->batch_size_;         // index of vector, since batchsizes same
     CPX* cjb = cj + bB*p->nj;        // point to batch of weights
-    CPX* fkb = fk + bB*p->num_modes_total_;         // point to batch of mode coeffs
+    CPX* fkb = fk + bB*p->mode_count_;         // point to batch of mode coeffs
     if (p->options_.verbosity>1) printf("[%s] start batch %d (size %d):\n",__func__, b,thisBatchSize);
     
     spreadinterpSortedBatch(thisBatchSize, p, cjb, fkb);
@@ -437,7 +437,7 @@ int FINUFFT_EXECUTE(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk){
       int thisBatchSize = min(p->num_transforms_ - b*p->batch_size_, p->batch_size_);
       int bB = b*p->batch_size_;         // index of vector, since batchsizes same
       CPX* cjb = cj + bB*p->nj;        // point to batch of weights
-      CPX* fkb = fk + bB*p->num_modes_total_;         // point to batch of mode coeffs
+      CPX* fkb = fk + bB*p->mode_count_;         // point to batch of mode coeffs
       if (p->options_.verbosity>1) printf("[%s] start batch %d (size %d):\n",__func__, b,thisBatchSize);
       
       // STEP 1: (varies by type)

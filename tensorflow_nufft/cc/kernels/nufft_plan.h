@@ -55,7 +55,7 @@ typedef Eigen::GpuDevice GPUDevice;
 namespace nufft {
 
 // The maximum allowed array size.
-constexpr static int kMaxArraySize = 2000000000; // 2 billion points
+constexpr static int kMaxArraySize = 2000000000;  // 2 billion points
 
 // Max number of positive quadrature nodes for kernel FT.
 constexpr static int kMaxQuadNodes = 100;
@@ -198,29 +198,22 @@ class PlanBase {
 
   // The type of the transform. See enum above.
   TransformType type_;
-
   // The rank of the transform (number of dimensions). Must be 1, 2 or 3.
   int rank_;
-
   // Direction of the FFT. See enum above.
   FftDirection fft_direction_;
-
   // How many transforms to compute in one go.
   int num_transforms_;
-
   // Advanced NUFFT options.
   Options options_;
-
-  // Size of the fine grid.
-  gtl::InlinedVector<int, 4> grid_sizes_;
-
-  // Total number of modes. The product of the elements of num_modes_.
-  int64_t num_modes_total_;
-
-  // Total number of points in the fine grid. The product of the elements of
-  // grid_sizes_.
-  int64_t num_grid_points_;
-
+  // The number of modes along each dimension.
+  int num_modes_[3];
+  // The total number of modes.
+  int mode_count_;
+  // The fine grid's dimension sizes. Unused dimensions are set to 1.
+  int grid_dims_[3];
+  // The total element count of the fine grid.
+  int grid_size_;
   // Reference to the active device.
   const Device& device_;
 };
@@ -243,7 +236,7 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   Plan(OpKernelContext* context,
        TransformType type,
        int rank,
-       gtl::InlinedVector<int, 4> num_modes,
+       int* num_modes,
        FftDirection fft_direction,
        int num_transforms,
        FloatType tol,
@@ -290,8 +283,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // The parameters for the spreading algorithm/s.
   SpreadParameters<FloatType> spread_params_;
 
-  // The number of modes in each dimension.
-  gtl::InlinedVector<int, 4> num_modes_;
 
   int nj;          // number of NU pts in type 1,2 (for type 3, num input x pts)
   int nk;          // number of NU freq pts (type 3 only)
@@ -320,7 +311,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   Plan(OpKernelContext* context,
        TransformType type,
        int rank,
-       gtl::InlinedVector<int, 4> num_modes,
+       int* num_modes,
        FftDirection fft_direction,
        int num_transforms,
        FloatType tol,
@@ -444,18 +435,21 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // The parameters for the spreading algorithm/s.
   SpreadParameters<FloatType> spread_params_;
   
-  int grid_dims_[3];
-  int grid_size_;
 
+  // Pointers to the non-uniform point coordinates. In the GPU case, these are
+  // device pointers. These pointers are not owned by the plan. Unused pointers
+  // are set to nullptr.
   FloatType* points_[3];
+  // The total number of points.
   int num_points_;
-
+  // The GPU bin dimension sizes.
   int bin_dims_[3];
+  // The number of GPU bins.
   int num_bins_[3];
+  // The total bin count.
   int bin_count_;
 
-  int num_modes_[3];
-  int mode_count_;
+  
 
   int nf1;
   int nf2;

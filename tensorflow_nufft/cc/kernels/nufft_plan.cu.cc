@@ -1448,7 +1448,7 @@ Plan<GPUDevice, FloatType>::Plan(
     OpKernelContext* context,
     TransformType type,
     int rank,
-    gtl::InlinedVector<int, 4> num_modes,
+    int* num_modes,
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
@@ -1469,8 +1469,6 @@ Plan<GPUDevice, FloatType>::Plan(
               errors::InvalidArgument("rank must be 2 or 3"));
   OP_REQUIRES(context, num_transforms >= 1,
               errors::InvalidArgument("num_transforms must be >= 1"));
-  OP_REQUIRES(context, rank == num_modes.size(),
-              errors::InvalidArgument("num_modes must have size equal to rank"));
 
 
   // TODO: check options.

@@ -121,14 +121,14 @@ struct DoNUFFTBase {
 
     // Make inlined vector from pointer to number of modes. TODO: use inlined
     // vector for all of num_modes.
-    gtl::InlinedVector<int, 4> num_modes_vec(rank);
+    int num_modes_int[3] = {1, 1, 1};
     for (int i = 0; i < rank; ++i) {
-      num_modes_vec[i] = num_modes[i];
+      num_modes_int[i] = static_cast<int>(num_modes[i]);
     }
 
     // Make the NUFFT plan.
     auto plan = std::make_unique<Plan<Device, FloatType>>(
-        ctx, type, rank, num_modes_vec, fft_direction,
+        ctx, type, rank, num_modes_int, fft_direction,
         num_transforms, tol, options);
 
     // Pointers to a certain batch.

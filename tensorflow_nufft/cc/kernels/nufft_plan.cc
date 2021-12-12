@@ -47,10 +47,6 @@ Status set_grid_size(int ms,
                      SpreadParameters<FloatType> spread_params,
                      int* grid_size);
 
-template<typename T>
-Status reverse_vector(const gtl::InlinedVector<T, 4>& vec,
-                      gtl::InlinedVector<T, 4>& rev);
-
 template<typename FloatType>
 Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
                       int kerevalmeth, bool show_warnings,
@@ -68,7 +64,7 @@ Plan<CPUDevice, FloatType>::Plan(
     OpKernelContext* context,
     TransformType type,
     int rank,
-    gtl::InlinedVector<int, 4> num_modes,
+    int* num_modes,
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
@@ -82,8 +78,6 @@ Plan<CPUDevice, FloatType>::Plan(
               errors::InvalidArgument("rank must be 1, 2 or 3"));
   OP_REQUIRES(context, num_transforms >= 1,
               errors::InvalidArgument("num_transforms must be >= 1"));
-  OP_REQUIRES(context, rank == num_modes.size(),
-              errors::InvalidArgument("num_modes must have size equal to rank"));
 
   // Store input values to plan.
   this->rank_ = rank;
@@ -92,7 +86,11 @@ Plan<CPUDevice, FloatType>::Plan(
   this->tol_ = tol;
   this->num_transforms_ = num_transforms;
   this->options_ = options;
-  this->num_modes_ = num_modes;
+
+  this->num_modes_[0] = num_modes[0];
+  this->num_modes_[1] = (this->rank_ > 1) ? num_modes[1] : 1;
+  this->num_modes_[2] = (this->rank_ > 2) ? num_modes[2] : 1;
+  this->mode_count_ = this->num_modes_[0] * this->num_modes_[1] * this->num_modes_[2];
 
   // Choose kernel evaluation method.
   if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::AUTO) {
@@ -118,29 +116,15 @@ Plan<CPUDevice, FloatType>::Plan(
   if (this->options_.spread_threading == SpreadThreading::AUTO)
     this->options_.spread_threading = SpreadThreading::PARALLEL_SINGLE_THREADED;
 
-  // Read in user Fourier mode array sizes.
-  if (type != TransformType::TYPE_3) {
-    // this->num_modes_[0] = num_modes[0];
-    // this->num_modes_[1] = (rank > 1) ? num_modes[1] : 1;
-    // this->num_modes_[2] = (rank > 2) ? num_modes[2] : 1;
-    this->num_modes_total_ = this->num_modes_[0];
-    if (rank > 1)
-      this->num_modes_total_ *= this->num_modes_[1];
-    if (rank > 2)
-      this->num_modes_total_ *= this->num_modes_[2];
-  }
-
   // Heuristic to choose default upsampling factor.
   if (this->options_.upsampling_factor == 0.0) {  // indicates auto-choose
     this->options_.upsampling_factor = 2.0;       // default, and need for tol small
     if (tol >= (FloatType)1E-9) {                   // the tol sigma=5/4 can reach
       if (type == TransformType::TYPE_3)
         this->options_.upsampling_factor = 1.25;  // faster b/c smaller RAM & FFT
-      else if ((rank==1 && this->num_modes_total_>10000000) || (rank==2 && this->num_modes_total_>300000) || (rank==3 && this->num_modes_total_>3000000))  // type 1,2 heuristic cutoffs, double, typ tol, 12-core xeon
+      else if ((rank==1 && this->mode_count_>10000000) || (rank==2 && this->mode_count_>300000) || (rank==3 && this->mode_count_>3000000))  // type 1,2 heuristic cutoffs, double, typ tol, 12-core xeon
         this->options_.upsampling_factor = 1.25;
     }
-    if (this->options_.verbosity > 1)
-      printf("[%s] set auto upsampling_factor=%.2f\n",__func__,this->options_.upsampling_factor);
   }
 
   // Populate the spreader options.
@@ -176,50 +160,49 @@ Plan<CPUDevice, FloatType>::Plan(
     this->spread_params_.spread_direction = SpreadDirection::INTERP;
   
   // Determine fine grid sizes.
-  this->grid_sizes_.resize(rank);
   OP_REQUIRES_OK(
       context, set_grid_size(
-          this->num_modes_[0], this->options_, this->spread_params_, &this->grid_sizes_[0]));
+          this->num_modes_[0], this->options_, this->spread_params_, &this->grid_dims_[0]));
   if (rank > 1) {
     OP_REQUIRES_OK(
         context, set_grid_size(
-            this->num_modes_[1], this->options_, this->spread_params_, &this->grid_sizes_[1]));
+            this->num_modes_[1], this->options_, this->spread_params_, &this->grid_dims_[1]));
   }
   if (rank > 2) {
     OP_REQUIRES_OK(
         context, set_grid_size(
-            this->num_modes_[2], this->options_, this->spread_params_, &this->grid_sizes_[2]));
+            this->num_modes_[2], this->options_, this->spread_params_, &this->grid_dims_[2]));
   }
 
   // Get Fourier coefficients of spreading kernel along each fine grid
   // dimension.
-  this->phiHat1 = (FloatType*) malloc(sizeof(FloatType) * (this->grid_sizes_[0] / 2 + 1));
-  kernel_fseries_1d(this->grid_sizes_[0], this->spread_params_, this->phiHat1);
+  this->phiHat1 = (FloatType*) malloc(sizeof(FloatType) * (this->grid_dims_[0] / 2 + 1));
+  kernel_fseries_1d(this->grid_dims_[0], this->spread_params_, this->phiHat1);
   if (rank > 1) {
-    this->phiHat2 = (FloatType*) malloc(sizeof(FloatType) * (this->grid_sizes_[1] / 2 + 1));
-    kernel_fseries_1d(this->grid_sizes_[1], this->spread_params_, this->phiHat2);
+    this->phiHat2 = (FloatType*) malloc(sizeof(FloatType) * (this->grid_dims_[1] / 2 + 1));
+    kernel_fseries_1d(this->grid_dims_[1], this->spread_params_, this->phiHat2);
   }
   if (rank > 2) {
-    this->phiHat3 = (FloatType*) malloc(sizeof(FloatType) * (this->grid_sizes_[2] / 2 + 1));
-    kernel_fseries_1d(this->grid_sizes_[2], this->spread_params_, this->phiHat3);
+    this->phiHat3 = (FloatType*) malloc(sizeof(FloatType) * (this->grid_dims_[2] / 2 + 1));
+    kernel_fseries_1d(this->grid_dims_[2], this->spread_params_, this->phiHat3);
   }
 
   // Total number of points in the fine grid.
-  this->num_grid_points_ = static_cast<int64_t>(this->grid_sizes_[0]);
+  this->grid_size_ = this->grid_dims_[0];
   if (rank > 1)
-    this->num_grid_points_ *= static_cast<int64_t>(this->grid_sizes_[1]);
+    this->grid_size_ *= this->grid_dims_[1];
   if (rank > 2)
-    this->num_grid_points_ *= static_cast<int64_t>(this->grid_sizes_[2]);
+    this->grid_size_ *= this->grid_dims_[2];
 
-  OP_REQUIRES(context, this->num_grid_points_ * this->batch_size_ <= kMaxArraySize,
+  OP_REQUIRES(context, this->grid_size_ * this->batch_size_ <= kMaxArraySize,
               errors::Internal(
                   "size of internal fine grid is larger than maximum allowed: ",
-                  this->num_grid_points_ * this->batch_size_, " > ",
+                  this->grid_size_ * this->batch_size_, " > ",
                   kMaxArraySize));
 
   // Allocate the working fine grid through the op kernel context. We allocate a
   // flat array, since we'll only use this tensor through a raw pointer anyway.
-  TensorShape fine_grid_shape({this->num_grid_points_ * this->batch_size_});
+  TensorShape fine_grid_shape({this->grid_size_ * this->batch_size_});
   OP_REQUIRES_OK(context,
                  context->allocate_temp(
                     DataTypeToEnum<DType>::value,
@@ -227,20 +210,33 @@ Plan<CPUDevice, FloatType>::Plan(
   this->grid_data_ = reinterpret_cast<FftwType*>(
       this->grid_tensor_.flat<DType>().data());
 
-  gtl::InlinedVector<int, 4> fft_dims;
-  OP_REQUIRES_OK(context, reverse_vector(this->grid_sizes_, fft_dims));
+  int fft_dims[3] = {1, 1, 1};
+  switch (this->rank_) {
+    case 1:
+      fft_dims[0] = this->grid_dims_[0];
+      break;
+    case 2:
+      fft_dims[1] = this->grid_dims_[0];
+      fft_dims[0] = this->grid_dims_[1];
+      break;
+    case 3:
+      fft_dims[2] = this->grid_dims_[0];
+      fft_dims[1] = this->grid_dims_[1];
+      fft_dims[0] = this->grid_dims_[2];
+      break;
+  }
 
   #pragma omp critical
   {
     this->fft_plan_ = fftw::plan_many_dft<FloatType>(
-        /* int rank */ rank, /* const int *n */ fft_dims.data(),
+        /* int rank */ rank, /* const int *n */ fft_dims,
         /* int howmany */ this->batch_size_,
         /* fftw_complex *in */ this->grid_data_,
         /* const int *inembed */ nullptr,
-        /* int istride */ 1, /* int idist */ this->num_grid_points_,
+        /* int istride */ 1, /* int idist */ this->grid_size_,
         /* fftw_complex *out */ this->grid_data_,
         /* const int *onembed */ nullptr,
-        /* int ostride */ 1, /* int odist */ this->num_grid_points_,
+        /* int ostride */ 1, /* int odist */ this->grid_size_,
         /* int sign */ static_cast<int>(this->fft_direction_),
         /* unsigned flags */ this->options_.fftw_flags);
   }
@@ -435,32 +431,6 @@ Status set_grid_size(int ms,
         "Invalid grid size: ", ms, ". Value should be even, "
         "larger than the kernel (", 2 * spread_params.kernel_width, ") and have no prime "
         "factors larger than 5.");
-  }
-
-  return Status::OK();
-}
-
-// Reverses the input vector. Only supports up to rank 3 (this is not checked).
-template<typename T>
-Status reverse_vector(const gtl::InlinedVector<T, 4>& vec,
-                      gtl::InlinedVector<T, 4>& rev) {
-
-  if (vec.size() > 3)
-    return errors::InvalidArgument("rank > 3 not supported");
-
-  rev.resize(vec.size());
-
-  if (vec.size() == 1) { 
-    rev[0] = vec[0];
-  }
-  else if (vec.size() == 2) {
-    rev[0] = vec[1];
-    rev[1] = vec[0];
-  }
-  else if (vec.size() == 3) {
-    rev[0] = vec[2];
-    rev[1] = vec[1];
-    rev[2] = vec[0];
   }
 
   return Status::OK();

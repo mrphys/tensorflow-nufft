@@ -2048,10 +2048,10 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
-    int kernel_width = this->spread_params_.kernel_width;// psi's support in terms of number of cells
-    FloatType es_c=this->spread_params_.kernel_c;
-    FloatType es_beta=this->spread_params_.kernel_beta;
-    int max_subprob_size=this->options_.gpu_max_subproblem_size;
+  int kernel_width = this->spread_params_.kernel_width;// psi's support in terms of number of cells
+  FloatType es_c=this->spread_params_.kernel_c;
+  FloatType es_beta=this->spread_params_.kernel_beta;
+  int max_subprob_size=this->options_.gpu_max_subproblem_size;
 
   GpuComplex<FloatType>* d_c = this->c_;
   GpuComplex<FloatType>* d_fw = this->grid_data_;

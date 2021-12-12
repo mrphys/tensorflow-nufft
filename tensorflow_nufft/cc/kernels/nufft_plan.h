@@ -234,6 +234,12 @@ class PlanBase {
   int grid_dims_[3];
   // The total element count of the fine grid.
   int grid_size_;
+  // Pointers to the non-uniform point coordinates. In the GPU case, these are
+  // device pointers. These pointers are not owned by the plan. Unused pointers
+  // are set to nullptr.
+  FloatType* points_[3];
+  // The total number of points.
+  int num_points_;
   // Pointer to the op kernel context.
   OpKernelContext* context_;
   // Reference to the active device.
@@ -301,11 +307,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // The parameters for the spreading algorithm/s.
   SpreadParameters<FloatType> spread_params_;
 
-
-  int nj;          // number of NU pts in type 1,2 (for type 3, num input x pts)
-  int nk;          // number of NU freq pts (type 3 only)
-
-  int64_t nf;       // total # fine grid points (product of the above three)
   
   FloatType* phiHat1;    // FT of kernel in t1,2, on x-axis mode grid
   FloatType* phiHat2;    // " y-axis.
@@ -313,9 +314,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   
   int64_t *sortIndices;  // precomputed NU pt permutation, speeds spread/interp
   bool didSort;         // whether binsorting used (false: identity perm used)
-
-  FloatType *X, *Y, *Z;  // for t1,2: ptr to user-supplied NU pts (no new allocs).
-                   // for t3: allocated as "primed" (scaled) src pts x'_j, etc
 };
 
 #if GOOGLE_CUDA
@@ -451,13 +449,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // The parameters for the spreading algorithm/s.
   SpreadParameters<FloatType> spread_params_;
   
-
-  // Pointers to the non-uniform point coordinates. In the GPU case, these are
-  // device pointers. These pointers are not owned by the plan. Unused pointers
-  // are set to nullptr.
-  FloatType* points_[3];
-  // The total number of points.
-  int num_points_;
   // The GPU bin dimension sizes.
   int bin_dims_[3];
   // The number of GPU bins.

@@ -132,9 +132,11 @@ Status Plan<CPUDevice, FloatType>::initialize(
       rank, tol, this->options_, this->spread_params_));
 
   // set others as defaults (or unallocated for arrays)...
-  this->X = nullptr; this->Y = nullptr; this->Z = nullptr;
+  for (int i = 0; i < 3; i++) {
+    this->points_[i] = nullptr;
+  }
   this->phiHat1 = nullptr; this->phiHat2 = nullptr; this->phiHat3 = nullptr;
-  this->sortIndices = nullptr;               // used in all three types
+  this->sortIndices = nullptr;
   
   // FFTW initialization must be done single-threaded.
   #pragma omp critical

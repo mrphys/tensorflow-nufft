@@ -245,7 +245,7 @@ int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch
 /*
   Spreads (or interpolates) a batch of batch_size strength vectors in cBatch
   to (or from) the batch of fine working grids p->grid_data_, using the same set of
-  (index-sorted) NU points p->X,Y,Z for each vector in the batch.
+  (index-sorted) NU points p->points_[0],Y,Z for each vector in the batch.
   The direction (spread vs interpolate) is set by p->spread_params_.spread_direction.
   Returns 0 (no error reporting for now).
   Notes:
@@ -276,9 +276,9 @@ int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch
   #pragma omp parallel for num_threads(nthr_outer)
   for (int i=0; i<batch_size; i++) {
     CPX *fwi = fBatch + i*p->grid_size_;  // start of i'th fw array in wkspace
-    CPX *ci = cBatch + i*p->nj;            // start of i'th c array in cBatch
+    CPX *ci = cBatch + i*p->num_points_;            // start of i'th c array in cBatch
     spreadinterpSorted(p->sortIndices, grid_size_0, grid_size_1, grid_size_2,
-                       (FLT*)fwi, p->nj, p->X, p->Y, p->Z,
+                       (FLT*)fwi, p->num_points_, p->points_[0], p->points_[1], p->points_[2],
                        (FLT*)ci, p->spread_params_, p->didSort);
   }
   return 0;
@@ -340,8 +340,7 @@ int FINUFFT_SETPTS(Plan<CPUDevice, FLT>* p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj
    and NU target freqs (stu), evaluates spreading kernel FT at all target freqs.
 */
 {
-  CNTime timer; timer.start();
-  p->nj = nj;    // the user only now chooses how many NU (x,y,z) pts
+  p->num_points_ = nj;    // the user only now chooses how many NU (x,y,z) pts
 
   BIGINT grid_size_0 = p->grid_dims_[0];
   BIGINT grid_size_1 = 1;
@@ -351,21 +350,20 @@ int FINUFFT_SETPTS(Plan<CPUDevice, FLT>* p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj
 
   if (p->type_ != TransformType::TYPE_3) {  // ------------------ TYPE 1,2 SETPTS -------------------
                      // (all we can do is check and maybe bin-sort the NU pts)
-    p->X = xj;       // plan must keep pointers to user's fixed NU pts
-    p->Y = yj;
-    p->Z = zj;
-    int ier = spreadcheck(grid_size_0, grid_size_1, grid_size_2, p->nj, xj, yj, zj, p->spread_params_);
-    if (p->options_.verbosity>1) printf("[%s] spreadcheck (%d):\t%.3g s\n", __func__, p->spread_params_.check_bounds, timer.elapsedsec());
+    p->points_[0] = xj;       // plan must keep pointers to user's fixed NU pts
+    p->points_[1] = yj;
+    p->points_[2] = zj;
+    int ier = spreadcheck(grid_size_0, grid_size_1, grid_size_2, p->num_points_, xj, yj, zj, p->spread_params_);
+
     if (ier)         // no warnings allowed here
       return ier;    
-    timer.restart();
-    p->sortIndices = (BIGINT *)malloc(sizeof(BIGINT)*p->nj);
+
+    p->sortIndices = (BIGINT *)malloc(sizeof(BIGINT)*p->num_points_);
     if (!p->sortIndices) {
       fprintf(stderr,"[%s] failed to allocate sortIndices!\n",__func__);
       return ERR_SPREAD_ALLOC;
     }
-    p->didSort = indexSort(p->sortIndices, grid_size_0, grid_size_1, grid_size_2, p->nj, xj, yj, zj, p->spread_params_);
-    if (p->options_.verbosity) printf("[%s] sort (didSort=%d):\t\t%.3g s\n", __func__,p->didSort, timer.elapsedsec());
+    p->didSort = indexSort(p->sortIndices, grid_size_0, grid_size_1, grid_size_2, p->num_points_, xj, yj, zj, p->spread_params_);
 
     
   } else {   // ------------------------- TYPE 3 SETPTS -----------------------
@@ -386,7 +384,7 @@ int FINUFFT_SPREADINTERP(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk) {
     // current batch is either batch_size, or possibly truncated if last one
     int thisBatchSize = min(p->num_transforms_ - b*p->batch_size_, p->batch_size_);
     int bB = b*p->batch_size_;         // index of vector, since batchsizes same
-    CPX* cjb = cj + bB*p->nj;        // point to batch of weights
+    CPX* cjb = cj + bB*p->num_points_;        // point to batch of weights
     CPX* fkb = fk + bB*p->mode_count_;         // point to batch of mode coeffs
     if (p->options_.verbosity>1) printf("[%s] start batch %d (size %d):\n",__func__, b,thisBatchSize);
     
@@ -436,13 +434,13 @@ int FINUFFT_EXECUTE(Plan<CPUDevice, FLT>* p, CPX* cj, CPX* fk){
       // current batch is either batch_size, or possibly truncated if last one
       int thisBatchSize = min(p->num_transforms_ - b*p->batch_size_, p->batch_size_);
       int bB = b*p->batch_size_;         // index of vector, since batchsizes same
-      CPX* cjb = cj + bB*p->nj;        // point to batch of weights
+      CPX* cjb = cj + bB*p->num_points_;        // point to batch of weights
       CPX* fkb = fk + bB*p->mode_count_;         // point to batch of mode coeffs
       if (p->options_.verbosity>1) printf("[%s] start batch %d (size %d):\n",__func__, b,thisBatchSize);
       
       // STEP 1: (varies by type)
       timer.restart();
-      if (p->type_ == TransformType::TYPE_1) {  // type 1: spread NU pts p->X, weights cj, to fw grid
+      if (p->type_ == TransformType::TYPE_1) {  // type 1: spread NU pts p->points_[0], weights cj, to fw grid
         spreadinterpSortedBatch(thisBatchSize, p, cjb);
         t_sprint += timer.elapsedsec();
       } else {          //  type 2: amplify Fourier coeffs fk into 0-padded fw

@@ -76,7 +76,7 @@ class NUFFTOpsTest(tf.test.TestCase):
                  device=None):
     """Test NUFFT op result and gradients against naive NUDFT results."""
     # pylint: disable=unexpected-keyword-arg
-
+    # tf.debugging.set_log_device_placement(True)
     # Set random seed.
     tf.random.set_seed(0)
 
@@ -124,7 +124,7 @@ class NUFFTOpsTest(tf.test.TestCase):
       grad_nufft = tape.gradient(result_nufft, source)
       grad_nudft = tape.gradient(result_nudft, source)
 
-      tol = 1.e-3
+      tol = DEFAULT_TOLERANCE
       self.assertAllClose(result_nudft, result_nufft,
                           rtol=tol, atol=tol)
       self.assertAllClose(grad_nufft, grad_nudft,
@@ -314,11 +314,73 @@ class NUFFTOpsTest(tf.test.TestCase):
       grad_nufft = tape.gradient(result_nufft, source)
       grad_nudft = tape.gradient(result_nudft, source)
 
-      tol = 1.e-3
+      tol = DEFAULT_TOLERANCE
       self.assertAllClose(result_nudft, result_nufft,
                           rtol=tol, atol=tol)
       self.assertAllClose(grad_nufft, grad_nudft,
                           rtol=tol, atol=tol)
+
+
+  @parameterized(device=['/cpu:0', '/gpu:0'])
+  def test_interp_3d_many_points(self, device): # pylint: disable=missing-param-doc
+    """Test 3D interpolation with a large points array."""
+    for _ in range(5):
+      # We repeat this test several times because non-deterministic behaviour
+      # has been observed with this kind of data, so make sure it's not
+      # happening.
+      with tf.device(device):
+        num_points = 3000000
+        rng = tf.random.Generator.from_seed(0)
+        points = rng.uniform([num_points, 3], minval=-np.pi, maxval=np.pi)
+        source = tf.complex(tf.ones([128, 128, 128]),
+                            tf.zeros([128, 128, 128]))
+        result = nufft_ops.interp(source, points)
+        self.assertAllClose(tf.math.real(result), tf.ones([num_points]),
+                            rtol=DEFAULT_TOLERANCE, atol=DEFAULT_TOLERANCE)
+
+
+  def test_parallel_iteration(self):
+    """Test NUFFT with parallel iterations."""
+    rank = 2
+    num_points = 300
+    grid_shape = [24] * rank
+    batch_size = 8
+    parallel_iterations = 4
+    for _ in range(2):
+      with tf.device('/cpu:0'):
+        rng = tf.random.Generator.from_seed(10)
+        points = rng.uniform([batch_size, num_points, rank],
+                             minval=-np.pi, maxval=np.pi)
+        source = tf.complex(tf.ones([batch_size, num_points]),
+                            tf.zeros([batch_size, num_points]))
+        @tf.function
+        def parallel_nufft_adjoint(source, points):
+          def nufft_adjoint(inputs):
+            src, pts = inputs
+            return nufft_ops.nufft(src, pts, grid_shape=grid_shape,
+                                   transform_type='type_1',
+                                   fft_direction='backward')
+          return tf.map_fn(nufft_adjoint, [source, points],
+                           parallel_iterations=parallel_iterations,
+                           fn_output_signature=tf.TensorSpec(
+                               grid_shape, tf.complex64))
+
+        @tf.function
+        def parallel_nudft_adjoint(source, points):
+          def nudft_adjoint(inputs):
+            src, pts = inputs
+            return nufft_ops.nudft(src, pts, grid_shape=grid_shape,
+                                   transform_type='type_1',
+                                   fft_direction='backward')
+          return tf.map_fn(nudft_adjoint, [source, points],
+                           parallel_iterations=parallel_iterations,
+                           fn_output_signature=tf.TensorSpec(
+                               grid_shape, tf.complex64))
+
+        result_nufft = parallel_nufft_adjoint(source, points)
+        result_nudft = parallel_nudft_adjoint(source, points)
+
+        self.assertAllClose(result_nufft, result_nudft, rtol=1e-4, atol=1e-4)
 
 
   def test_static_shape(self): # pylint: disable=missing-function-docstring
@@ -337,9 +399,9 @@ class NUFFTOpsTest(tf.test.TestCase):
                                [None, 40, 200, 200], 'type_1', [200, 200])
     self._assert_static_shapes([None, None], [None, 1000, 2],
                                [None, 100, 200], 'type_1', [100, 200])
+    self._assert_static_shapes([None, None], [None, 1000, 2],
+                               [None, None, None], 'type_1', 'tensor')
 
-    self._assert_static_raises([None, 40, 1000], [None, 1000, 2], 'type_1',
-                               regex="grid_shape attr must be fully defined")
     self._assert_static_raises([8, 100, 100], [6, 1000, 2],
                                regex="Dimensions must be equal")
     self._assert_static_raises([50, 50, 50, 50], [500, 4],
@@ -351,9 +413,11 @@ class NUFFTOpsTest(tf.test.TestCase):
 
     source = tf.compat.v1.placeholder(tf.complex64, source_shape)
     points = tf.compat.v1.placeholder(tf.float32, points_shape)
+    if grid_shape == 'tensor':
+      grid_shape = tf.compat.v1.placeholder(tf.int32, [2])
     target = nufft_ops.nufft(source, points,
-                             transform_type=transform_type,
-                             grid_shape=grid_shape)
+                             grid_shape=grid_shape,
+                             transform_type=transform_type)
     if target.shape.rank is not None:
       self.assertEqual(target.shape.as_list(), target_shape)
     else:
@@ -366,6 +430,8 @@ class NUFFTOpsTest(tf.test.TestCase):
 
     source = tf.compat.v1.placeholder(tf.complex64, source_shape)
     points = tf.compat.v1.placeholder(tf.float32, points_shape)
+    if grid_shape == 'tensor':
+      grid_shape = tf.compat.v1.placeholder(tf.int32, [2])
     if regex is not None:
       with self.assertRaisesRegex(ValueError, regex):
         nufft_ops.nufft(source, points,
@@ -376,24 +442,6 @@ class NUFFTOpsTest(tf.test.TestCase):
         nufft_ops.nufft(source, points,
                         transform_type=transform_type,
                         grid_shape=grid_shape)
-
-
-  @parameterized(device=['/cpu:0', '/gpu:0'])
-  def test_interp_3d_many_points(self, device): # pylint: disable=missing-param-doc
-    """Test 3D interpolation with a large points array."""
-    for _ in range(5):
-      # We repeat this test several times because non-deterministic behaviour
-      # has been observed with this kind of data, so make sure it's not
-      # happening.
-      with tf.device(device):
-        num_points = 3000000
-        rng = tf.random.Generator.from_seed(0)
-        points = rng.uniform([num_points, 3], minval=-np.pi, maxval=np.pi)
-        source = tf.complex(tf.ones([128, 128, 128]),
-                            tf.zeros([128, 128, 128]))
-        result = nufft_ops.interp(source, points)
-        self.assertAllClose(tf.math.real(result), tf.ones([num_points]),
-                            rtol=1e-5, atol=1e-5)
 
 
 class NUFFTOpsBenchmark(tf.test.Benchmark):
@@ -478,6 +526,9 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
         print(tabulate(r, headers=h))
       except ModuleNotFoundError:
         pass
+
+
+DEFAULT_TOLERANCE = 1.e-3
 
 
 if __name__ == '__main__':

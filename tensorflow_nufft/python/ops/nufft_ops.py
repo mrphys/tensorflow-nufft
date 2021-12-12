@@ -24,9 +24,30 @@ _nufft_ops = tf.load_op_library(
   tf.compat.v1.resource_loader.get_path_to_datafile('_nufft_ops.so'))
 
 
-nufft = _nufft_ops.nufft
 interp = _nufft_ops.interp
 spread = _nufft_ops.spread
+
+
+def nufft(source,  # pylint: disable=missing-function-docstring
+          points,
+          grid_shape=None,
+          transform_type='type_2',
+          fft_direction='forward',
+          tol=1e-6):
+  # This Python wrapper provides a default value for the `grid_shape` input.
+  if grid_shape is None:
+    # We only need `grid_shape` to pass TF framework checks (i.e. int32 tensor).
+    # For type-2 transforms the value of this is irrelevant as it is ignored by
+    # the C++ op. For type-1 transform the C++ op already implements the
+    # relevant checks.
+    grid_shape = tf.constant([], dtype=tf.int32)
+
+  return _nufft_ops.nufft(source, points, grid_shape,
+                          transform_type=transform_type,
+                          fft_direction=fft_direction,
+                          tol=tol)
+
+nufft.__doc__ = _nufft_ops.nufft.__doc__
 
 
 @tf.RegisterGradient("NUFFT")
@@ -52,10 +73,10 @@ def _nufft_grad(op, grad):
   # viceversa.
   if transform_type == b'type_1':   # nonuniform to uniform
     grad_transform_type = 'type_2'  # uniform to nonuniform
-    grad_grid_shape = []
+    grad_grid_shape = [] # grid shape is unused for type-2 transforms
   elif transform_type == b'type_2':
     grad_transform_type = 'type_1'
-    grad_grid_shape = source.shape[-rank:]
+    grad_grid_shape = tf.shape(source)[-rank:]
 
   # Gradient of forward transform is computed using backward transform and
   # viceversa.
@@ -81,8 +102,9 @@ def _nufft_grad(op, grad):
   grad_source = tf.reshape(
     tf.math.reduce_sum(grad_source, src_rax), tf.shape(source))
 
-  # Gradients with respect to the points tensor are not implemented.
-  return [grad_source, None]
+  # Gradient with respect to the points tensor is not implemented.
+  # Gradient with respect to the grid shape is not meaningful.
+  return [grad_source, None, None]
 
 
 def nudft(source,

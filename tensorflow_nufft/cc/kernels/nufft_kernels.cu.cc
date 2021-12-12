@@ -14,14 +14,13 @@ limitations under the License.
 ==============================================================================*/
 
 #if GOOGLE_CUDA
-
 #define EIGEN_USE_GPU
-
-#include "nufft.h"
 
 #include "tensorflow/core/framework/op_kernel.h"
 
-#include "cufinufft.h"
+#include "tensorflow_nufft/cc/kernels/nufft_kernels.h"
+#include "tensorflow_nufft/cc/kernels/nufft_options.h"
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
 
 namespace tensorflow {
@@ -30,183 +29,27 @@ typedef Eigen::GpuDevice GPUDevice;
 
 namespace nufft {
 
-template<>
-struct plan_type<GPUDevice, float> {
-  typedef cufinufftf_plan type;
-};
-
-template<>
-struct plan_type<GPUDevice, double> {
-  typedef cufinufft_plan type;
-};
-
-template<>
-struct opts_type<GPUDevice, float> {
-  typedef cufinufft_opts type;
-};
-
-template<>
-struct opts_type<GPUDevice, double> {
-  typedef cufinufft_opts type;
-};
-
-template<>
-void default_opts<GPUDevice, float>(
-    int type, int dim, typename opts_type<GPUDevice, float>::type* opts) {
-  cufinufftf_default_opts(type, dim, opts);
-};
-
-template<>
-void default_opts<GPUDevice, double>(
-    int type, int dim, typename opts_type<GPUDevice, double>::type* opts) {
-  cufinufft_default_opts(type, dim, opts);
-};
-
-template<>
-int makeplan<GPUDevice, float>(
-    int type, int dim, int64_t* nmodes, int iflag, int ntr, float eps,
-    typename plan_type<GPUDevice, float>::type* plan,
-    typename opts_type<GPUDevice, float>::type* opts) {
-
-  int* nmodes_int = new int[dim];
-  for (int d = 0; d < dim; d++)
-    nmodes_int[d] = static_cast<int>(nmodes[d]);
-
-  int err = cufinufftf_makeplan(
-    type, dim, nmodes_int, iflag, ntr, eps, 0, plan, opts);
-  
-  delete[] nmodes_int;
-  return err;
-};
-
-template<>
-int makeplan<GPUDevice, double>(
-    int type, int dim, int64_t* nmodes, int iflag, int ntr, double eps,
-    typename plan_type<GPUDevice, double>::type* plan,
-    typename opts_type<GPUDevice, double>::type* opts) {
-
-  int* nmodes_int = new int[dim];
-  for (int d = 0; d < dim; d++)
-    nmodes_int[d] = static_cast<int>(nmodes[d]);
-
-  int err = cufinufft_makeplan(
-    type, dim, nmodes_int, iflag, ntr, eps, 0, plan, opts);
-  
-  delete[] nmodes_int;
-  return err;
-};
-
-template<>
-int setpts<GPUDevice, float>(
-    typename plan_type<GPUDevice, float>::type plan,
-    int64_t M, float* x, float* y, float* z,
-    int64_t N, float* s, float* t, float* u) {
-  return cufinufftf_setpts(M, x, y, z, N, s, t, u, plan);
-};
-
-template<>
-int setpts<GPUDevice, double>(
-    typename plan_type<GPUDevice, double>::type plan,
-    int64_t M, double* x, double* y, double* z,
-    int64_t N, double* s, double* t, double* u) {
-  return cufinufft_setpts(M, x, y, z, N, s, t, u, plan);
-};
-
-template<>
-int execute<GPUDevice, float>(
-    typename plan_type<GPUDevice, float>::type plan,
-    std::complex<float>* c, std::complex<float>* f) {
-  return cufinufftf_execute(
-    reinterpret_cast<cuFloatComplex*>(c),
-    reinterpret_cast<cuFloatComplex*>(f),
-    plan);
-};
-
-template<>
-int execute<GPUDevice, double>(
-    typename plan_type<GPUDevice, double>::type plan,
-    std::complex<double>* c, std::complex<double>* f) {
-  return cufinufft_execute(
-    reinterpret_cast<cuDoubleComplex*>(c),
-    reinterpret_cast<cuDoubleComplex*>(f),
-    plan);
-};
-
-template<>
-int interp<GPUDevice, float>(
-    typename plan_type<GPUDevice, float>::type plan,
-    std::complex<float>* c, std::complex<float>* f) {
-  return cufinufftf_interp(
-    reinterpret_cast<cuFloatComplex*>(c),
-    reinterpret_cast<cuFloatComplex*>(f),
-    plan);
-};
-
-template<>
-int interp<GPUDevice, double>(
-    typename plan_type<GPUDevice, double>::type plan,
-    std::complex<double>* c, std::complex<double>* f) {
-  return cufinufft_interp(
-    reinterpret_cast<cuDoubleComplex*>(c),
-    reinterpret_cast<cuDoubleComplex*>(f),
-    plan);
-};
-
-template<>
-int spread<GPUDevice, float>(
-    typename plan_type<GPUDevice, float>::type plan,
-    std::complex<float>* c, std::complex<float>* f) {
-  return cufinufftf_spread(
-    reinterpret_cast<cuFloatComplex*>(c),
-    reinterpret_cast<cuFloatComplex*>(f),
-    plan);
-};
-
-template<>
-int spread<GPUDevice, double>(
-    typename plan_type<GPUDevice, double>::type plan,
-    std::complex<double>* c, std::complex<double>* f) {
-  return cufinufft_spread(
-    reinterpret_cast<cuDoubleComplex*>(c),
-    reinterpret_cast<cuDoubleComplex*>(f),
-    plan);
-};
-
-template<>
-int destroy<GPUDevice, float>(
-    typename plan_type<GPUDevice, float>::type plan) {
-  return cufinufftf_destroy(plan);
-};
-
-template<>
-int destroy<GPUDevice, double>(
-    typename plan_type<GPUDevice, double>::type plan) {
-  return cufinufft_destroy(plan);
-};
-
-}   // namespace nufft
-
-template<typename T>
-struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
+template<typename FloatType>
+struct DoNUFFT<GPUDevice, FloatType> : DoNUFFTBase<GPUDevice, FloatType> {
   Status operator()(OpKernelContext* ctx,
-                    int type,
+                    TransformType type,
                     int rank,
-                    int iflag,
-                    int ntrans,
-                    T tol,
-                    OpType optype,
-                    int64_t nbdims,
-                    int64_t* source_bdims,
-                    int64_t* points_bdims,
-                    int64_t* nmodes,
-                    int64_t npts,
-                    T* points,
-                    std::complex<T>* source,
-                    std::complex<T>* target) {
+                    FftDirection fft_direction,
+                    int num_transforms,
+                    FloatType tol,
+                    OpType op_type,
+                    int64_t batch_rank,
+                    int64_t* source_batch_dims,
+                    int64_t* points_batch_dims,
+                    int64_t* num_modes,
+                    int64_t num_points,
+                    FloatType* points,
+                    Complex<GPUDevice, FloatType>* source,
+                    Complex<GPUDevice, FloatType>* target) {
     return this->compute(
-      ctx, type, rank, iflag, ntrans, tol, optype,
-      nbdims, source_bdims, points_bdims,
-      nmodes, npts, points, source, target);
+        ctx, type, rank, fft_direction, num_transforms, tol, op_type,
+        batch_rank, source_batch_dims, points_batch_dims,
+        num_modes, num_points, points, source, target);
   }
 };
 
@@ -214,6 +57,7 @@ struct DoNUFFT<GPUDevice, T> : DoNUFFTBase<GPUDevice, T> {
 template struct DoNUFFT<GPUDevice, float>;
 template struct DoNUFFT<GPUDevice, double>;
 
-}   // namespace tensorflow
+}  // namespace nufft
+}  // namespace tensorflow
 
 #endif  // GOOGLE_CUDA

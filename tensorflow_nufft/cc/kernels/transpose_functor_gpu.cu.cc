@@ -58,7 +58,7 @@ template <typename T, bool conjugate>
 void TransposeSimple(const GPUDevice& d, const Tensor& in,
                      const gtl::ArraySlice<int32> perm, Tensor* out) {
   // Ensures we can use 32-bit index.
-  const int64 nelem = in.NumElements();
+  const int64_t nelem = in.NumElements();
   CHECK_LT(nelem, kint32max) << "Tensor too large to transpose on GPU";
   // Pack strides and permutation into one buffer.
   const int32 ndims = in.dims();

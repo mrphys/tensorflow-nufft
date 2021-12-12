@@ -24,7 +24,6 @@ using shape_inference::InferenceContext;
 using shape_inference::ShapeHandle;
 
 Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
-
   // Input shapes.
   ShapeHandle source_shape = c->input(0);
   ShapeHandle points_shape = c->input(1);
@@ -43,22 +42,13 @@ Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
     c->set_output(0, c->UnknownShape());
     return Status::OK();
   }
-  int64 rank = c->Value(rank_handle);
+  int64_t rank = c->Value(rank_handle);
 
-  // Validate `grid_shape` attribute.
+  // Get `grid_shape` input.
   ShapeHandle grid_shape;
   if (transform_type == 1) {
-    PartialTensorShape grid_tensor_shape;
-    TF_RETURN_IF_ERROR(c->GetAttr("grid_shape", &grid_tensor_shape));
-    TF_RETURN_IF_ERROR(
-      c->MakeShapeFromPartialTensorShape(grid_tensor_shape, &grid_shape));
+    TF_RETURN_IF_ERROR(c->MakeShapeFromShapeTensor(2, &grid_shape));
     TF_RETURN_IF_ERROR(c->WithRank(grid_shape, rank, &grid_shape));
-    // if (!c->RankKnown(grid_shape)) {
-    //   return errors::InvalidArgument("grid_shape attr must have known rank")
-    // } 
-    if (!c->FullyDefined(grid_shape)) {
-      return errors::InvalidArgument("grid_shape attr must be fully defined");
-    }
   }
 
   // Get number of nonuniform points.
@@ -69,16 +59,16 @@ Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
     TF_RETURN_IF_ERROR(c->Merge(num_points, c->Dim(source_shape, -1),
                                 &num_points));
   }
-  
+
   // The `source` input is potentially an N-D batch of elements. Each element
   // in the batch is 1D for type-1 transforms and N-D for type-2 transforms,
   // where N is the rank of the op.
-  int64 source_first_elem_axis;
+  int64_t source_first_elem_axis;
   switch (transform_type) {
-    case 1: // nonuniform to uniform
+    case 1:  // nonuniform to uniform
       source_first_elem_axis = -1;
       break;
-    case 2: // uniform to nonuniform
+    case 2:  // uniform to nonuniform
       source_first_elem_axis = -rank;
       break;
   }
@@ -97,11 +87,11 @@ Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
 
   ShapeHandle output_shape;
   switch (transform_type) {
-    case 1: // nonuniform to uniform
+    case 1:  // nonuniform to uniform
       TF_RETURN_IF_ERROR(c->Concatenate(
           output_batch_shape, grid_shape, &output_shape));
       break;
-    case 2: // uniform to nonuniform
+    case 2:  // uniform to nonuniform
       TF_RETURN_IF_ERROR(c->Concatenate(
           output_batch_shape, c->Vector(num_points), &output_shape));
       break;
@@ -113,20 +103,19 @@ Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
 
 
 Status NUFFTShapeFn(InferenceContext* c) {
-
   // Validate `transform_type` attribute.
   string transform_type_str;
   TF_RETURN_IF_ERROR(c->GetAttr("transform_type", &transform_type_str));
+
   int transform_type;
   if (transform_type_str == "type_1") {
     transform_type = 1;
   } else if (transform_type_str == "type_2") {
     transform_type = 2;
-  }
-  else {
+  } else {
     return errors::InvalidArgument(
-      "transform_type attr must be 'type_1' or 'type_2', but is ",
-      transform_type_str);
+        "transform_type attr must be 'type_1' or 'type_2', but is ",
+        transform_type_str);
   }
 
   return NUFFTBaseShapeFn(c, transform_type);
@@ -179,10 +168,11 @@ target: The target point set. Has shape `[..., M]`, where the batch shape `...`
 REGISTER_OP("Spread")
   .Attr("Tcomplex: {complex64, complex128} = DT_COMPLEX64")
   .Attr("Treal: {float32, float64} = DT_FLOAT")
+  .Attr("Tshape: {int32, int64} = DT_INT32")
   .Input("source: Tcomplex")
   .Input("points: Treal")
+  .Input("grid_shape: Tshape")
   .Output("target: Tcomplex")
-  .Attr("grid_shape: shape")
   .Attr("tol: float = 1e-6")
   .SetShapeFn(SpreadShapeFn)
   .Doc(R"doc(
@@ -213,10 +203,11 @@ target: The target grid. Has shape `[...] + grid_shape`, where the batch shape
 REGISTER_OP("NUFFT")
   .Attr("Tcomplex: {complex64, complex128} = DT_COMPLEX64")
   .Attr("Treal: {float32, float64} = DT_FLOAT")
+  .Attr("Tshape: {int32, int64} = DT_INT32")
   .Input("source: Tcomplex")
   .Input("points: Treal")
+  .Input("grid_shape: Tshape")
   .Output("target: Tcomplex")
-  .Attr("grid_shape: shape = { unknown_rank: true }")
   .Attr("transform_type: {'type_1', 'type_2'} = 'type_2'")
   .Attr("fft_direction: {'forward', 'backward'} = 'forward'")
   .Attr("tol: float = 1e-6")
@@ -272,4 +263,4 @@ target: The target point set, for type-2 transforms, or the target grid, for
   result of broadcasting the batch shapes of `source` and `points`.
 )doc");
 
-} // namespace tensorflow
+}  // namespace tensorflow

@@ -13,12 +13,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_CORE_KERNELS_TRANSPOSE_FUNCTOR_H_
-#define TENSORFLOW_CORE_KERNELS_TRANSPOSE_FUNCTOR_H_
+#ifndef TENSORFLOW_NUFFT_CC_KERNELS_TRANSPOSE_FUNCTOR_H_
+#define TENSORFLOW_NUFFT_CC_KERNELS_TRANSPOSE_FUNCTOR_H_
 
 #include <numeric>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/tensor_types.h"
@@ -68,7 +69,7 @@ struct Transpose {
 // Implementation details.
 namespace internal {
 
-typedef gtl::InlinedVector<int64, 8> TransposeDimsVec;
+typedef gtl::InlinedVector<int64_t, 8> TransposeDimsVec;
 typedef gtl::InlinedVector<int32, 8> TransposePermsVec;
 
 // Helper function that takes a tensor shape, a permutation, combines the
@@ -250,4 +251,4 @@ inline Status DoMatrixTransposeImpl(const Device& device, const Tensor& in,
 }  // namespace internal
 }  // namespace tensorflow
 
-#endif  // TENSORFLOW_CORE_KERNELS_TRANSPOSE_FUNCTOR_H_
+#endif  // TENSORFLOW_NUFFT_CC_KERNELS_TRANSPOSE_FUNCTOR_H_

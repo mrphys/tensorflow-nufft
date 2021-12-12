@@ -37,7 +37,7 @@ jobs:
 
       - name: Compile shared library
         run: |
-          make PY_VERSION=${{ matrix.py_version }} CXX=/dt7/usr/bin/g++
+          make lib PY_VERSION=${{ matrix.py_version }} CXX=/dt7/usr/bin/g++
 
       - name: Install required packages
         run: |

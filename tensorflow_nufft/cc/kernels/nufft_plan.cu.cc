@@ -1478,11 +1478,6 @@ Status Plan<GPUDevice, FloatType>::initialize(
   //  - If mode_order == FFT, raise unimplemented error.
   //  - If check_bounds == true, raise unimplemented error.
 
-  // Initialize all values to 0. TODO: move to initialization list.
-  this->ms = 0;
-  this->mt = 0;
-  this->mu = 0;
-
   // Copy options.
   this->options_ = options;
 
@@ -1527,11 +1522,6 @@ Status Plan<GPUDevice, FloatType>::initialize(
       rank, tol, this->options_, this->spread_params_));
 
   this->rank_ = rank;
-  this->ms = num_modes[0];
-  if (rank > 1)
-    this->mt = num_modes[1];
-  if (rank > 2)
-    this->mu = num_modes[2];
   this->num_modes_[0] = num_modes[0];
   this->num_modes_[1] = (this->rank_ > 1) ? num_modes[1] : 1;
   this->num_modes_[2] = (this->rank_ > 2) ? num_modes[2] : 1;
@@ -1542,18 +1532,18 @@ Status Plan<GPUDevice, FloatType>::initialize(
 
   // Set the grid sizes.
   TF_RETURN_IF_ERROR(set_grid_size(
-      this->ms, this->options_.gpu_obin_size.x,
+      this->num_modes_[0], this->options_.gpu_obin_size.x,
       this->options_, this->spread_params_, &this->grid_dims_[0]));
   if (rank > 1) {
     TF_RETURN_IF_ERROR(set_grid_size(
-        this->mt, this->options_.gpu_obin_size.y,
+        this->num_modes_[1], this->options_.gpu_obin_size.y,
         this->options_, this->spread_params_, &this->grid_dims_[1]));
   } else {
     this->grid_dims_[1] = 1;
   }
   if (rank > 2) {
     TF_RETURN_IF_ERROR(set_grid_size(
-        this->mu, this->options_.gpu_obin_size.z,
+        this->num_modes_[2], this->options_.gpu_obin_size.z,
         this->options_, this->spread_params_, &this->grid_dims_[2]));
   } else {
     this->grid_dims_[2] = 1;
@@ -1793,12 +1783,12 @@ Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
 
-  int blksize;
+  int batch_size;
   DType* d_fkstart;
   DType* d_cstart;
   
   for (int i=0; i*this->options_.max_batch_size < this->num_transforms_; i++) {
-    blksize = min(this->num_transforms_ - i*this->options_.max_batch_size, 
+    batch_size = min(this->num_transforms_ - i*this->options_.max_batch_size, 
       this->options_.max_batch_size);
     d_cstart  = d_c  + i*this->options_.max_batch_size*this->num_points_;
     d_fkstart = d_fk + i*this->options_.max_batch_size*this->mode_count_;
@@ -1806,7 +1796,7 @@ Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
     this->c_ = d_cstart;
     this->grid_data_ = d_fkstart;
 
-    TF_RETURN_IF_ERROR(this->interp_batch(blksize));
+    TF_RETURN_IF_ERROR(this->interp_batch(batch_size));
   }
   
   using namespace thrust::placeholders;
@@ -1822,12 +1812,12 @@ Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
 
-  int blksize;
+  int batch_size;
   DType* d_fkstart;
   DType* d_cstart;
 
   for (int i=0; i*this->options_.max_batch_size < this->num_transforms_; i++) {
-    blksize = min(this->num_transforms_ - i*this->options_.max_batch_size, 
+    batch_size = min(this->num_transforms_ - i*this->options_.max_batch_size, 
       this->options_.max_batch_size);
     d_cstart   = d_c + i * this->options_.max_batch_size * this->num_points_;
     d_fkstart  = d_fk + i * this->options_.max_batch_size * this->mode_count_;
@@ -1835,7 +1825,7 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
     this->c_  = d_cstart;
     this->grid_data_ = d_fkstart;
 
-    TF_RETURN_IF_ERROR(this->spread_batch(blksize));
+    TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
   }
 
   using namespace thrust::placeholders;
@@ -1850,11 +1840,11 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
-  int blksize;
+  int batch_size;
   DType* d_fkstart;
   DType* d_cstart;
   for (int i=0; i*this->options_.max_batch_size < this->num_transforms_; i++) {
-    blksize = min(this->num_transforms_ - i*this->options_.max_batch_size, 
+    batch_size = min(this->num_transforms_ - i*this->options_.max_batch_size, 
       this->options_.max_batch_size);
     d_cstart = d_c + i*this->options_.max_batch_size*this->num_points_;
     d_fkstart = d_fk + i*this->options_.max_batch_size*this->mode_count_;
@@ -1867,7 +1857,7 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
     this->device_.memset(this->grid_data_, 0, grid_bytes);
 
     // Step 1: Spread
-    TF_RETURN_IF_ERROR(this->spread_batch(blksize));
+    TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
 
     // Step 2: FFT
     auto result = cufftSetStream(this->fft_plan_, this->device_.stream());
@@ -1883,18 +1873,18 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
     }
 
     // Step 3: deconvolve and shuffle
-    TF_RETURN_IF_ERROR(this->deconvolve_batch(blksize));
+    TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
   }
   return Status::OK();
 }
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
-  int blksize;
+  int batch_size;
   DType* d_fkstart;
   DType* d_cstart;
   for (int i=0; i*this->options_.max_batch_size < this->num_transforms_; i++) {
-    blksize = min(this->num_transforms_ - i*this->options_.max_batch_size, 
+    batch_size = min(this->num_transforms_ - i*this->options_.max_batch_size, 
       this->options_.max_batch_size);
     d_cstart  = d_c  + i*this->options_.max_batch_size*this->num_points_;
     d_fkstart = d_fk + i*this->options_.max_batch_size*this->mode_count_;
@@ -1903,7 +1893,7 @@ Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
     this->f_ = d_fkstart;
 
     // Step 1: amplify Fourier coeffs fk and copy into upsampled array fw
-    TF_RETURN_IF_ERROR(this->deconvolve_batch(blksize));
+    TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
 
     // Step 2: FFT
     this->device_.synchronize(); // Is this necessary?
@@ -1920,19 +1910,19 @@ Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
     }
 
     // Step 3: interpolate
-    TF_RETURN_IF_ERROR(this->interp_batch(blksize));
+    TF_RETURN_IF_ERROR(this->interp_batch(batch_size));
   }
   return Status::OK();
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::spread_batch(int blksize) {
+Status Plan<GPUDevice, FloatType>::spread_batch(int batch_size) {
   switch(this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
-      TF_RETURN_IF_ERROR(this->spread_batch_nupts_driven(blksize));
+      TF_RETURN_IF_ERROR(this->spread_batch_nupts_driven(batch_size));
       break;
     case SpreadMethod::SUBPROBLEM:
-      TF_RETURN_IF_ERROR(this->spread_batch_subproblem(blksize));
+      TF_RETURN_IF_ERROR(this->spread_batch_subproblem(batch_size));
       break;
     case SpreadMethod::PAUL:
     case SpreadMethod::BLOCK_GATHER:
@@ -1943,13 +1933,13 @@ Status Plan<GPUDevice, FloatType>::spread_batch(int blksize) {
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::interp_batch(int blksize) {
+Status Plan<GPUDevice, FloatType>::interp_batch(int batch_size) {
   switch(this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
-      TF_RETURN_IF_ERROR(this->interp_batch_nupts_driven(blksize));
+      TF_RETURN_IF_ERROR(this->interp_batch_nupts_driven(batch_size));
       break;
     case SpreadMethod::SUBPROBLEM:
-      TF_RETURN_IF_ERROR(this->interp_batch_subproblem(blksize));
+      TF_RETURN_IF_ERROR(this->interp_batch_subproblem(batch_size));
       break;
     case SpreadMethod::PAUL:
     case SpreadMethod::BLOCK_GATHER:
@@ -1960,7 +1950,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch(int blksize) {
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
+Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int batch_size) {
   dim3 threads_per_block;
   dim3 num_blocks;
 
@@ -1982,7 +1972,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
     case 2:
       switch (this->options_.kernel_evaluation_method) {
         case KernelEvaluationMethod::DIRECT:
-          for (int t = 0; t < blksize; t++) {
+          for (int t = 0; t < batch_size; t++) {
             TF_CHECK_OK(GpuLaunchKernel(
                 SpreadNuptsDriven2DKernel<FloatType>, num_blocks,
                 threads_per_block, 0, this->device_.stream(), this->points_[0],
@@ -1993,7 +1983,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
           }
           break;
         case KernelEvaluationMethod::HORNER:
-          for (int t = 0; t < blksize; t++) {
+          for (int t = 0; t < batch_size; t++) {
             TF_CHECK_OK(GpuLaunchKernel(
                 SpreadNuptsDrivenHorner2DKernel<FloatType>, num_blocks,
                 threads_per_block, 0, this->device_.stream(), this->points_[0],
@@ -2012,7 +2002,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
     case 3:
       switch (this->options_.kernel_evaluation_method) {
         case KernelEvaluationMethod::DIRECT:
-          for (int t = 0; t < blksize; t++) {
+          for (int t = 0; t < batch_size; t++) {
             TF_CHECK_OK(GpuLaunchKernel(
                 SpreadNuptsDriven3DKernel<FloatType>, num_blocks,
                 threads_per_block, 0, this->device_.stream(), this->points_[0],
@@ -2023,7 +2013,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
           }
           break;
         case KernelEvaluationMethod::HORNER:
-          for (int t = 0; t < blksize; t++) {
+          for (int t = 0; t < batch_size; t++) {
             TF_CHECK_OK(GpuLaunchKernel(
                 SpreadNuptsDrivenHorner3DKernel<FloatType>, num_blocks,
                 threads_per_block, 0, this->device_.stream(), this->points_[0],
@@ -2047,7 +2037,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int blksize) {
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
+Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int batch_size) {
   int kernel_width = this->spread_params_.kernel_width;// psi's support in terms of number of cells
   FloatType es_c=this->spread_params_.kernel_c;
   FloatType es_beta=this->spread_params_.kernel_beta;
@@ -2080,7 +2070,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
     case 2:
       switch (this->options_.kernel_evaluation_method) {
         case KernelEvaluationMethod::DIRECT:
-          for (int t = 0; t < blksize; t++) {
+          for (int t = 0; t < batch_size; t++) {
             TF_CHECK_OK(GpuLaunchKernel(
                 SpreadSubproblem2DKernel<FloatType>, num_blocks,
                 threads_per_block, shared_memory_size, this->device_.stream(),
@@ -2095,7 +2085,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
           }
           break;
         case KernelEvaluationMethod::HORNER:
-          for (int t = 0; t < blksize; t++) {
+          for (int t = 0; t < batch_size; t++) {
             TF_CHECK_OK(GpuLaunchKernel(
                 SpreadSubproblemHorner2DKernel<FloatType>, num_blocks,
                 threads_per_block, shared_memory_size, this->device_.stream(),
@@ -2117,7 +2107,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
     case 3:
       switch (this->options_.kernel_evaluation_method) {
         case KernelEvaluationMethod::DIRECT:
-          for (int t = 0; t < blksize; t++) {
+          for (int t = 0; t < batch_size; t++) {
             TF_CHECK_OK(GpuLaunchKernel(
                 SpreadSubproblem3DKernel<FloatType>, num_blocks,
                 threads_per_block, shared_memory_size, this->device_.stream(),
@@ -2133,7 +2123,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
           }
           break;
         case KernelEvaluationMethod::HORNER:
-          for (int t = 0; t < blksize; t++) {
+          for (int t = 0; t < batch_size; t++) {
             TF_CHECK_OK(GpuLaunchKernel(
                 SpreadSubproblemHorner3DKernel<FloatType>, num_blocks,
                 threads_per_block, shared_memory_size, this->device_.stream(),
@@ -2161,7 +2151,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int blksize) {
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
+Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int batch_size) {
   dim3 threads_per_block;
   dim3 num_blocks;
 
@@ -2182,7 +2172,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
       num_blocks.y = 1;
       switch (this->options_.kernel_evaluation_method) {
         case KernelEvaluationMethod::DIRECT:
-          for (int t = 0; t < blksize; t++) {
+          for (int t = 0; t < batch_size; t++) {
             TF_CHECK_OK(GpuLaunchKernel(
                 InterpNuptsDriven2DKernel<FloatType>, num_blocks,
                 threads_per_block, 0, this->device_.stream(), this->points_[0],
@@ -2193,7 +2183,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
           }
           break;
         case KernelEvaluationMethod::HORNER:
-          for (int t = 0; t < blksize; t++) {
+          for (int t = 0; t < batch_size; t++) {
             TF_CHECK_OK(GpuLaunchKernel(
                 InterpNuptsDrivenHorner2DKernel<FloatType>, num_blocks,
                 threads_per_block, 0, this->device_.stream(), this->points_[0],
@@ -2216,7 +2206,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
       num_blocks.y = 1;
       switch (this->options_.kernel_evaluation_method) {
         case KernelEvaluationMethod::DIRECT:
-          for (int t = 0; t < blksize; t++) {
+          for (int t = 0; t < batch_size; t++) {
             TF_CHECK_OK(GpuLaunchKernel(
                 InterpNuptsDriven3DKernel<FloatType>, num_blocks,
                 threads_per_block, 0, this->device_.stream(), this->points_[0],
@@ -2227,7 +2217,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
           }
           break;
         case KernelEvaluationMethod::HORNER:
-          for (int t = 0; t < blksize; t++) {
+          for (int t = 0; t < batch_size; t++) {
             TF_CHECK_OK(GpuLaunchKernel(
                 InterpNuptsDrivenHorner3DKernel<FloatType>, num_blocks,
                 threads_per_block, 0, this->device_.stream(), this->points_[0],
@@ -2250,7 +2240,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int blksize) {
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
+Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int batch_size) {
     int kernel_width = this->spread_params_.kernel_width;
     FloatType es_c = this->spread_params_.kernel_c;
     FloatType es_beta = this->spread_params_.kernel_beta;
@@ -2281,7 +2271,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
   switch (this->rank_) {
     case 2:
       if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
-        for (int t = 0; t < blksize; t++) {
+        for (int t = 0; t < batch_size; t++) {
           TF_CHECK_OK(GpuLaunchKernel(
               InterpSubproblemHorner2DKernel<FloatType>, num_blocks,
               threads_per_block, shared_memory_size, this->device_.stream(),
@@ -2294,7 +2284,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
               pirange));
         }
       } else {
-        for (int t = 0; t < blksize; t++) {
+        for (int t = 0; t < batch_size; t++) {
           TF_CHECK_OK(GpuLaunchKernel(
               InterpSubproblem2DKernel<FloatType>, num_blocks,
               threads_per_block, shared_memory_size, this->device_.stream(),
@@ -2309,7 +2299,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
       }
       break;
     case 3:
-      for (int t = 0; t < blksize; t++) {
+      for (int t = 0; t < batch_size; t++) {
         if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
           TF_CHECK_OK(GpuLaunchKernel(
               InterpSubproblemHorner3DKernel<FloatType>, num_blocks,
@@ -2345,7 +2335,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int blksize) {
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
+Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
   int threads_per_block = 256;
   int num_blocks = (this->mode_count_ + threads_per_block - 1) / threads_per_block;
 
@@ -2353,7 +2343,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
     
     switch (this->rank_) {
       case 2:
-        for (int t = 0; t < blksize; t++) {
+        for (int t = 0; t < batch_size; t++) {
           TF_CHECK_OK(GpuLaunchKernel(
               Deconvolve2DKernel<FloatType>, num_blocks, threads_per_block, 0,
               this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
@@ -2364,7 +2354,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
         }
         break;
       case 3:
-        for (int t = 0; t < blksize; t++) {
+        for (int t = 0; t < batch_size; t++) {
           TF_CHECK_OK(GpuLaunchKernel(
               Deconvolve3DKernel<FloatType>, num_blocks, threads_per_block, 0,
               this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
@@ -2382,7 +2372,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
     this->device_.memset(this->grid_data_, 0, grid_bytes);
     switch (this->rank_) {
       case 2:
-        for (int t = 0; t < blksize; t++) {
+        for (int t = 0; t < batch_size; t++) {
           TF_CHECK_OK(GpuLaunchKernel(
               Amplify2DKernel<FloatType>, num_blocks, threads_per_block, 0,
               this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
@@ -2393,7 +2383,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int blksize) {
         }
         break;
       case 3:
-        for (int t = 0; t < blksize; t++) {
+        for (int t = 0; t < batch_size; t++) {
           TF_CHECK_OK(GpuLaunchKernel(
               Amplify3DKernel<FloatType>, num_blocks, threads_per_block, 0,
               this->device_.stream(), this->num_modes_[0], this->num_modes_[1],

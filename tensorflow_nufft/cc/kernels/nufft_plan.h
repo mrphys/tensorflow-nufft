@@ -199,19 +199,27 @@ class PlanBase {
                             FloatType tol,
                             const Options& options) = 0;
 
-  // Sets the number and coordinates of the non-uniform points. Allocates GPU
-  // arrays with the required sizes. Rescales the non-uniform points to the
-  // range used by the spreader. Determines the spreader parameters that depend
-  // on the non-uniform points.
+  // Sets the number and coordinates of the non-uniform points. Allocates arrays
+  // arrays that depend on the number of points. Maybe sorts the non-uniform
+  // points. Maybe rescales the non-uniform points to the range used by the
+  // spreader. Determines the spreader parameters that depend on the non-uniform
+  // points. Must be called after `initialize`.
   virtual Status set_points(int num_points,
                             FloatType* points_x,
                             FloatType* points_y,
                             FloatType* points_z) = 0;
 
+  // Executes the plan. Must be called after initialize() and set_points(). `c`
+  // and `f` are the non-uniform and uniform grid arrays, respectively. Each
+  // may be an input or an output depending on the type of the transform.
   virtual Status execute(DType* c, DType* f) = 0;
 
+  // Performs the interpolation step only. Must be called after initialize() and
+  // set_points().
   virtual Status interp(DType* c, DType* f) = 0;
 
+  // Performs the spreading step only. Must be called after initialize() and
+  // set_points().
   virtual Status spread(DType* c, DType* f) = 0;
 
  public: // TODO: make protected
@@ -327,8 +335,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   Plan(OpKernelContext* context)
       : PlanBase<GPUDevice, FloatType>(context) { }
 
-  // Frees any dynamically allocated memory not handled by the op kernel and
-  // destroys the FFT plan.
   ~Plan();
 
   Status initialize(TransformType type,
@@ -343,131 +349,58 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
                     FloatType* points_x,
                     FloatType* points_y,
                     FloatType* points_z) override;
-
-  /*
-	"exec" stage (single and double precision versions).
-
-	The actual transformation is done here. Type and dimension of the
-	transformation are defined in d_plan in previous stages.
-
-        See ../docs/cppdoc.md for main user-facing documentation.
-
-	Input/Output:
-	d_c   a size d_plan->num_points_ CPX array on gpu (input for Type 1; output for Type
-	      2)
-	d_fk  a size d_plan->ms*d_plan->mt*d_plan->mu CPX array on gpu ((input for
-	      Type 2; output for Type 1)
-
-	Notes:
-        i) Here CPX is a defined type meaning either complex<float> or complex<double>
-	    to match the precision of the library called.
-        ii) All operations are done on the GPU device (hence the d_* names)
-
-	Melody Shih 07/25/19; Barnett 2/16/21.
-  */
+  
   Status execute(DType* d_c, DType* d_fk) override;
-
+  
   Status interp(DType* d_c, DType* d_fk) override;
 
   Status spread(DType* d_c, DType* d_fk) override;
 
  private:
-  
   Status init_spreader();
-
   Status init_spreader_nupts_driven();
-
   Status init_spreader_subproblem();
-
-  /*  
-    2D Type-1 NUFFT
-
-    This function is called in "exec" stage (See ../cufinufft.cu).
-    It includes (copied from doc in finufft library)
-      Step 1: spread data to oversampled regular mesh using kernel
-      Step 2: compute FFT on uniform mesh
-      Step 3: deconvolve by division of each Fourier mode independently by the
-              Fourier series coefficient of the kernel.
-
-    Melody Shih 07/25/19		
-  */
+  // Performs type-1 NUFFT. This consists of 3 steps: (1) spreading of
+  // non-uniform data to fine grid, (2) FFT on fine grid, and (3) deconvolution
+  // (division of modes by Fourier series of kernel).
   Status execute_type_1(DType* d_c, DType* d_fk);
-
-  /*  
-    2D Type-2 NUFFT
-
-    This function is called in "exec" stage (See ../cufinufft.cu).
-    It includes (copied from doc in finufft library)
-      Step 1: deconvolve (amplify) each Fourier mode, dividing by kernel 
-              Fourier coeff
-      Step 2: compute FFT on uniform mesh
-      Step 3: interpolate data to regular mesh
-
-    Melody Shih 07/25/19
-  */
+  // Performs type-2 NUFFT. This consists of 3 steps: (1) deconvolution
+  // (division of modes by Fourier series of kernel), (2) FFT on fine grid, and
+  // (3) interpolation of data to non-uniform points.
   Status execute_type_2(DType* d_c, DType* d_fk);
-
-  Status spread_batch(int blksize);
-
-  Status interp_batch(int blksize);
-
-  Status spread_batch_nupts_driven(int blksize);
-
-  Status spread_batch_subproblem(int blksize);
-
-  Status interp_batch_nupts_driven(int blksize);
-
-  Status interp_batch_subproblem(int blksize);
-
-  /* 
-  wrapper for deconvolution & amplication in 2D.
-
-  Melody Shih 07/25/19
-  */
-  Status deconvolve_batch(int blksize);
-
- public:
-
+  Status spread_batch(int batch_size);
+  Status interp_batch(int batch_size);
+  Status spread_batch_nupts_driven(int batch_size);
+  Status spread_batch_subproblem(int batch_size);
+  Status interp_batch_nupts_driven(int batch_size);
+  Status interp_batch_subproblem(int batch_size);
+  // Deconvolve and/or amplify a batch of data.
+  Status deconvolve_batch(int batch_size);
   // Batch of fine grids for cuFFT to plan and execute. This is usually the
   // largest array allocated by NUFFT.
   Tensor grid_tensor_;
-
   // A convenience pointer to the fine grid array.
   DType* grid_data_;
-
   // Tensors in device memory. Used for deconvolution. Empty in spread/interp
   // mode. Only the first `rank` tensors are allocated.
   Tensor fseries_tensor_[3];
-
   // Convenience raw pointers to above tensors. These are device pointers. Only
   // the first `rank` pointers are valid.
   FloatType* fseries_data_[3];
-
   // The cuFFT plan.
   cufftHandle fft_plan_;
-
   // The parameters for the spreading algorithm/s.
   SpreadParameters<FloatType> spread_params_;
-  
   // The GPU bin dimension sizes.
   int bin_dims_[3];
   // The number of GPU bins.
   int num_bins_[3];
   // The total bin count.
   int bin_count_;
-
-  int ms;
-  int mt;
-  int mu;
-
-  
-  
   // Internal pointer to non-uniform data.
   DType* c_;
-
   // Internal pointer to uniform data.
   DType* f_;
-
   // Total number of subproblems.
   int subprob_count_;
   // Indices of the non-uniform points in the bin-sorted order. When allocated,

@@ -51,15 +51,15 @@ Each TensorFlow NUFFT release is compiled against a specific version of
 TensorFlow. Please see the compatibility table below to see what versions of
 each package you can expect to work together.
 
-======================  ========================  ============
-TensorFlow MRI Version  TensorFlow Compatibility  Release Date
-======================  ========================  ============
-v0.5.0                  v2.7.x                    Dec 12, 2021
-v0.4.0                  v2.7.x                    Nov 8, 2021
-v0.3.2                  v2.6.x                    Aug 18, 2021
-v0.3.1                  v2.6.x                    Aug 18, 2021
-v0.3.0                  v2.6.x                    Aug 13, 2021
-======================  ========================  ============
+========================  ========================  ============
+TensorFlow NUFFT Version  TensorFlow Compatibility  Release Date
+========================  ========================  ============
+v0.5.0                    v2.7.x                    Dec 12, 2021
+v0.4.0                    v2.7.x                    Nov 8, 2021
+v0.3.2                    v2.6.x                    Aug 18, 2021
+v0.3.1                    v2.6.x                    Aug 18, 2021
+v0.3.0                    v2.6.x                    Aug 13, 2021
+========================  ========================  ============
 
 .. end-install
 

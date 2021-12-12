@@ -14,9 +14,9 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_LEGENDRE_RULE_FAST_H_
-#define TENSORFLOW_NUFFT_KERNELS_LEGENDRE_RULE_FAST_H_
+#ifndef TENSORFLOW_NUFFT_CC_KERNELS_LEGENDRE_RULE_FAST_H_
+#define TENSORFLOW_NUFFT_CC_KERNELS_LEGENDRE_RULE_FAST_H_
 
-void legendre_compute_glr ( int n, double x[], double w[] );
+void legendre_compute_glr(int n, double x[], double w[]);
 
-#endif // TENSORFLOW_NUFFT_KERNELS_LEGENDRE_RULE_FAST_H_
+#endif  // TENSORFLOW_NUFFT_CC_KERNELS_LEGENDRE_RULE_FAST_H_

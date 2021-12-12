@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_REVERSE_FUNCTOR_H_
-#define TENSORFLOW_NUFFT_KERNELS_REVERSE_FUNCTOR_H_
+#ifndef TENSORFLOW_NUFFT_CC_KERNELS_REVERSE_FUNCTOR_H_
+#define TENSORFLOW_NUFFT_CC_KERNELS_REVERSE_FUNCTOR_H_
 
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/framework/tensor.h"
@@ -58,7 +58,6 @@ void HandleReverseCase(const Device& d,
                        const Tensor& input,
                        const gtl::ArraySlice<bool> axes,
                        Tensor* output) {
-
   typename Eigen::array<bool, NDIMS> axes_di;
   for (int i = 0; i < NDIMS; i++) {
     axes_di[i] = axes[i];
@@ -78,7 +77,7 @@ Status DoReverseImpl(const Device& device, const Tensor& input,
   } else {
     const int input_dims = input.dims();
     gtl::InlinedVector<bool, 8> axes_dense(input_dims, false);
-    
+
     for (int d = 0; d < axes.size(); d++) {
       axes_dense[axes[d]] = true;
     }
@@ -109,4 +108,4 @@ Status DoReverseImpl(const Device& device, const Tensor& input,
 
 }  // namespace tensorflow
 
-#endif  // TENSORFLOW_NUFFT_KERNELS_REVERSE_FUNCTOR_H_
+#endif  // TENSORFLOW_NUFFT_CC_KERNELS_REVERSE_FUNCTOR_H_

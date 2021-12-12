@@ -28,7 +28,6 @@ limitations under the License.
 
 
 namespace tensorflow {
-
 namespace nufft {
 
 enum class OpType { NUFFT, INTERP, SPREAD };
@@ -143,9 +142,7 @@ struct DoNUFFTBase {
     gtl::InlinedVector<int, 8> source_batch_indices(batch_rank);
 
     for (int call_index = 0; call_index < num_calls; call_index++) {
-
       points_batch = points + call_index * num_points * rank;
-
       switch (rank) {
         case 1:
           points_x = points_batch;

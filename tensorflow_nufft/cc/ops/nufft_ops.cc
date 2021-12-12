@@ -24,7 +24,6 @@ using shape_inference::InferenceContext;
 using shape_inference::ShapeHandle;
 
 Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
-
   // Input shapes.
   ShapeHandle source_shape = c->input(0);
   ShapeHandle points_shape = c->input(1);
@@ -60,16 +59,16 @@ Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
     TF_RETURN_IF_ERROR(c->Merge(num_points, c->Dim(source_shape, -1),
                                 &num_points));
   }
-  
+
   // The `source` input is potentially an N-D batch of elements. Each element
   // in the batch is 1D for type-1 transforms and N-D for type-2 transforms,
   // where N is the rank of the op.
   int64_t source_first_elem_axis;
   switch (transform_type) {
-    case 1: // nonuniform to uniform
+    case 1:  // nonuniform to uniform
       source_first_elem_axis = -1;
       break;
-    case 2: // uniform to nonuniform
+    case 2:  // uniform to nonuniform
       source_first_elem_axis = -rank;
       break;
   }
@@ -88,11 +87,11 @@ Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
 
   ShapeHandle output_shape;
   switch (transform_type) {
-    case 1: // nonuniform to uniform
+    case 1:  // nonuniform to uniform
       TF_RETURN_IF_ERROR(c->Concatenate(
           output_batch_shape, grid_shape, &output_shape));
       break;
-    case 2: // uniform to nonuniform
+    case 2:  // uniform to nonuniform
       TF_RETURN_IF_ERROR(c->Concatenate(
           output_batch_shape, c->Vector(num_points), &output_shape));
       break;
@@ -104,7 +103,6 @@ Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
 
 
 Status NUFFTShapeFn(InferenceContext* c) {
-
   // Validate `transform_type` attribute.
   string transform_type_str;
   TF_RETURN_IF_ERROR(c->GetAttr("transform_type", &transform_type_str));
@@ -114,11 +112,10 @@ Status NUFFTShapeFn(InferenceContext* c) {
     transform_type = 1;
   } else if (transform_type_str == "type_2") {
     transform_type = 2;
-  }
-  else {
+  } else {
     return errors::InvalidArgument(
-      "transform_type attr must be 'type_1' or 'type_2', but is ",
-      transform_type_str);
+        "transform_type attr must be 'type_1' or 'type_2', but is ",
+        transform_type_str);
   }
 
   return NUFFTBaseShapeFn(c, transform_type);

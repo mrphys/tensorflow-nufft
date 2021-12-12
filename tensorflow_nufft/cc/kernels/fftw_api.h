@@ -13,8 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_FFTW_API_H_
-#define TENSORFLOW_NUFFT_KERNELS_FFTW_API_H_
+#ifndef TENSORFLOW_NUFFT_CC_KERNELS_FFTW_API_H_
+#define TENSORFLOW_NUFFT_CC_KERNELS_FFTW_API_H_
 
 #include <fftw3.h>
 
@@ -179,19 +179,19 @@ inline typename PlanType<double>::Type plan_many_dft<double>(
 }
 
 template<typename FloatType>
-inline void destroy_plan(typename PlanType<FloatType>::Type& plan);
+inline void destroy_plan(typename PlanType<FloatType>::Type& plan);  // NOLINT
 
 template<>
-inline void destroy_plan<float>(typename PlanType<float>::Type& plan) {
+inline void destroy_plan<float>(typename PlanType<float>::Type& plan) {  // NOLINT
   fftwf_destroy_plan(plan);
 }
 
 template<>
-inline void destroy_plan<double>(typename PlanType<double>::Type& plan) {
+inline void destroy_plan<double>(typename PlanType<double>::Type& plan) {  // NOLINT
   fftw_destroy_plan(plan);
 }
 
 }  // namespace fftw
 }  // namespace tensorflow
 
-#endif // TENSORFLOW_NUFFT_KERNELS_FFTW_API_H_
+#endif  // TENSORFLOW_NUFFT_CC_KERNELS_FFTW_API_H_

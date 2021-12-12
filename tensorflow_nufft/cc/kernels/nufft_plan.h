@@ -28,13 +28,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#ifndef TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H_
-#define TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H_
+#ifndef TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_PLAN_H_
+#define TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_PLAN_H_
 
 #define EIGEN_USE_THREADS
 #if GOOGLE_CUDA
 #define EIGEN_USE_GPU
-#endif // GOOGLE_CUDA
+#endif  // GOOGLE_CUDA
 
 #include <cstdint>
 
@@ -71,7 +71,8 @@ template<typename FloatType>
 constexpr static FloatType kOneOverTwoPi = FloatType(0.159154943091895336);
 
 template<typename FloatType>
-constexpr static std::complex<FloatType> kImaginaryUnit = std::complex<FloatType>(0.0, 1.0);
+constexpr static std::complex<FloatType> kImaginaryUnit =
+    std::complex<FloatType>(0.0, 1.0);
 
 template<typename FloatType>
 constexpr FloatType kEpsilon;
@@ -109,9 +110,9 @@ struct ComplexType<GPUDevice, double> {
 // Dutt A, Rokhlin V. Fast Fourier transforms for nonequispaced data. SIAM
 // Journal on Scientific computing. 1993 Nov;14(6):1368-93.
 enum class TransformType {
-  TYPE_1, // non-uniform to uniform
-  TYPE_2, // uniform to non-uniform
-  TYPE_3  // non-uniform to non-uniform (not implemented)
+  TYPE_1,  // non-uniform to uniform
+  TYPE_2,  // uniform to non-uniform
+  TYPE_3   // non-uniform to non-uniform (not implemented)
 };
 
 // Direction of the FFT. The enum value is the sign of the exponent.
@@ -122,41 +123,40 @@ enum class FftDirection {
 
 // Specifies the direction of spreading.
 enum class SpreadDirection {
-  SPREAD, // non-uniform to uniform
-  INTERP  // uniform to non-uniform
+  SPREAD,  // non-uniform to uniform
+  INTERP   // uniform to non-uniform
 };
 
 template<typename FloatType>
 struct SpreadParameters {
-
   // The spread direction (U->NU or NU->U). See enum above.
   SpreadDirection spread_direction;
-
   // Whether to sort the non-uniform points.
   SortPoints sort_points = SortPoints::AUTO;
-
   // Specifies the spread method.
   SpreadMethod spread_method = SpreadMethod::AUTO;
-
   // If true, do only spreading/interpolation step
   // (no FFT or amplification/deconvolution).
   bool spread_only;
-
-  // TODO: revise the following options.
+  // Number of threads used for spreading/interpolation. If 0, use the default
+  // value. Relevant for both CPU and GPU implementations.
+  int num_threads;
+  // Number of threads used during sorting. If 0, a default value is selected.
+  // Only relevant for CPU implementation.
+  int sort_threads;
+  // Number of threads above which spreading is performed using atomics.
+  int atomic_threshold;
+  // TODO(jmontalt): revise the following options.
   int pirange;            // 0: NU periodic domain is [0,N), 1: domain [-pi,pi)
   bool check_bounds;      // 0: don't check NU pts in 3-period range; 1: do
   int kerevalmeth;        // 0: direct exp(sqrt()), or 1: Horner ppval, fastest
   bool pad_kernel;            // 0: no pad w to mult of 4, 1: do pad
                           // (this helps SIMD for kerevalmeth=0, eg on i7).
-  int num_threads;        // # threads for spreadinterp (0: use max avail)
-  int sort_threads;       // # threads for sort (0: auto-choice up to num_threads)
-  int max_subproblem_size; // # pts per t1 subprob; sets extra RAM per thread
+  int max_subproblem_size;  // # pts per t1 subprob; sets extra RAM per thread
   int flags;              // binary flags for timing only (may give wrong ans
                           // if changed from 0!). See spreadinterp.h
   int verbosity;          // 0: silent, 1: small text output, 2: verbose
-  int atomic_threshold;   // num threads before switching spreadSorted to using atomic ops
   double upsampling_factor;       // sigma, upsampling factor
-
   // Parameters of the "exponential of semicircle" spreading kernel.
   int kernel_width;
   FloatType kernel_beta;
@@ -167,20 +167,18 @@ struct SpreadParameters {
   #if GOOGLE_CUDA
   // Used for 3D subproblem method. 0 means automatic selection.
   dim3 gpu_bin_size = {0, 0, 0};
-
   // Used for 3D spread-block-gather method. 0 means automatic selection.
   dim3 gpu_obin_size = {0, 0, 0};
-  #endif // GOOGLE_CUDA
+  #endif  // GOOGLE_CUDA
 };
 
 template<typename Device, typename FloatType>
 class PlanBase {
-
  public:
   // The main data type this plan operates with; either complex float or double.
   using DType = typename ComplexType<Device, FloatType>::Type;
 
-  PlanBase(OpKernelContext* context)
+  explicit PlanBase(OpKernelContext* context)
       : context_(context),
         device_(context->eigen_device<Device>()) { }
 
@@ -222,8 +220,7 @@ class PlanBase {
   // set_points().
   virtual Status spread(DType* c, DType* f) = 0;
 
- public: // TODO: make protected
-
+ public:  // TODO(jmontalt): make protected after refactoring FINUFFT.
   // The type of the transform. See enum above.
   TransformType type_;
   // The rank of the transform (number of dimensions). Must be 1, 2 or 3.
@@ -259,14 +256,13 @@ class Plan;
 
 template<typename FloatType>
 class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
-
  public:
   // The main data type this plan operates with; either complex float or double.
   using DType = typename ComplexType<CPUDevice, FloatType>::Type;
   // The corresponding FFTW type.
   using FftwType = typename fftw::ComplexType<FloatType>::Type;
 
-  Plan(OpKernelContext* context)
+  explicit Plan(OpKernelContext* context)
       : PlanBase<CPUDevice, FloatType>(context) { }
 
   ~Plan();
@@ -290,7 +286,7 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
   Status spread(DType* c, DType* f) override;
 
- public: // TODO: make private.
+ public:  // TODO(jmontalt): make private after refactoring FINUFFT.
   // Number of computations in one batch.
   int batch_size_;
   // Number of batches in one execution (includes all the transforms in
@@ -322,12 +318,11 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 #if GOOGLE_CUDA
 template<typename FloatType>
 class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
-
  public:
   // The main data type this plan operates with; either complex float or double.
   using DType = typename ComplexType<GPUDevice, FloatType>::Type;
 
-  Plan(OpKernelContext* context)
+  explicit Plan(OpKernelContext* context)
       : PlanBase<GPUDevice, FloatType>(context) { }
 
   ~Plan();
@@ -339,14 +334,14 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
                     int num_transforms,
                     FloatType tol,
                     const Options& options) override;
-  
+
   Status set_points(int num_points,
                     FloatType* points_x,
                     FloatType* points_y,
                     FloatType* points_z) override;
-  
+
   Status execute(DType* d_c, DType* d_fk) override;
-  
+
   Status interp(DType* d_c, DType* d_fk) override;
 
   Status spread(DType* d_c, DType* d_fk) override;
@@ -420,9 +415,9 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // to the bin_count_. This is a device pointer.
   int* subprob_start_pts_;
 };
-#endif // GOOGLE_CUDA
+#endif  // GOOGLE_CUDA
 
 }  // namespace nufft
 }  // namespace tensorflow
 
-#endif // TENSORFLOW_NUFFT_KERNELS_NUFFT_PLAN_H_
+#endif  // TENSORFLOW_NUFFT_CC_KERNELS_NUFFT_PLAN_H_

@@ -24,11 +24,11 @@ limitations under the License.
 #include "tensorflow/core/framework/tensor_util.h"
 #include "tensorflow/core/util/bcast.h"
 
-#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 #include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft.h"
+#include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 
-#include "transpose_functor.h"
-#include "reverse_functor.h"
+#include "tensorflow_nufft/cc/kernels/transpose_functor.h"
+#include "tensorflow_nufft/cc/kernels/reverse_functor.h"
 
 
 namespace tensorflow {
@@ -71,30 +71,27 @@ struct DoNUFFT<CPUDevice, FloatType> : DoNUFFTBase<CPUDevice, FloatType> {
 
 template <typename Device, typename FloatType>
 class NUFFTBaseOp : public OpKernel {
-
  public:
-
   explicit NUFFTBaseOp(OpKernelConstruction* ctx) : OpKernel(ctx) { }
 
   void Compute(OpKernelContext* ctx) override {
-
     const Tensor& source = ctx->input(0);
     const Tensor& points = ctx->input(1);
 
     OP_REQUIRES(ctx, source.dtype() == kComplexDType<FloatType>,
                 errors::InvalidArgument(
-                  "Input `source` must have type ",
-                  DataTypeString(kComplexDType<FloatType>), " but got: ",
-                  DataTypeString(source.dtype())));
+                    "Input `source` must have type ",
+                    DataTypeString(kComplexDType<FloatType>), " but got: ",
+                    DataTypeString(source.dtype())));
     OP_REQUIRES(ctx, points.dtype() == kRealDType<FloatType>,
                 errors::InvalidArgument(
-                  "Input `points` must have type ",
-                  DataTypeString(kRealDType<FloatType>), " but got: ",
-                  DataTypeString(points.dtype())));
+                    "Input `points` must have type ",
+                    DataTypeString(kRealDType<FloatType>), " but got: ",
+                    DataTypeString(points.dtype())));
     OP_REQUIRES(ctx, points.dims() >= 2,
                 errors::InvalidArgument(
-                  "Input `points` must have rank of at least 2, but got "
-                  "shape: ", points.shape().DebugString()));
+                    "Input `points` must have rank of at least 2, but got "
+                    "shape: ", points.shape().DebugString()));
 
     int64_t rank = points.dim_size(points.dims() - 1);
     int64_t num_points = points.dim_size(points.dims() - 2);
@@ -143,10 +140,10 @@ class NUFFTBaseOp : public OpKernel {
     gtl::InlinedVector<int64_t, 4> points_batch_shape;
 
     switch (transform_type_) {
-      case TransformType::TYPE_1: // nonuniform to uniform
+      case TransformType::TYPE_1:  // nonuniform to uniform
         source_batch_shape.resize(source.dims() - 1);
         break;
-      case TransformType::TYPE_2: // uniform to nonuniform
+      case TransformType::TYPE_2:  // uniform to nonuniform
         source_batch_shape.resize(source.dims() - rank);
         break;
     }
@@ -178,7 +175,6 @@ class NUFFTBaseOp : public OpKernel {
                   errors::Internal(
                     "Failed to reshape scalar points tensor."));
     } else {
-
       OP_REQUIRES(ctx, spoints.CopyFrom(points, points.shape()),
                   errors::Internal(
                     "Failed to copy non-scalar points tensor."));
@@ -200,7 +196,6 @@ class NUFFTBaseOp : public OpKernel {
                   errors::Internal(
                     "Failed to reshape scalar source tensor."));
     } else {
-
       OP_REQUIRES(ctx, ssource.CopyFrom(source, source.shape()),
                   errors::Internal(
                     "Failed to copy non-scalar source tensor."));
@@ -302,10 +297,10 @@ class NUFFTBaseOp : public OpKernel {
                                            &tpoints));
     
     OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
-      ctx->eigen_device<Device>(),
-      rpoints,
-      points_perm,
-      &tpoints));
+        ctx->eigen_device<Device>(),
+        rpoints,
+        points_perm,
+        &tpoints));
 
     Tensor tsource;
     const Tensor* psource;

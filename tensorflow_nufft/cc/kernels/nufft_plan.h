@@ -291,35 +291,25 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   Status spread(DType* c, DType* f) override;
 
  public: // TODO: make private.
-
   // Number of computations in one batch.
   int batch_size_;
-
   // Number of batches in one execution (includes all the transforms in
   // num_transforms_).
   int num_batches_;
-
   // Batch of fine grids for FFTW to plan and execute. This is usually the
   // largest array allocated by NUFFT.
   Tensor grid_tensor_;
-
   // A convenience pointer to the fine grid array for FFTW calls.
   FftwType* grid_data_;
-
   // Relative user tol.
   FloatType tol_;
-
   // The FFTW plan for FFTs.
   typename fftw::PlanType<FloatType>::Type fft_plan_;
-
   // The parameters for the spreading algorithm/s.
   SpreadParameters<FloatType> spread_params_;
-
-  
   FloatType* phiHat1;    // FT of kernel in t1,2, on x-axis mode grid
   FloatType* phiHat2;    // " y-axis.
   FloatType* phiHat3;    // " z-axis.
-  
   int64_t *sortIndices;  // precomputed NU pt permutation, speeds spread/interp
   bool didSort;         // whether binsorting used (false: identity perm used)
 };

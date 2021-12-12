@@ -359,9 +359,10 @@ static __inline__ __device__ void EvaluateKernelVector(
 }
 
 template<typename FloatType>
-__global__ void SpreadNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, 
-    const int ns, int nf1, int nf2, FloatType es_c, FloatType es_beta, int *idxnupts, 
-    int pirange) {
+__global__ void SpreadNuptsDriven2DKernel(
+    FloatType *x, FloatType *y, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2,
+    FloatType es_c, FloatType es_beta, int *idxnupts, int pirange) {
   int xstart, ystart, xend, yend;
   int xx, yy, ix, iy;
   int outidx;
@@ -400,9 +401,10 @@ __global__ void SpreadNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex
 }
 
 template<typename FloatType>
-__global__ void SpreadNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, 
-  const int ns, int nf1, int nf2, FloatType sigma, int* idxnupts, int pirange)
-{
+__global__ void SpreadNuptsDrivenHorner2DKernel(
+    FloatType *x, FloatType *y, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2,
+    FloatType sigma, int* idxnupts, int pirange) {
   int xx, yy, ix, iy;
   int outidx;
   FloatType ker1[kMaxKernelWidth];
@@ -440,12 +442,13 @@ __global__ void SpreadNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
 }
 
 template<typename FloatType>
-__global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, const int ns,
-  int nf1, int nf2, FloatType es_c, FloatType es_beta, FloatType sigma, int* binstartpts,
-  int* bin_sizes, int bin_size_x, int bin_size_y, int* subprob_bins,
-  int* subprob_start_pts, int* num_subprob, int max_subprob_size, int nbinx, 
-  int nbiny, int* idxnupts, int pirange)
-{
+__global__ void SpreadSubproblem2DKernel(
+    FloatType *x, FloatType *y, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2,
+    FloatType es_c, FloatType es_beta, FloatType sigma, int* binstartpts,
+    int* bin_sizes, int bin_size_x, int bin_size_y, int* subprob_bins,
+    int* subprob_start_pts, int* num_subprob, int max_subprob_size, int nbinx, 
+    int nbiny, int* idxnupts, int pirange) {
   // Shared memory pointers cannot be declared with a type template because
   // it results in a "declaration is incompatible with previous declaration"
   // error. To get around this issue, we declare the shared memory pointer as
@@ -530,12 +533,12 @@ __global__ void SpreadSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<
 }
 
 template<typename FloatType>
-__global__ void SpreadSubproblemHorner2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, 
-  const int ns, int nf1, int nf2, FloatType sigma, int* binstartpts, int* bin_sizes, 
-  int bin_size_x, int bin_size_y, int* subprob_bins, int* subprob_start_pts, 
-  int* num_subprob, int max_subprob_size, int nbinx, int nbiny, int* idxnupts, 
-  int pirange)
-{
+__global__ void SpreadSubproblemHorner2DKernel(
+    FloatType *x, FloatType *y, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2,
+    FloatType sigma, int* binstartpts, int* bin_sizes, int bin_size_x,
+    int bin_size_y, int* subprob_bins, int* subprob_start_pts, int* num_subprob,
+    int max_subprob_size, int nbinx, int nbiny, int* idxnupts, int pirange) {
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
@@ -612,9 +615,10 @@ __global__ void SpreadSubproblemHorner2DKernel(FloatType *x, FloatType *y, GpuCo
 }
 
 template<typename FloatType>
-__global__ void InterpNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, const int ns,
-           int nf1, int nf2, FloatType es_c, FloatType es_beta, int* idxnupts, int pirange)
-{
+__global__ void InterpNuptsDriven2DKernel(
+    FloatType *x, FloatType *y, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2,
+    FloatType es_c, FloatType es_beta, int* idxnupts, int pirange) {
   for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i += blockDim.x * gridDim.x) {
 
     FloatType x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
@@ -647,9 +651,10 @@ __global__ void InterpNuptsDriven2DKernel(FloatType *x, FloatType *y, GpuComplex
 }
 
 template<typename FloatType>
-__global__ void InterpNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, 
-  const int ns, int nf1, int nf2, FloatType sigma, int* idxnupts, int pirange)
-{
+__global__ void InterpNuptsDrivenHorner2DKernel(
+    FloatType *x, FloatType *y, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2,
+    FloatType sigma, int* idxnupts, int pirange) {
   for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < M; i += blockDim.x * gridDim.x) {
     FloatType x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     FloatType y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
@@ -688,12 +693,13 @@ __global__ void InterpNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
 }
 
 template<typename FloatType>
-__global__ void InterpSubproblem2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, const int ns,
-  int nf1, int nf2, FloatType es_c, FloatType es_beta, FloatType sigma, int* binstartpts,
-  int* bin_sizes, int bin_size_x, int bin_size_y, int* subprob_bins,
-  int* subprob_start_pts, int* num_subprob, int max_subprob_size, int nbinx, 
-  int nbiny, int* idxnupts, int pirange)
-{
+__global__ void InterpSubproblem2DKernel(
+    FloatType *x, FloatType *y, GpuComplex<FloatType> *c,
+    GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2,
+    FloatType es_c, FloatType es_beta, FloatType sigma, int* binstartpts,
+    int* bin_sizes, int bin_size_x, int bin_size_y, int* subprob_bins,
+    int* subprob_start_pts, int* num_subprob, int max_subprob_size, int nbinx, 
+    int nbiny, int* idxnupts, int pirange) {
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 

@@ -277,9 +277,9 @@ int spreadinterpSortedBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* cBatch
   for (int i=0; i<batch_size; i++) {
     CPX *fwi = fBatch + i*p->grid_size_;  // start of i'th fw array in wkspace
     CPX *ci = cBatch + i*p->num_points_;            // start of i'th c array in cBatch
-    spreadinterpSorted(p->sortIndices, grid_size_0, grid_size_1, grid_size_2,
+    spreadinterpSorted(p->sort_indices_, grid_size_0, grid_size_1, grid_size_2,
                        (FLT*)fwi, p->num_points_, p->points_[0], p->points_[1], p->points_[2],
-                       (FLT*)ci, p->spread_params_, p->didSort);
+                       (FLT*)ci, p->spread_params_, p->did_sort_);
   }
   return 0;
 }
@@ -303,16 +303,16 @@ int deconvolveBatch(int batch_size, Plan<CPUDevice, FLT>* p, CPX* fkBatch)
     CPX *fki = fkBatch + i*p->mode_count_;           // start of i'th fk array in fkBatch
     
     if (p->rank_ == 1)
-      deconvolveshuffle1d(p->spread_params_.spread_direction, 1.0, p->phiHat1,
+      deconvolveshuffle1d(p->spread_params_.spread_direction, 1.0, p->fseries_data_[0],
                           p->num_modes_[0], (FLT *)fki,
                           p->grid_dims_[0], fwi, p->options_.mode_order);
     else if (p->rank_ == 2)
-      deconvolveshuffle2d(p->spread_params_.spread_direction,1.0, p->phiHat1,
-                          p->phiHat2, p->num_modes_[0], p->num_modes_[1], (FLT *)fki,
+      deconvolveshuffle2d(p->spread_params_.spread_direction,1.0, p->fseries_data_[0],
+                          p->fseries_data_[1], p->num_modes_[0], p->num_modes_[1], (FLT *)fki,
                           p->grid_dims_[0], p->grid_dims_[1], fwi, p->options_.mode_order);
     else
-      deconvolveshuffle3d(p->spread_params_.spread_direction, 1.0, p->phiHat1,
-                          p->phiHat2, p->phiHat3, p->num_modes_[0], p->num_modes_[1], p->num_modes_[2],
+      deconvolveshuffle3d(p->spread_params_.spread_direction, 1.0, p->fseries_data_[0],
+                          p->fseries_data_[1], p->fseries_data_[2], p->num_modes_[0], p->num_modes_[1], p->num_modes_[2],
                           (FLT *)fki, p->grid_dims_[0], p->grid_dims_[1], p->grid_dims_[2],
                           fwi, p->options_.mode_order);
   }
@@ -358,12 +358,12 @@ int FINUFFT_SETPTS(Plan<CPUDevice, FLT>* p, BIGINT nj, FLT* xj, FLT* yj, FLT* zj
     if (ier)         // no warnings allowed here
       return ier;    
 
-    p->sortIndices = (BIGINT *)malloc(sizeof(BIGINT)*p->num_points_);
-    if (!p->sortIndices) {
-      fprintf(stderr,"[%s] failed to allocate sortIndices!\n",__func__);
+    p->sort_indices_ = (BIGINT *)malloc(sizeof(BIGINT)*p->num_points_);
+    if (!p->sort_indices_) {
+      fprintf(stderr,"[%s] failed to allocate sort_indices_!\n",__func__);
       return ERR_SPREAD_ALLOC;
     }
-    p->didSort = indexSort(p->sortIndices, grid_size_0, grid_size_1, grid_size_2, p->num_points_, xj, yj, zj, p->spread_params_);
+    p->did_sort_ = indexSort(p->sort_indices_, grid_size_0, grid_size_1, grid_size_2, p->num_points_, xj, yj, zj, p->spread_params_);
 
     
   } else {   // ------------------------- TYPE 3 SETPTS -----------------------

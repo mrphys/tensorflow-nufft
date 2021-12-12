@@ -307,11 +307,16 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   typename fftw::PlanType<FloatType>::Type fft_plan_;
   // The parameters for the spreading algorithm/s.
   SpreadParameters<FloatType> spread_params_;
-  FloatType* phiHat1;    // FT of kernel in t1,2, on x-axis mode grid
-  FloatType* phiHat2;    // " y-axis.
-  FloatType* phiHat3;    // " z-axis.
-  int64_t *sortIndices;  // precomputed NU pt permutation, speeds spread/interp
-  bool didSort;         // whether binsorting used (false: identity perm used)
+  // Tensors in host memory. Used for deconvolution. Empty in spread/interp
+  // mode. Only the first `rank` tensors are allocated.
+  Tensor fseries_tensor_[3];
+  // Convenience raw pointers to above tensors. Only the first `rank` pointers
+  // are valid.
+  FloatType* fseries_data_[3];
+  // Precomputed non-uniform point permutation, used to speed up spread/interp.
+  int64_t* sort_indices_;
+  // Whether bin-sorting was used.
+  bool did_sort_;
 };
 
 #if GOOGLE_CUDA

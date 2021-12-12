@@ -131,12 +131,12 @@ Status Plan<CPUDevice, FloatType>::initialize(
   TF_RETURN_IF_ERROR(setup_spreader_for_nufft(
       rank, tol, this->options_, this->spread_params_));
 
-  // set others as defaults (or unallocated for arrays)...
+  // Initialize pointers to null.
   for (int i = 0; i < 3; i++) {
     this->points_[i] = nullptr;
+    this->fseries_data_[i] = nullptr;
   }
-  this->phiHat1 = nullptr; this->phiHat2 = nullptr; this->phiHat3 = nullptr;
-  this->sortIndices = nullptr;
+  this->sort_indices_ = nullptr;
   
   // FFTW initialization must be done single-threaded.
   #pragma omp critical
@@ -177,15 +177,17 @@ Status Plan<CPUDevice, FloatType>::initialize(
 
   // Get Fourier coefficients of spreading kernel along each fine grid
   // dimension.
-  this->phiHat1 = (FloatType*) malloc(sizeof(FloatType) * (this->grid_dims_[0] / 2 + 1));
-  kernel_fseries_1d(this->grid_dims_[0], this->spread_params_, this->phiHat1);
-  if (rank > 1) {
-    this->phiHat2 = (FloatType*) malloc(sizeof(FloatType) * (this->grid_dims_[1] / 2 + 1));
-    kernel_fseries_1d(this->grid_dims_[1], this->spread_params_, this->phiHat2);
-  }
-  if (rank > 2) {
-    this->phiHat3 = (FloatType*) malloc(sizeof(FloatType) * (this->grid_dims_[2] / 2 + 1));
-    kernel_fseries_1d(this->grid_dims_[2], this->spread_params_, this->phiHat3);
+  for (int i = 0; i < this->rank_; i++) {
+    // Number of Fourier coefficients.      
+    int num_coeffs = this->grid_dims_[i] / 2 + 1;
+    // Allocate memory and calculate the Fourier series.
+    TF_RETURN_IF_ERROR(this->context_->allocate_temp(
+        DataTypeToEnum<FloatType>::value, TensorShape({num_coeffs}),
+        &this->fseries_tensor_[i]));
+    this->fseries_data_[i] = reinterpret_cast<FloatType*>(
+        this->fseries_tensor_[i].flat<FloatType>().data());
+    kernel_fseries_1d(this->grid_dims_[i], this->spread_params_,
+                      this->fseries_data_[i]);
   }
 
   // Total number of points in the fine grid.
@@ -267,10 +269,7 @@ Plan<CPUDevice, FloatType>::~Plan() {
   }
   #endif
 
-  free(this->sortIndices);
-  free(this->phiHat1);
-  free(this->phiHat2);
-  free(this->phiHat3);
+  free(this->sort_indices_);
 }
 
 // TODO: remove after refactoring set_points.

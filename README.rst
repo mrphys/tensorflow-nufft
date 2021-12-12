@@ -48,8 +48,8 @@ TensorFlow Compatibility
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 Each TensorFlow NUFFT release is compiled against a specific version of
-TensorFlow. Please see the compatibility table below to see what versions of
-each package you can expect to work together.
+TensorFlow. To ensure compatibility, it is recommended to install matching
+versions of TensorFlow and TensorFlow NUFFT according to the table below.
 
 ========================  ========================  ============
 TensorFlow NUFFT Version  TensorFlow Compatibility  Release Date

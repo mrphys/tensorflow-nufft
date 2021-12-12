@@ -650,7 +650,7 @@ template<typename FloatType>
 __global__ void InterpNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, 
   const int ns, int nf1, int nf2, FloatType sigma, int* idxnupts, int pirange)
 {
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i += blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < M; i += blockDim.x * gridDim.x) {
     FloatType x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     FloatType y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
 
@@ -666,9 +666,9 @@ __global__ void InterpNuptsDrivenHorner2DKernel(FloatType *x, FloatType *y, GpuC
     FloatType ker2[kMaxKernelWidth];
 
     EvaluateKernelVectorHorner(ker1, xstart - x_rescaled, ns, sigma);
-        EvaluateKernelVectorHorner(ker2, ystart - y_rescaled, ns, sigma);
+    EvaluateKernelVectorHorner(ker2, ystart - y_rescaled, ns, sigma);
 
-    for (int yy = ystart; yy<=yend; yy++) {
+    for (int yy = ystart; yy <= yend; yy++) {
       FloatType disy = abs(y_rescaled - yy);
       FloatType kervalue2 = ker2[yy - ystart];
       for (int xx = xstart; xx<=xend; xx++) {
@@ -2045,15 +2045,12 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int batch_size) {
 
   GpuComplex<FloatType>* d_c = this->c_;
   GpuComplex<FloatType>* d_fw = this->grid_data_;
-
-  int subprob_count = this->subprob_count_;
-
   int pirange = this->spread_params_.pirange;
 
   FloatType sigma = this->options_.upsampling_factor;
 
   // GPU kernel configuration.
-  int num_blocks = subprob_count;
+  int num_blocks = this->subprob_count_;
   int threads_per_block = 256;
   size_t shared_memory_size = sizeof(GpuComplex<FloatType>);
   for (int i = 0; i < this->rank_; i++) {
@@ -2340,7 +2337,6 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
   int num_blocks = (this->mode_count_ + threads_per_block - 1) / threads_per_block;
 
   if (this->spread_params_.spread_direction == SpreadDirection::SPREAD) {
-    
     switch (this->rank_) {
       case 2:
         for (int t = 0; t < batch_size; t++) {
@@ -2596,7 +2592,6 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
 }
 
 namespace {
-
 // Initializes spreader kernel parameters given desired NUFFT tol eps,
 // upsampling factor ( = sigma in paper, or R in Dutt - Rokhlin), and ker eval meth
 // Also sets all default options in SpreadParameters<FloatType>.
@@ -2627,18 +2622,20 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
     eps = kEpsilon<FloatType>;
   }
 
-  // Set kernel width w (aka ns) and ES kernel beta parameter, in spread_params...
-  int ns = std::ceil( - log10(eps / (FloatType)10.0));   // 1 digit per power of ten
+  // Set kernel width w (aka ns) and ES kernel beta parameter, in spread_params.
+  int ns = std::ceil(-log10(eps / (FloatType)10.0));  // 1 digit per power of 10
   if (upsampling_factor != 2.0)           // override ns for custom sigma
-    ns = std::ceil( - log(eps) / (kPi<FloatType> * sqrt(1.0 - 1.0 / upsampling_factor)));  // formula, gamma = 1
+    ns = std::ceil(-log(eps) / (kPi<FloatType> * sqrt(
+        1.0 - 1.0 / upsampling_factor)));  // formula, gamma = 1
   ns = max(2, ns);               // we don't have ns = 1 version yet
   if (ns > kMaxKernelWidth) {         // clip to match allocated arrays
     ns = kMaxKernelWidth;
   }
   spread_params.kernel_width = ns;
 
-  spread_params.kernel_half_width = (FloatType)ns / 2;   // constants to help ker eval (except Horner)
-  spread_params.kernel_c = 4.0 / (FloatType)(ns * ns);
+  // Values to simplify kernel evaluation.
+  spread_params.kernel_half_width = static_cast<FloatType>(ns) / 2;
+  spread_params.kernel_c = 4.0 / static_cast<FloatType>(ns * ns);
 
   // Set the kernel beta parameter. The following results in reasonable beta
   // values for upsampling factor of 2.0, with some tweaks for small width
@@ -2652,7 +2649,7 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
     FloatType gamma = 0.97;  // This value must match the one in generated code.
     beta_over_ns = gamma * kPi<FloatType> * (1 - 1 / (2 * upsampling_factor));
   }
-  spread_params.kernel_beta = beta_over_ns * (FloatType)ns;
+  spread_params.kernel_beta = beta_over_ns * static_cast<FloatType>(ns);
 
   if (spread_params.spread_only)
     spread_params.kernel_scale = calculate_scale_factor(rank, spread_params);
@@ -2733,27 +2730,27 @@ Status set_grid_size(int ms,
   }
 
   // This is required to avoid errors.
-  if ( * grid_size < 2 * spread_params.kernel_width)
+  if (*grid_size < 2 * spread_params.kernel_width)
     *grid_size = 2 * spread_params.kernel_width;
 
   // Check if array size is too big.
-  if ( * grid_size > kMaxArraySize) {
+  if (*grid_size > kMaxArraySize) {
     return errors::Internal(
         "Upsampled dim size too big: ", *grid_size, " > ", kMaxArraySize);
   }
 
   // Find the next smooth integer.
   if (options.spread_method == SpreadMethod::BLOCK_GATHER)
-    *grid_size = next_smooth_int( * grid_size, bin_size);
+    *grid_size = next_smooth_int(*grid_size, bin_size);
   else
-    *grid_size = next_smooth_int( * grid_size);
+    *grid_size = next_smooth_int(*grid_size);
 
   // For spread / interp only mode, make sure that the grid size is valid.
   if (options.spread_only && *grid_size != ms) {
     return errors::Internal(
         "Invalid grid size: ", ms, ". Value should be even, "
-        "larger than the kernel (", 2 * spread_params.kernel_width, ") and have no prime "
-        "factors larger than 5.");
+        "larger than the kernel (", 2 * spread_params.kernel_width,
+        ") and have no prime factors larger than 5.");
   }
 
   return Status::OK();
@@ -2767,4 +2764,4 @@ template class Plan<GPUDevice, double>;
 }  // namespace nufft
 }  // namespace tensorflow
 
-#endif // GOOGLE_CUDA
+#endif  // GOOGLE_CUDA

@@ -16,9 +16,9 @@ Known Caveats
 Major Features and Improvements
 -------------------------------
 
-* `nufft` and `spread` will now accept tensors for the `grid_shape` input. This
-  improves flexibility and means that the grid shape no longer needs to be known
-  at graph creation time.
+* ``nufft`` and ``spread`` will now accept tensors for the ``grid_shape`` input.
+  This improves flexibility and means that the grid shape no longer needs to be
+  known at graph creation time.
 
 Bug Fixes and Other Changes
 ---------------------------
@@ -28,9 +28,9 @@ Bug Fixes and Other Changes
   which is not thread-safe, being accessed concurrently by multiple op
   instances. Access to the FFTW planner is now protected in critical code
   sections. 
-* `nufft`, `interp` and `spread` will now honour the TensorFlow framework's
-  intra-op parallelism setting. From now on, the number of intra-op threads used
-  by the CPU kernels can be specified by the user with
-  `tf.config.threading.set_intra_op_parallelism_threads`.
+* ``nufft``, ``interp`` and ``spread`` will now honour the TensorFlow
+  framework's intra-op parallelism setting. From now on, the number of intra-op
+  threads used by the CPU kernels can be specified by the user with
+  ``tf.config.threading.set_intra_op_parallelism_threads``.
 * GPU kernel launches, memory allocations and data copies will now be enqueued
   to the correct devices and streams as specified by the TensorFlow framework.

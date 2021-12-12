@@ -17,8 +17,6 @@
 This module contains ops to calculate the NUFFT and some related functionality.
 """
 
-import functools
-
 import tensorflow as tf
 
 
@@ -30,7 +28,7 @@ interp = _nufft_ops.interp
 spread = _nufft_ops.spread
 
 
-def nufft(source,
+def nufft(source,  # pylint: disable=missing-function-docstring
           points,
           grid_shape=None,
           transform_type='type_2',

@@ -341,15 +341,16 @@ class NUFFTOpsTest(tf.test.TestCase):
 
   def test_parallel_iteration(self):
     """Test NUFFT with parallel iterations."""
+    rank = 2
+    num_points = 300
+    grid_shape = [24] * rank
+    batch_size = 8
+    parallel_iterations = 4
     for _ in range(2):
       with tf.device('/cpu:0'):
-        rank = 2
-        num_points = 300
-        grid_shape = [24] * rank
-        batch_size = 8
-        parallel_iterations = 4
         rng = tf.random.Generator.from_seed(10)
-        points = rng.uniform([batch_size, num_points, rank], minval=-np.pi, maxval=np.pi)
+        points = rng.uniform([batch_size, num_points, rank],
+                             minval=-np.pi, maxval=np.pi)
         source = tf.complex(tf.ones([batch_size, num_points]),
                             tf.zeros([batch_size, num_points]))
         @tf.function
@@ -361,8 +362,9 @@ class NUFFTOpsTest(tf.test.TestCase):
                                    fft_direction='backward')
           return tf.map_fn(nufft_adjoint, [source, points],
                            parallel_iterations=parallel_iterations,
-                           fn_output_signature=tf.TensorSpec(grid_shape, tf.complex64))
-        
+                           fn_output_signature=tf.TensorSpec(
+                               grid_shape, tf.complex64))
+
         @tf.function
         def parallel_nudft_adjoint(source, points):
           def nudft_adjoint(inputs):
@@ -372,8 +374,9 @@ class NUFFTOpsTest(tf.test.TestCase):
                                    fft_direction='backward')
           return tf.map_fn(nudft_adjoint, [source, points],
                            parallel_iterations=parallel_iterations,
-                           fn_output_signature=tf.TensorSpec(grid_shape, tf.complex64))
-        
+                           fn_output_signature=tf.TensorSpec(
+                               grid_shape, tf.complex64))
+
         result_nufft = parallel_nufft_adjoint(source, points)
         result_nudft = parallel_nudft_adjoint(source, points)
 

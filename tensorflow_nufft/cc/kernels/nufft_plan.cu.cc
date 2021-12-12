@@ -36,6 +36,7 @@ limitations under the License.
 #include <thrust/scan.h>
 
 #include "tensorflow/core/platform/stream_executor.h"
+#include "tensorflow/core/util/gpu_device_functions.h"
 #include "tensorflow/core/util/gpu_kernel_helper.h"
 
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
@@ -122,7 +123,7 @@ __global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_siz
     biny = biny >= nbiny ? biny - 1 : biny;
     biny = biny < 0 ? 0 : biny;
     binidx = binx + biny * nbinx;
-    oldidx = atomicAdd(&bin_sizes[binidx], 1);
+    oldidx = GpuAtomicAdd(&bin_sizes[binidx], 1);
     sortidx[i] = oldidx;
     if (binx >= nbinx || biny >= nbiny) {
       sortidx[i] = -biny;
@@ -154,7 +155,7 @@ __global__ void CalcBinSizeNoGhost3DKernel(int M, int nf1, int nf2, int nf3,
     binz = binz >= nbinz ? binz - 1 : binz;
     binz = binz < 0 ? 0 : binz;
     binidx = binx + biny * nbinx + binz * nbinx * nbiny;
-    oldidx = atomicAdd(&bin_sizes[binidx], 1);
+    oldidx = GpuAtomicAdd(&bin_sizes[binidx], 1);
     sortidx[i] = oldidx;
   }
 }
@@ -393,8 +394,8 @@ __global__ void SpreadNuptsDriven2DKernel(
         outidx = ix + iy * nf1;
         kervalue1 = ker1[xx - xstart];
         kervalue2 = ker2[yy - ystart];
-        atomicAdd(&fw[outidx].x, cnow.x * kervalue1 * kervalue2);
-        atomicAdd(&fw[outidx].y, cnow.y * kervalue1 * kervalue2);
+        GpuAtomicAdd(&fw[outidx].x, cnow.x * kervalue1 * kervalue2);
+        GpuAtomicAdd(&fw[outidx].y, cnow.y * kervalue1 * kervalue2);
       }
     }
   }
@@ -434,8 +435,8 @@ __global__ void SpreadNuptsDrivenHorner2DKernel(
         ker1val = ker1[xx - xstart];
         ker2val = ker2[yy - ystart];
         FloatType kervalue = ker1val * ker2val;
-        atomicAdd(&fw[outidx].x, cnow.x * kervalue);
-        atomicAdd(&fw[outidx].y, cnow.y * kervalue);
+        GpuAtomicAdd(&fw[outidx].x, cnow.x * kervalue);
+        GpuAtomicAdd(&fw[outidx].y, cnow.y * kervalue);
       }
     }
   }
@@ -509,8 +510,8 @@ __global__ void SpreadSubproblem2DKernel(
         outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2);
         FloatType kervalue1 = ker1[xx - xstart];
         FloatType kervalue2 = ker2[yy - ystart];
-        atomicAdd(&fwshared[outidx].x, cnow.x * kervalue1 * kervalue2);
-        atomicAdd(&fwshared[outidx].y, cnow.y * kervalue1 * kervalue2);
+        GpuAtomicAdd(&fwshared[outidx].x, cnow.x * kervalue1 * kervalue2);
+        GpuAtomicAdd(&fwshared[outidx].y, cnow.y * kervalue1 * kervalue2);
       }
     }
   }
@@ -526,8 +527,8 @@ __global__ void SpreadSubproblem2DKernel(
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       outidx = ix + iy * nf1;
       int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2);
-      atomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
-      atomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
+      GpuAtomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
+      GpuAtomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
     }
   }
 }
@@ -590,8 +591,8 @@ __global__ void SpreadSubproblemHorner2DKernel(
         if (ix >= (bin_size_x + (int) ceil(ns / 2.0) * 2) || ix<0) break;
         outidx = ix + iy * (bin_size_x+ (int) ceil(ns / 2.0) * 2);
         FloatType kervalue1 = ker1[xx - xstart];
-        atomicAdd(&fwshared[outidx].x, cnow.x * kervalue1 * kervalue2);
-        atomicAdd(&fwshared[outidx].y, cnow.y * kervalue1 * kervalue2);
+        GpuAtomicAdd(&fwshared[outidx].x, cnow.x * kervalue1 * kervalue2);
+        GpuAtomicAdd(&fwshared[outidx].y, cnow.y * kervalue1 * kervalue2);
       }
     }
   }
@@ -608,8 +609,8 @@ __global__ void SpreadSubproblemHorner2DKernel(
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       outidx = ix + iy * nf1;
       int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2);
-      atomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
-      atomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
+      GpuAtomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
+      GpuAtomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
     }
   }
 }
@@ -885,8 +886,8 @@ __global__ void SpreadNuptsDrivenHorner3DKernel(
           outidx = ix + iy * nf1 + iz * nf1 * nf2;
           ker1val = ker1[xx - xstart];
           FloatType kervalue = ker1val * ker2val * ker3val;
-          atomicAdd(&fw[outidx].x, c[idxnupts[i]].x * kervalue);
-          atomicAdd(&fw[outidx].y, c[idxnupts[i]].y * kervalue);
+          GpuAtomicAdd(&fw[outidx].x, c[idxnupts[i]].x * kervalue);
+          GpuAtomicAdd(&fw[outidx].y, c[idxnupts[i]].y * kervalue);
         }
       }
     }
@@ -938,8 +939,8 @@ __global__ void SpreadNuptsDriven3DKernel(
           ker1val = ker1[xx - xstart];
           FloatType kervalue = ker1val * ker2val * ker3val;
 
-          atomicAdd(&fw[outidx].x, c[idxnupts[i]].x * kervalue);
-          atomicAdd(&fw[outidx].y, c[idxnupts[i]].y * kervalue);
+          GpuAtomicAdd(&fw[outidx].x, c[idxnupts[i]].x * kervalue);
+          GpuAtomicAdd(&fw[outidx].y, c[idxnupts[i]].y * kervalue);
         }
       }
     }
@@ -1019,12 +1020,12 @@ __global__ void SpreadSubproblemHorner3DKernel(
             iz * (bin_size_x + ceil(ns / 2.0) * 2)*
                (bin_size_y + ceil(ns / 2.0) * 2);
           FloatType kervalue1 = ker1[xx - xstart];
-          atomicAdd(&fwshared[outidx].x, cnow.x * kervalue1 * kervalue2*
-            kervalue3);
-          atomicAdd(&fwshared[outidx].y, cnow.y * kervalue1 * kervalue2*
-            kervalue3);
-            }
-          }
+          GpuAtomicAdd(&fwshared[outidx].x,
+                       cnow.x * kervalue1 * kervalue2 * kervalue3);
+          GpuAtomicAdd(&fwshared[outidx].y,
+                       cnow.y * kervalue1 * kervalue2 * kervalue3);
+        }
+      }
     }
   }
   __syncthreads();
@@ -1048,8 +1049,8 @@ __global__ void SpreadSubproblemHorner3DKernel(
       outidx = ix + iy * nf1 + iz * nf1 * nf2;
       int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2)+
         k * (bin_size_x + ceil(ns / 2.0) * 2) * (bin_size_y + ceil(ns / 2.0) * 2);
-      atomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
-      atomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
+      GpuAtomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
+      GpuAtomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
     }
   }
 }
@@ -1127,9 +1128,9 @@ __global__ void SpreadSubproblem3DKernel(
           outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2)+
                iz * (bin_size_x + ceil(ns / 2.0) * 2)*
                     (bin_size_y + ceil(ns / 2.0) * 2);
-          atomicAdd(&fwshared[outidx].x,
+          GpuAtomicAdd(&fwshared[outidx].x,
                     cnow.x * kervalue1 * kervalue2 * kervalue3);
-          atomicAdd(&fwshared[outidx].y,
+          GpuAtomicAdd(&fwshared[outidx].y,
                     cnow.y * kervalue1 * kervalue2 * kervalue3);
         }
       }
@@ -1152,8 +1153,8 @@ __global__ void SpreadSubproblem3DKernel(
       outidx = ix + iy * nf1 + iz * nf1 * nf2;
       int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2)+
         k * (bin_size_x + ceil(ns / 2.0) * 2) * (bin_size_y + ceil(ns / 2.0) * 2);
-      atomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
-      atomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
+      GpuAtomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
+      GpuAtomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
     }
   }
 }

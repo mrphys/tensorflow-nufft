@@ -42,8 +42,9 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
 #include "tensorflow_nufft/cc/kernels/omp_api.h"
 
-// NU coord handling macro: if p is true, rescales from [-pi, pi] to [0, N], then
-// folds *only* one period below and above, ie [-N, 2N], into the domain [0, N]...
+// NU coord handling macro: if p is true, rescales from [-pi, pi] to [0, N],
+// then folds *only* one period below and above, ie [-N, 2N], into the domain
+// [0, N]...
 #define RESCALE(x, N, p) (p ? \
          ((x * kOneOverTwoPi<FloatType> + (x < -kPi<FloatType> ? 1.5 : \
          (x >= kPi<FloatType> ? -0.5 : 0.5))) * N) : \

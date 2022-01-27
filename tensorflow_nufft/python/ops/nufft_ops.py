@@ -64,19 +64,23 @@ def _nufft_grad(op, grad):
   # Get inputs.
   source = op.inputs[0]
   points = op.inputs[1]
+  grid_shape = op.inputs[2]
   transform_type = op.get_attr('transform_type').decode()
   fft_direction = op.get_attr('fft_direction').decode()
   tol = op.get_attr('tol')
   rank = points.shape[-1]
+  dtype = source.dtype
+  if transform_type == 'type_1':
+    grid_shape = op.inputs[2]
+  elif transform_type == 'type_2':
+    grid_shape = tf.shape(source)[-rank:]
 
   # Gradient of type-1 transform is computed using type-2 transform and
   # viceversa.
   if transform_type == 'type_1':    # nonuniform to uniform
     grad_transform_type = 'type_2'  # uniform to nonuniform
-    grad_grid_shape = []  # grid shape is unused for type-2 transforms
   elif transform_type == 'type_2':
     grad_transform_type = 'type_1'
-    grad_grid_shape = tf.shape(source)[-rank:]
 
   # Gradient of forward transform is computed using backward transform and
   # viceversa.
@@ -88,21 +92,61 @@ def _nufft_grad(op, grad):
   # Compute the gradients with respect to the `source` input.
   grad_source = nufft(grad,
                       points,
-                      grid_shape=grad_grid_shape,
+                      grid_shape=grid_shape,
                       transform_type=grad_transform_type,
                       fft_direction=grad_fft_direction,
                       tol=tol)
 
   # Compute the gradients with respect to the `points` input.
+  grid_vec = [
+      tf.linspace(-grid_shape[ax] / 2, grid_shape[ax] / 2 - 1, grid_shape[ax])
+      for ax in range(rank)]
+  grid_points = tf.cast(
+      tf.stack(tf.meshgrid(*grid_vec, indexing='ij'), axis=0), dtype)
+
+  # Choose sign of imaginary unit.
+  if fft_direction == 'forward':
+    imag_unit = tf.complex(
+        tf.constant(0.0, dtype=dtype.real_dtype),
+        tf.constant(-1.0, dtype=dtype.real_dtype))
+  elif fft_direction == 'backward':
+    imag_unit = tf.complex(
+        tf.constant(0.0, dtype=dtype.real_dtype),
+        tf.constant(1.0, dtype=dtype.real_dtype))
+
   grad_points = None
+  if transform_type == 'type_2':
+    # print((tf.expand_dims(source, -(rank + 1)) * grid_points).shape, tf.expand_dims(points, -3).shape)
+    grad_points = nufft(tf.expand_dims(source, -(rank + 1)) * grid_points,
+                        tf.expand_dims(points, -3),
+                        transform_type='type_2',
+                        fft_direction=fft_direction,
+                        tol=tol) * tf.expand_dims(grad, -2) * imag_unit
+
+  if transform_type == 'type_1':
+    grad_points = nufft(tf.expand_dims(grad, -(rank + 1)) * grid_points,
+                        tf.expand_dims(points, -3),
+                        transform_type='type_2',
+                        fft_direction=fft_direction,
+                        tol=tol) * tf.expand_dims(source, -2) * imag_unit
+
+  # Keep only real part of gradient w.r.t points and transpose the last two
+  # axes.
+  grad_points = tf.einsum('...ij->...ji', tf.math.real(grad_points))
 
   # Handle broadcasting.
-  baxis = -1 if transform_type == 'type_1' else -rank
-  src_bshape = tf.shape(source)[:baxis]
-  pts_bshape = tf.shape(points)[:-2]
-  src_rax, _ = tf.raw_ops.BroadcastGradientArgs(s0=src_bshape, s1=pts_bshape)
+  source_elem_rank = 1 if transform_type == 'type_1' else rank
+  source_batch_shape = tf.shape(source)[:-source_elem_rank]
+  points_batch_shape = tf.shape(points)[:-2]
+  source_reduction_indices, points_reduction_indices = (
+      tf.raw_ops.BroadcastGradientArgs(s0=source_batch_shape,
+                                       s1=points_batch_shape))
   grad_source = tf.reshape(
-      tf.math.reduce_sum(grad_source, src_rax), tf.shape(source))
+      tf.math.reduce_sum(grad_source, source_reduction_indices),
+      tf.shape(source))
+  grad_points = tf.reshape(
+      tf.math.reduce_sum(grad_points, points_reduction_indices),
+      tf.shape(points))
 
   # Gradient with respect to the grid shape is not meaningful.
   return [grad_source, grad_points, None]

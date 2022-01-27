@@ -60,8 +60,8 @@ class NUFFTOpsTest(tf.test.TestCase):
   """Test case for NUFFT functions."""
 
   @parameterized(grid_shape=[[10, 16], [10, 10, 8]],
-                 source_batch_shape=[[], [2, 4]],
-                 points_batch_shape=[[], [2, 1], [1, 4]],
+                 source_batch_shape=[[], [2, 4], [4]],
+                 points_batch_shape=[[], [2, 1], [1, 4], [4]],
                  transform_type=['type_1', 'type_2'],
                  fft_direction=['forward', 'backward'],
                  dtype=[tf.dtypes.complex64, tf.dtypes.complex128],
@@ -95,18 +95,20 @@ class NUFFTOpsTest(tf.test.TestCase):
       elif transform_type == 'type_2':  # uniform to nonuniform
         source_shape = source_batch_shape + grid_shape
 
-      source = tf.Variable(tf.dtypes.complex(
+      source = tf.dtypes.complex(
           tf.random.uniform(
               source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
           tf.random.uniform(
-              source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
+              source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype))
 
       points_shape = points_batch_shape + [num_points, rank]
-      points = tf.Variable(tf.random.uniform(
+      points = tf.random.uniform(
           points_shape, minval=-np.pi, maxval=np.pi,
-          dtype=dtype.real_dtype))
+          dtype=dtype.real_dtype)
 
       with tf.GradientTape(persistent=True) as tape:
+
+        tape.watch([source, points])
 
         result_nufft = nufft_ops.nufft(
           source, points,
@@ -121,18 +123,19 @@ class NUFFTOpsTest(tf.test.TestCase):
           fft_direction=fft_direction)
 
       # Compute gradients.
-      grad_source_nufft = tape.gradient(result_nufft, source)
-      grad_source_nudft = tape.gradient(result_nudft, source)
+      grad_source_nufft, grad_points_nufft = tape.gradient(
+          result_nufft, [source, points])
+      grad_source_nudft, grad_points_nudft = tape.gradient(
+          result_nudft, [source, points])
 
       tol = DEFAULT_TOLERANCE
-      self.assertAllClose(result_nudft, result_nufft,
+      self.assertAllClose(result_nufft, result_nudft,
                           rtol=tol, atol=tol)
       self.assertAllClose(grad_source_nufft, grad_source_nudft,
                           rtol=tol, atol=tol)
+      self.assertAllClose(grad_points_nufft, grad_points_nudft,
+                          rtol=tol, atol=tol)
 
-      grad_points_nufft = tape.gradient(result_nufft, points)
-      grad_points_nudft = tape.gradient(result_nudft, points)
-      # print(grad_points_nufft, grad_points_nudft)
 
 
   @parameterized(grid_shape=[[128, 128], [128, 128, 128]],

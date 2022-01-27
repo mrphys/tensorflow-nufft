@@ -114,7 +114,7 @@ class NUFFTBaseOp : public OpKernel {
               grid_shape_tensor.vec<int64_t>(), &grid_shape));
 
         } else {
-          LOG(FATAL) << "shape must have type int32 or int64_t.";
+          LOG(FATAL) << "shape must have type int32 or int64";
         }
 
         break;
@@ -133,78 +133,85 @@ class NUFFTBaseOp : public OpKernel {
         break;
       }
     }
-
-    // Handle broadcasting.
-    gtl::InlinedVector<int64_t, 4> source_batch_shape;
-    gtl::InlinedVector<int64_t, 4> points_batch_shape;
-
+    
+    // Get the ranks of the source/point elements.
+    int points_elem_rank = 2;  // A points element is always 2D.
+    int source_elem_rank;
     switch (transform_type_) {
       case TransformType::TYPE_1:  // nonuniform to uniform
-        source_batch_shape.resize(source.dims() - 1);
+        // Source element is 1D for type-1 transforms.
+        source_elem_rank = 1;
         break;
       case TransformType::TYPE_2:  // uniform to nonuniform
-        source_batch_shape.resize(source.dims() - rank);
+        // Source element is N-D for N-D type-2 transforms.
+        source_elem_rank = rank;
         break;
     }
-    points_batch_shape.resize(points.shape().dims() - 2);
 
-    for (int i = 0; i < source_batch_shape.size(); i++) {
-      source_batch_shape[i] = source.dim_size(i);
+    // Split source and points shapes into batch and element shapes.
+    TensorShape source_elem_shape;   // Shape of each source element.
+    TensorShape points_elem_shape;   // Shape of each points element.
+    TensorShape source_batch_shape;  // Shape of source batch.
+    TensorShape points_batch_shape;  // Shape of points batch.
+
+    for (int i = 0; i < source.dims(); i++) {
+      if (i < source.dims() - source_elem_rank) {
+        source_batch_shape.AddDim(source.dim_size(i));
+      } else {
+        source_elem_shape.AddDim(source.dim_size(i));
+      }
     }
-    for (int i = 0; i < points_batch_shape.size(); i++) {
-      points_batch_shape[i] = points.dim_size(i);
+
+    for (int i = 0; i < points.dims(); i++) {
+      if (i < points.dims() - points_elem_rank) {
+        points_batch_shape.AddDim(points.dim_size(i));
+      } else {
+        points_elem_shape.AddDim(points.dim_size(i));
+      }
     }
 
     // Reshape input tensors if either has less batch dimensions than the
     // other, by adding leading ones as necessary so that both have the same
-    // shape.
-    Tensor spoints;
-    if (points_batch_shape.size() < source_batch_shape.size()) {
-      // Points has less batch dims than source. Insert ones at the beginning
-      // until the two sizes match.
-      int diff = source_batch_shape.size() - points_batch_shape.size();
-      for (int i = 0; i < diff; i++) {
-        points_batch_shape.insert(points_batch_shape.begin(), 1);
-      }
-
-      TensorShape points_shape(points_batch_shape);
-      points_shape.AppendShape(points.shape());
-
-      OP_REQUIRES(ctx, spoints.CopyFrom(points, points_shape),
-                  errors::Internal(
-                    "Failed to reshape scalar points tensor."));
-    } else {
-      OP_REQUIRES(ctx, spoints.CopyFrom(points, points.shape()),
-                  errors::Internal(
-                    "Failed to copy non-scalar points tensor."));
-    }
-
-    Tensor ssource;
-    if (source_batch_shape.size() < points_batch_shape.size()) {
+    // number of batch dimensions.
+    if (source_batch_shape.dims() < points_batch_shape.dims()) {
       // Source has less batch dims than points. Insert ones at the beginning
       // until the two sizes match.
-      int diff = points_batch_shape.size() - source_batch_shape.size();
+      int diff = points_batch_shape.dims() - source_batch_shape.dims();
       for (int i = 0; i < diff; i++) {
-        source_batch_shape.insert(source_batch_shape.begin(), 1);
+        source_batch_shape.InsertDim(0, 1);
       }
-
-      TensorShape source_shape(source_batch_shape);
-      source_shape.AppendShape(source.shape());
-
-      OP_REQUIRES(ctx, ssource.CopyFrom(source, source_shape),
-                  errors::Internal(
-                    "Failed to reshape scalar source tensor."));
-    } else {
-      OP_REQUIRES(ctx, ssource.CopyFrom(source, source.shape()),
-                  errors::Internal(
-                    "Failed to copy non-scalar source tensor."));
     }
 
-    BCast bcast(source_batch_shape, points_batch_shape);
+    if (points_batch_shape.dims() < source_batch_shape.dims()) {
+      // Points has less batch dims than source. Insert ones at the beginning
+      // until the two sizes match.
+      int diff = source_batch_shape.dims() - points_batch_shape.dims();
+      for (int i = 0; i < diff; i++) {
+        points_batch_shape.InsertDim(0, 1);
+      }
+    }
+
+    Tensor reshaped_source;
+    TensorShape source_shape(source_batch_shape);
+    source_shape.AppendShape(source_elem_shape);
+    OP_REQUIRES(ctx, reshaped_source.CopyFrom(source, source_shape),
+                errors::Internal(
+                    "Failed to reshape source tensor."));
+
+    Tensor reshaped_points;
+    TensorShape points_shape(points_batch_shape);
+    points_shape.AppendShape(points_elem_shape);
+    OP_REQUIRES(ctx, reshaped_points.CopyFrom(points, points_shape),
+                errors::Internal(
+                    "Failed to reshape points tensor."));
+
+    // Check that broadcast of source and points batch shapes is valid.
+    BCast bcast(BCast::FromShape(source_batch_shape),
+                BCast::FromShape(points_batch_shape));
     OP_REQUIRES(ctx, bcast.IsValid(),
                 errors::InvalidArgument(
-                  "Incompatible shapes: ", source.shape().DebugString(),
-                  " vs. ", points.shape().DebugString()));
+                    "Incompatible shapes: ", source.shape().DebugString(),
+                    " vs. ", points.shape().DebugString()));
 
     // Allocate output tensor.
     Tensor* target = nullptr;
@@ -219,7 +226,7 @@ class NUFFTBaseOp : public OpKernel {
     }
     OP_REQUIRES_OK(ctx, ctx->allocate_output(0, target_shape, &target));
 
-    int64_t num_batch_dims = source_batch_shape.size();
+    int64_t num_batch_dims = source_batch_shape.dims();
     int64_t num_transforms = 1;
 
     gtl::InlinedVector<int32, 8> outer_dims;
@@ -228,17 +235,16 @@ class NUFFTBaseOp : public OpKernel {
     inner_dims.reserve(num_batch_dims);
 
     for (int i = 0; i < num_batch_dims; i++) {
-      int32 points_dim_size = points_batch_shape[i];
-      if (points_batch_shape[i] == 1) {
+      if (points_batch_shape.dim_size(i) == 1) {
         inner_dims.push_back(i);
-        num_transforms *= source_batch_shape[i];
+        num_transforms *= source_batch_shape.dim_size(i);
       } else {
         outer_dims.push_back(i);
       }
     }
 
-    gtl::InlinedVector<int32, 8> source_perm(ssource.dims());
-    gtl::InlinedVector<int32, 8> points_perm(spoints.dims());
+    gtl::InlinedVector<int32, 8> source_perm(reshaped_source.dims());
+    gtl::InlinedVector<int32, 8> points_perm(reshaped_points.dims());
     gtl::InlinedVector<int32, 8> target_perm(target->dims());
     std::iota(source_perm.begin(), source_perm.end(), 0);
     std::iota(points_perm.begin(), points_perm.end(), 0);
@@ -275,20 +281,20 @@ class NUFFTBaseOp : public OpKernel {
     // Reverse points.
     Tensor rpoints;
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(kRealDType<FloatType>,
-                                           spoints.shape(),
+                                           reshaped_points.shape(),
                                            &rpoints));
 
     OP_REQUIRES_OK(ctx, ::tensorflow::DoReverse<Device, FloatType>(
         ctx->eigen_device<Device>(),
-        spoints,
-        {spoints.dims() - 1},
+        reshaped_points,
+        {reshaped_points.dims() - 1},
         &rpoints));
 
     /// Transpose points to obtain single-dimension arrays.
     Tensor tpoints;
-    TensorShape tpoints_shape = spoints.shape();
-    for (int i = 0; i < spoints.dims(); i++) {
-      tpoints_shape.set_dim(i, spoints.dim_size(points_perm[i]));
+    TensorShape tpoints_shape = reshaped_points.shape();
+    for (int i = 0; i < reshaped_points.dims(); i++) {
+      tpoints_shape.set_dim(i, reshaped_points.dim_size(points_perm[i]));
     }
     
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(kRealDType<FloatType>,
@@ -304,9 +310,9 @@ class NUFFTBaseOp : public OpKernel {
     Tensor tsource;
     const Tensor* psource;
     if (transpose_source) {
-      TensorShape tsource_shape = ssource.shape();
-      for (int i = 0; i < ssource.dims(); i++) {
-        tsource_shape.set_dim(i, ssource.dim_size(source_perm[i]));
+      TensorShape tsource_shape = reshaped_source.shape();
+      for (int i = 0; i < reshaped_source.dims(); i++) {
+        tsource_shape.set_dim(i, reshaped_source.dim_size(source_perm[i]));
       }
       
       OP_REQUIRES_OK(ctx, ctx->allocate_temp(kComplexDType<FloatType>,
@@ -315,14 +321,14 @@ class NUFFTBaseOp : public OpKernel {
       
       OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
           ctx->eigen_device<Device>(),
-          ssource,
+          reshaped_source,
           source_perm,
           &tsource));
       
       psource = &tsource;
       
     } else {
-      psource = &ssource;
+      psource = &reshaped_source;
     }
 
     Tensor ttarget;

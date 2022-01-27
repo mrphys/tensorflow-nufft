@@ -96,15 +96,15 @@ class NUFFTOpsTest(tf.test.TestCase):
         source_shape = source_batch_shape + grid_shape
 
       source = tf.Variable(tf.dtypes.complex(
-        tf.random.uniform(
-          source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
-        tf.random.uniform(
-          source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
+          tf.random.uniform(
+              source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
+          tf.random.uniform(
+              source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
 
       points_shape = points_batch_shape + [num_points, rank]
       points = tf.Variable(tf.random.uniform(
-        points_shape, minval=-np.pi, maxval=np.pi,
-        dtype=dtype.real_dtype))
+          points_shape, minval=-np.pi, maxval=np.pi,
+          dtype=dtype.real_dtype))
 
       with tf.GradientTape(persistent=True) as tape:
 
@@ -121,14 +121,18 @@ class NUFFTOpsTest(tf.test.TestCase):
           fft_direction=fft_direction)
 
       # Compute gradients.
-      grad_nufft = tape.gradient(result_nufft, source)
-      grad_nudft = tape.gradient(result_nudft, source)
+      grad_source_nufft = tape.gradient(result_nufft, source)
+      grad_source_nudft = tape.gradient(result_nudft, source)
 
       tol = DEFAULT_TOLERANCE
       self.assertAllClose(result_nudft, result_nufft,
                           rtol=tol, atol=tol)
-      self.assertAllClose(grad_nufft, grad_nudft,
+      self.assertAllClose(grad_source_nufft, grad_source_nudft,
                           rtol=tol, atol=tol)
+
+      grad_points_nufft = tape.gradient(result_nufft, points)
+      grad_points_nudft = tape.gradient(result_nudft, points)
+      # print(grad_points_nufft, grad_points_nudft)
 
 
   @parameterized(grid_shape=[[128, 128], [128, 128, 128]],
@@ -147,8 +151,9 @@ class NUFFTOpsTest(tf.test.TestCase):
 
     source = tf.complex(tf.ones(batch_shape + grid_shape, dtype.real_dtype),
                         tf.zeros(batch_shape + grid_shape, dtype.real_dtype))
-    points = tf.random.uniform(batch_shape + [num_points, rank], # pylint: disable=unexpected-keyword-arg
-      minval=-np.pi, maxval=np.pi, dtype=dtype.real_dtype)
+    points = tf.random.uniform(  # pylint: disable=unexpected-keyword-arg
+        batch_shape + [num_points, rank],
+        minval=-np.pi, maxval=np.pi, dtype=dtype.real_dtype)
 
     with tf.device(device):
       target = nufft_ops.interp(source, points, tol=1e-4)
@@ -179,8 +184,9 @@ class NUFFTOpsTest(tf.test.TestCase):
 
     source = tf.complex(tf.ones(batch_shape + [num_points], dtype.real_dtype),
                         tf.zeros(batch_shape + [num_points], dtype.real_dtype))
-    points = tf.random.uniform(batch_shape + [num_points, rank], # pylint: disable=unexpected-keyword-arg
-      minval=-np.pi, maxval=np.pi, dtype=dtype.real_dtype)
+    points = tf.random.uniform(  # pylint: disable=unexpected-keyword-arg
+        batch_shape + [num_points, rank],
+        minval=-np.pi, maxval=np.pi, dtype=dtype.real_dtype)
 
     with tf.device(device):
       target = nufft_ops.spread(source, points, grid_shape)
@@ -209,9 +215,9 @@ class NUFFTOpsTest(tf.test.TestCase):
                                 tf.zeros(grid_shape, dtype.real_dtype)))
     source = tf.stack(sources)
 
-    points = tf.random.uniform( # pylint: disable=unexpected-keyword-arg
-      [batch_size, num_points, rank],
-      minval=-np.pi, maxval=np.pi, dtype=dtype.real_dtype) # pylint: disable=unexpected-keyword-arg
+    points = tf.random.uniform(  # pylint: disable=unexpected-keyword-arg
+        [batch_size, num_points, rank],
+        minval=-np.pi, maxval=np.pi, dtype=dtype.real_dtype)
 
     with tf.device(device):
       target = nufft_ops.interp(source, points, tol=1e-4)
@@ -225,7 +231,7 @@ class NUFFTOpsTest(tf.test.TestCase):
 
 
   @parameterized(device=['/cpu:0', '/gpu:0'])
-  def test_spread_batch(self, device): # pylint: disable=missing-function-docstring
+  def test_spread_batch(self, device):  # pylint: disable=missing-function-docstring
 
     tf.random.set_seed(0)
 
@@ -243,9 +249,9 @@ class NUFFTOpsTest(tf.test.TestCase):
                                 tf.zeros([num_points], dtype.real_dtype)))
     source = tf.stack(sources)
 
-    points = tf.random.uniform( # pylint: disable=unexpected-keyword-arg
-      [batch_size, num_points, rank],
-      minval=-np.pi, maxval=np.pi, dtype=dtype.real_dtype)
+    points = tf.random.uniform(  # pylint: disable=unexpected-keyword-arg
+        [batch_size, num_points, rank],
+        minval=-np.pi, maxval=np.pi, dtype=dtype.real_dtype)
 
     with tf.device(device):
       target = nufft_ops.spread(source, points, grid_shape, tol=1e-4)
@@ -286,10 +292,10 @@ class NUFFTOpsTest(tf.test.TestCase):
         source_shape = source_batch_shape + grid_shape
 
       source = tf.Variable(tf.dtypes.complex(
-        tf.random.uniform(
-          source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
-        tf.random.uniform(
-          source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
+          tf.random.uniform(
+              source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
+          tf.random.uniform(
+              source_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype)))
 
       points_shape = points_batch_shape + [num_points, rank]
       points = tf.Variable(tf.random.uniform(
@@ -299,16 +305,16 @@ class NUFFTOpsTest(tf.test.TestCase):
       with tf.GradientTape(persistent=True) as tape:
 
         result_nufft = nufft_ops.nufft(
-          source, points,
-          grid_shape=grid_shape,
-          transform_type=transform_type,
-          fft_direction=fft_direction)
+            source, points,
+            grid_shape=grid_shape,
+            transform_type=transform_type,
+            fft_direction=fft_direction)
 
         result_nudft = nufft_ops.nudft(
-          source, points,
-          grid_shape=grid_shape,
-          transform_type=transform_type,
-          fft_direction=fft_direction)
+            source, points,
+            grid_shape=grid_shape,
+            transform_type=transform_type,
+            fft_direction=fft_direction)
 
       # Compute gradients.
       grad_nufft = tape.gradient(result_nufft, source)
@@ -449,14 +455,14 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
 
   # source_shape, points_shape, transform_type, grid_shape
   cases = [
-    ([256, 256], [200000, 2], 'type_2', None),
-    ([16, 256, 256], [200000, 2], 'type_2', None),
-    ([16, 256, 256], [16, 200000, 2], 'type_2', None),
-    ([200000], [200000, 2], 'type_1', [256, 256]),
-    ([16, 200000], [200000, 2], 'type_1', [256, 256]),
-    ([16, 200000], [16, 200000, 2], 'type_1', [256, 256]),
-    ([128, 128, 128], [800000, 3], 'type_2', None),
-    ([800000], [800000, 3], 'type_1', [128, 128, 128])
+      ([256, 256], [200000, 2], 'type_2', None),
+      ([16, 256, 256], [200000, 2], 'type_2', None),
+      ([16, 256, 256], [16, 200000, 2], 'type_2', None),
+      ([200000], [200000, 2], 'type_1', [256, 256]),
+      ([16, 200000], [200000, 2], 'type_1', [256, 256]),
+      ([16, 200000], [16, 200000, 2], 'type_1', [256, 256]),
+      ([128, 128, 128], [800000, 3], 'type_2', None),
+      ([800000], [800000, 3], 'type_1', [128, 128, 128])
   ]
 
   def benchmark_nufft(self):
@@ -491,9 +497,9 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
             tf.device(device):
 
           source = tf.Variable(
-            random_array(source_shape) + random_array(source_shape) * 1j)
+              random_array(source_shape) + random_array(source_shape) * 1j)
           points = tf.Variable(
-            random_array(points_shape) * 2.0 * np.pi)
+              random_array(points_shape) * 2.0 * np.pi)
 
           self.evaluate(tf.compat.v1.global_variables_initializer())
 
@@ -503,17 +509,17 @@ class NUFFTOpsBenchmark(tf.test.Benchmark):
                                    transform_type=transform_type)
 
           result = self.run_op_benchmark(
-            sess,
-            target,
-            burn_iters=2,
-            min_iters=50,
-            store_memory_usage=True,
-            extras={
-              'source_shape': source_shape,
-              'points_shape': points_shape,
-              'transform_type': transform_type,
-              'grid_shape': grid_shape
-            })
+              sess,
+              target,
+              burn_iters=2,
+              min_iters=50,
+              store_memory_usage=True,
+              extras={
+                'source_shape': source_shape,
+                'points_shape': points_shape,
+                'transform_type': transform_type,
+                'grid_shape': grid_shape
+              })
 
         result.update(result['extras'])
         result.pop('extras')

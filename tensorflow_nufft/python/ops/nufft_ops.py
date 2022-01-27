@@ -64,28 +64,28 @@ def _nufft_grad(op, grad):
   # Get inputs.
   source = op.inputs[0]
   points = op.inputs[1]
-  transform_type = op.get_attr('transform_type')
-  fft_direction = op.get_attr('fft_direction')
+  transform_type = op.get_attr('transform_type').decode()
+  fft_direction = op.get_attr('fft_direction').decode()
   tol = op.get_attr('tol')
   rank = points.shape[-1]
 
   # Gradient of type-1 transform is computed using type-2 transform and
   # viceversa.
-  if transform_type == b'type_1':   # nonuniform to uniform
+  if transform_type == 'type_1':    # nonuniform to uniform
     grad_transform_type = 'type_2'  # uniform to nonuniform
-    grad_grid_shape = [] # grid shape is unused for type-2 transforms
-  elif transform_type == b'type_2':
+    grad_grid_shape = []  # grid shape is unused for type-2 transforms
+  elif transform_type == 'type_2':
     grad_transform_type = 'type_1'
     grad_grid_shape = tf.shape(source)[-rank:]
 
   # Gradient of forward transform is computed using backward transform and
   # viceversa.
-  if fft_direction == b'backward':
+  if fft_direction == 'backward':
     grad_fft_direction = 'forward'
-  elif fft_direction == b'forward':
+  elif fft_direction == 'forward':
     grad_fft_direction = 'backward'
 
-  # Compute the gradients with respect to the `source` tensor.
+  # Compute the gradients with respect to the `source` input.
   grad_source = nufft(grad,
                       points,
                       grid_shape=grad_grid_shape,
@@ -93,18 +93,19 @@ def _nufft_grad(op, grad):
                       fft_direction=grad_fft_direction,
                       tol=tol)
 
+  # Compute the gradients with respect to the `points` input.
+  grad_points = None
+
   # Handle broadcasting.
-  baxis = -1 if transform_type == b'type_1' else -rank
+  baxis = -1 if transform_type == 'type_1' else -rank
   src_bshape = tf.shape(source)[:baxis]
   pts_bshape = tf.shape(points)[:-2]
-  src_rax, _ = tf.raw_ops.BroadcastGradientArgs(s0=src_bshape,
-                            s1=pts_bshape)
+  src_rax, _ = tf.raw_ops.BroadcastGradientArgs(s0=src_bshape, s1=pts_bshape)
   grad_source = tf.reshape(
-    tf.math.reduce_sum(grad_source, src_rax), tf.shape(source))
+      tf.math.reduce_sum(grad_source, src_rax), tf.shape(source))
 
-  # Gradient with respect to the points tensor is not implemented.
   # Gradient with respect to the grid shape is not meaningful.
-  return [grad_source, None, None]
+  return [grad_source, grad_points, None]
 
 
 def nudft(source,
@@ -124,8 +125,7 @@ def nudft(source,
   def _nudft(inputs):
     src, pts = inputs
     shape = src.shape if transform_type == 'type_2' else grid_shape
-    nudft_matrix = _nudft_matrix(
-      pts, shape, fft_direction=fft_direction)
+    nudft_matrix = _nudft_matrix(pts, shape, fft_direction=fft_direction)
     if transform_type == 'type_1':
       nudft_matrix = tf.transpose(nudft_matrix)
     src_vec = tf.reshape(src, [-1])
@@ -134,8 +134,8 @@ def nudft(source,
   # Validate inputs. This also broadcasts `source` and `points` to equal
   # batch shapes.
   source, points, transform_type, fft_direction, grid_shape = \
-    _validate_nudft_inputs(
-      source, points, transform_type, fft_direction, grid_shape)
+      _validate_nudft_inputs(
+          source, points, transform_type, fft_direction, grid_shape)
 
   # Flatten batch dimensions.
   rank = points.shape[-1]
@@ -182,11 +182,11 @@ def _nudft_matrix(points, grid_shape, fft_direction):
   r_vec = [tf.linspace(-size / 2, size / 2 - 1, size) for size in grid_shape]
 
   r_grid = tf.cast(tf.reshape(
-    tf.meshgrid(*r_vec, indexing='ij'),
-    [rank, tf.reduce_prod(grid_shape)]), points.dtype)
+      tf.meshgrid(*r_vec, indexing='ij'),
+          [rank, tf.reduce_prod(grid_shape)]), points.dtype)
 
   points_grid = tf.cast(tf.matmul(
-    points, r_grid), _complex_dtype(points.dtype))
+      points, r_grid), _complex_dtype(points.dtype))
 
   if fft_direction == 'backward':
     nudft_matrix = tf.exp(1j * points_grid)
@@ -248,34 +248,34 @@ def _validate_nudft_inputs(source,
 
     if not len(grid_shape) == rank:
       raise ValueError((
-        "Invalid `grid_shape` argument: must represent a rank-{} "
-        "shape. Received: {}").format(rank, grid_shape))
+          "Invalid `grid_shape` argument: must represent a rank-{} "
+          "shape. Received: {}").format(rank, grid_shape))
 
   if expected_rank:
 
     if not rank == expected_rank:
       raise ValueError((
-        "Invalid shape for `points` argument: "
-        "last dimension must be equal to expected rank, which is {}. "
-        "Received: {}").format(expected_rank, rank))
+          "Invalid shape for `points` argument: "
+          "last dimension must be equal to expected rank, which is {}. "
+          "Received: {}").format(expected_rank, rank))
 
   # Check that dtype for `source` matches the expected dtype.
   if expected_dtype:
 
     if not source.dtype == expected_dtype:
       raise TypeError((
-        "Invalid dtype for `source` argument: "
-        "must match the expected dtype, which is {}. "
-        "Received: {}").format(expected_dtype, source.dtype))
+          "Invalid dtype for `source` argument: "
+          "must match the expected dtype, which is {}. "
+          "Received: {}").format(expected_dtype, source.dtype))
 
   expected_dtype = source.dtype
 
   # Check that dtype for `points` matches the expected dtype.
   if not points.dtype == expected_dtype.real_dtype:
     raise TypeError((
-      "Invalid dtype for `points` argument: "
-      "must match the real part of the expected dtype, which is {}. "
-      "Received: {}").format(expected_dtype.real_dtype, points.dtype))
+        "Invalid dtype for `points` argument: "
+        "must match the real part of the expected dtype, which is {}. "
+        "Received: {}").format(expected_dtype.real_dtype, points.dtype))
 
   # Check that spatial dimensions of input `source` match the expected modes
   # shape.
@@ -284,17 +284,17 @@ def _validate_nudft_inputs(source,
     if transform_type == 'type_1':
       if not grid_shape == expected_grid_shape:
         raise ValueError((
-          "Invalid `grid_shape` argument: "
-          "expected {}. Received: {}").format(
-            expected_grid_shape, grid_shape))
+            "Invalid `grid_shape` argument: "
+            "expected {}. Received: {}").format(
+                expected_grid_shape, grid_shape))
 
     if transform_type == 'type_2':
       if not source.shape[-rank:] == expected_grid_shape:
         raise ValueError((
-          "Invalid shape for `source` argument: "
-          "the modes shape (i.e., dimensions {}) must match "
-          "the expected modes shape, which is {}. Received: {}").format(
-            tuple(range(-rank, 0)), expected_grid_shape, source.shape))
+            "Invalid shape for `source` argument: "
+            "the modes shape (i.e., dimensions {}) must match "
+            "the expected modes shape, which is {}. Received: {}").format(
+                tuple(range(-rank, 0)), expected_grid_shape, source.shape))
 
   # Check that batch shapes for `source` and `points` are broadcastable, and
   # broadcast them to a common shape.
@@ -314,10 +314,10 @@ def _validate_nudft_inputs(source,
 
   except ValueError as err:
     raise ValueError((
-      "Incompatible batch shapes for `source` and `points`."
-      "The batch dimensions for `source` and `points` must be "
-      "broadcastable. Received: {}, {}").format(
-        source.shape, points.shape)) from err
+        "Incompatible batch shapes for `source` and `points`."
+        "The batch dimensions for `source` and `points` must be "
+        "broadcastable. Received: {}, {}").format(
+            source.shape, points.shape)) from err
 
   source = tf.broadcast_to(source, batch_shape + source_shape)
   points = tf.broadcast_to(points, batch_shape + points_shape)
@@ -342,8 +342,8 @@ def _validate_enum(value, valid_values, name):
   """
   if value not in valid_values:
     raise ValueError((
-      "The `{}` argument must be one of {}. "
-      "Received: {}").format(name, valid_values, value))
+        "The `{}` argument must be one of {}. "
+        "Received: {}").format(name, valid_values, value))
   return value
 
 
@@ -358,10 +358,10 @@ def _complex_dtype(dtype):
     The complex dtype corresponding to the given real dtype.
   """
   dtypes = {
-    'float32': tf.dtypes.complex64,
-    'float64': tf.dtypes.complex128,
-    'complex64': tf.dtypes.complex64,
-    'complex128': tf.dtypes.complex128
+      'float32': tf.dtypes.complex64,
+      'float64': tf.dtypes.complex128,
+      'complex64': tf.dtypes.complex64,
+      'complex128': tf.dtypes.complex128
   }
   if isinstance(dtype, tf.dtypes.DType):
     dtype = dtype.name

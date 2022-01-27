@@ -183,7 +183,7 @@ struct Transpose<GPUDevice, T, conjugate> {
     // if (internal::TransposeUsingTile<T, conjugate>::run(d, in, perm, out)) {
     //   return;
     // }
-    // TODO: reenable this transpose type
+    // TODO(jmontalt): reenable this transpose type
 
     switch (in.dims()) {
       HANDLE_DIM(2);

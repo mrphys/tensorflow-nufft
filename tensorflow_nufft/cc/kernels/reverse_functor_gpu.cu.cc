@@ -17,7 +17,7 @@ limitations under the License.
 
 #define EIGEN_USE_GPU
 
-#include "reverse_functor.h"
+#include "tensorflow_nufft/cc/kernels/reverse_functor.h"
 
 #include "tensorflow/core/framework/register_types.h"
 
@@ -35,7 +35,7 @@ Status DoReverse(const Device& device, const Tensor& input,
 #define INSTANTIATE_GPU(TYPE)                                               \
   template Status DoReverse<GPUDevice, TYPE>(                               \
       const GPUDevice& device, const Tensor& in,                            \
-      const gtl::ArraySlice<int32> perm, Tensor* out);              
+      const gtl::ArraySlice<int32> perm, Tensor* out);
 
 TF_CALL_float(INSTANTIATE_GPU);
 TF_CALL_double(INSTANTIATE_GPU);

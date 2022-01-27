@@ -296,7 +296,7 @@ class NUFFTBaseOp : public OpKernel {
     for (int i = 0; i < reshaped_points.dims(); i++) {
       tpoints_shape.set_dim(i, reshaped_points.dim_size(points_perm[i]));
     }
-    
+
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(kRealDType<FloatType>,
                                            tpoints_shape,
                                            &tpoints));

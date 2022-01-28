@@ -42,8 +42,9 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
 #include "tensorflow_nufft/cc/kernels/omp_api.h"
 
-// NU coord handling macro: if p is true, rescales from [-pi, pi] to [0, N], then
-// folds *only* one period below and above, ie [-N, 2N], into the domain [0, N]...
+// NU coord handling macro: if p is true, rescales from [-pi, pi] to [0, N],
+// then folds *only* one period below and above, ie [-N, 2N], into the domain
+// [0, N]...
 #define RESCALE(x, N, p) (p ? \
          ((x * kOneOverTwoPi<FloatType> + (x < -kPi<FloatType> ? 1.5 : \
          (x >= kPi<FloatType> ? -0.5 : 0.5))) * N) : \
@@ -1030,25 +1031,26 @@ __global__ void SpreadSubproblemHorner3DKernel(
   }
   __syncthreads();
   /* write to global memory */
-  for (int n = threadIdx.x; n<N; n += blockDim.x) {
-    int i = n % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
-    int j = (int) (n /(bin_size_x + 2 * ceil(ns / 2.0))) %
-        (int) (bin_size_y + 2 * ceil(ns / 2.0));
+  for (int n = threadIdx.x; n < N; n += blockDim.x) {
+    int i = n % static_cast<int>(bin_size_x + 2 * ceil(ns / 2.0));
+    int j = static_cast<int>(n /(bin_size_x + 2 * ceil(ns / 2.0))) %
+            static_cast<int>(bin_size_y + 2 * ceil(ns / 2.0));
     int k = n / ((bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0)));
 
     ix = xoffset - ceil(ns / 2.0) + i;
     iy = yoffset - ceil(ns / 2.0) + j;
     iz = zoffset - ceil(ns / 2.0) + k;
 
-    if (ix<(nf1 + ceil(ns / 2.0)) &&
-       iy<(nf2 + ceil(ns / 2.0)) &&
-       iz<(nf3 + ceil(ns / 2.0))) {
+    if (ix < (nf1 + ceil(ns / 2.0)) &&
+        iy < (nf2 + ceil(ns / 2.0)) &&
+        iz < (nf3 + ceil(ns / 2.0))) {
       ix = ix < 0 ? ix + nf1 : (ix > nf1 - 1 ? ix - nf1 : ix);
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       iz = iz < 0 ? iz + nf3 : (iz > nf3 - 1 ? iz - nf3 : iz);
       outidx = ix + iy * nf1 + iz * nf1 * nf2;
-      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2)+
-        k * (bin_size_x + ceil(ns / 2.0) * 2) * (bin_size_y + ceil(ns / 2.0) * 2);
+      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2) +
+                      k * (bin_size_x + ceil(ns / 2.0) * 2) *
+                          (bin_size_y + ceil(ns / 2.0) * 2);
       GpuAtomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
       GpuAtomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
     }
@@ -1125,9 +1127,9 @@ __global__ void SpreadSubproblem3DKernel(
           FloatType kervalue1 = ker1[xx - xstart];
           ix = xx + ceil(ns / 2.0);
           if (ix >= (bin_size_x + (int) ceil(ns / 2.0) * 2) || ix < 0) break;
-          outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2)+
-               iz * (bin_size_x + ceil(ns / 2.0) * 2)*
-                    (bin_size_y + ceil(ns / 2.0) * 2);
+          outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2) +
+                   iz * (bin_size_x + ceil(ns / 2.0) * 2) *
+                        (bin_size_y + ceil(ns / 2.0) * 2);
           GpuAtomicAdd(&fwshared[outidx].x,
                     cnow.x * kervalue1 * kervalue2 * kervalue3);
           GpuAtomicAdd(&fwshared[outidx].y,
@@ -1139,20 +1141,25 @@ __global__ void SpreadSubproblem3DKernel(
   __syncthreads();
   /* write to global memory */
   for (int n = threadIdx.x; n < N; n += blockDim.x) {
-    int i = n % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
-    int j = (int) (n /(bin_size_x + 2 * ceil(ns / 2.0))) % (int) (bin_size_y + 2 * ceil(ns / 2.0));
-    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0)));
+    int i = n % static_cast<int>(bin_size_x + 2 * ceil(ns / 2.0));
+    int j = static_cast<int>(n /(bin_size_x + 2 * ceil(ns / 2.0))) %
+            static_cast<int>(bin_size_y + 2 * ceil(ns / 2.0));
+    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0)) *
+            (bin_size_y + 2 * ceil(ns / 2.0)));
 
     ix = xoffset - ceil(ns / 2.0) + i;
     iy = yoffset - ceil(ns / 2.0) + j;
     iz = zoffset - ceil(ns / 2.0) + k;
-    if (ix<(nf1 + ceil(ns / 2.0)) && iy<(nf2 + ceil(ns / 2.0)) && iz<(nf3 + ceil(ns / 2.0))) {
+    if (ix < (nf1 + ceil(ns / 2.0)) &&
+        iy < (nf2 + ceil(ns / 2.0)) &&
+        iz < (nf3 + ceil(ns / 2.0))) {
       ix = ix < 0 ? ix + nf1 : (ix > nf1 - 1 ? ix - nf1 : ix);
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       iz = iz < 0 ? iz + nf3 : (iz > nf3 - 1 ? iz - nf3 : iz);
       outidx = ix + iy * nf1 + iz * nf1 * nf2;
-      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2)+
-        k * (bin_size_x + ceil(ns / 2.0) * 2) * (bin_size_y + ceil(ns / 2.0) * 2);
+      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2) +
+                      k * (bin_size_x + ceil(ns / 2.0) * 2) *
+                      (bin_size_y + ceil(ns / 2.0) * 2);
       GpuAtomicAdd(&fw[outidx].x, fwshared[sharedidx].x);
       GpuAtomicAdd(&fw[outidx].y, fwshared[sharedidx].y);
     }
@@ -1164,7 +1171,8 @@ __global__ void InterpNuptsDriven3DKernel(
     FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
     GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
     FloatType es_c, FloatType es_beta, int *idxnupts, int pirange) {
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < M; i += blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < M;
+       i += blockDim.x * gridDim.x) {
     FloatType x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     FloatType y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
     FloatType z_rescaled = RESCALE(z[idxnupts[i]], nf3, pirange);
@@ -1177,13 +1185,13 @@ __global__ void InterpNuptsDriven3DKernel(
     GpuComplex<FloatType> cnow;
     cnow.x = 0.0;
     cnow.y = 0.0;
-    for (int zz = zstart; zz<=zend; zz++) {
+    for (int zz = zstart; zz <= zend; zz++) {
       FloatType disz = abs(z_rescaled - zz);
       FloatType kervalue3 = EvaluateKernel(disz, es_c, es_beta, ns);
-      for (int yy = ystart; yy<=yend; yy++) {
+      for (int yy = ystart; yy <= yend; yy++) {
         FloatType disy = abs(y_rescaled - yy);
         FloatType kervalue2 = EvaluateKernel(disy, es_c, es_beta, ns);
-        for (int xx = xstart; xx<=xend; xx++) {
+        for (int xx = xstart; xx <= xend; xx++) {
           int ix = xx < 0 ? xx + nf1 : (xx > nf1 - 1 ? xx - nf1 : xx);
           int iy = yy < 0 ? yy + nf2 : (yy > nf2 - 1 ? yy - nf2 : yy);
           int iz = zz < 0 ? zz + nf3 : (zz > nf3 - 1 ? zz - nf3 : zz);
@@ -1207,7 +1215,8 @@ __global__ void InterpNuptsDrivenHorner3DKernel(
     FloatType *x, FloatType *y, FloatType *z, GpuComplex<FloatType> *c,
     GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2, int nf3,
     FloatType sigma, int *idxnupts, int pirange) {
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<M; i += blockDim.x * gridDim.x) {
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < M;
+       i += blockDim.x * gridDim.x) {
     FloatType x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     FloatType y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
     FloatType z_rescaled = RESCALE(z[idxnupts[i]], nf3, pirange);
@@ -1232,13 +1241,13 @@ __global__ void InterpNuptsDrivenHorner3DKernel(
     EvaluateKernelVectorHorner(ker2, ystart - y_rescaled, ns, sigma);
     EvaluateKernelVectorHorner(ker3, zstart - z_rescaled, ns, sigma);
 
-    for (int zz = zstart; zz<=zend; zz++) {
+    for (int zz = zstart; zz <= zend; zz++) {
       FloatType kervalue3 = ker3[zz - zstart];
       int iz = zz < 0 ? zz + nf3 : (zz > nf3 - 1 ? zz - nf3 : zz);
-      for (int yy = ystart; yy<=yend; yy++) {
+      for (int yy = ystart; yy <= yend; yy++) {
         FloatType kervalue2 = ker2[yy - ystart];
         int iy = yy < 0 ? yy + nf2 : (yy > nf2 - 1 ? yy - nf2 : yy);
-        for (int xx = xstart; xx<=xend; xx++) {
+        for (int xx = xstart; xx <= xend; xx++) {
           int ix = xx < 0 ? xx + nf1 : (xx > nf1 - 1 ? xx - nf1 : xx);
           int inidx = ix + iy * nf1 + iz * nf2 * nf1;
           FloatType kervalue1 = ker1[xx - xstart];
@@ -1250,7 +1259,6 @@ __global__ void InterpNuptsDrivenHorner3DKernel(
     c[idxnupts[i]].x = cnow.x;
     c[idxnupts[i]].y = cnow.y;
   }
-
 }
 
 template<typename FloatType>
@@ -1261,8 +1269,10 @@ __global__ void InterpSubproblem3DKernel(
     int bin_size_x, int bin_size_y, int bin_size_z, int* subprob_bins,
     int* subprob_start_pts, int* num_subprob, int max_subprob_size, int nbinx,
     int nbiny, int nbinz, int* idxnupts, int pirange) {
-  extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
-  GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
+  extern __shared__ __align__(sizeof(GpuComplex<FloatType>))
+  unsigned char fwshared_[];
+  GpuComplex<FloatType> *fwshared =
+      reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
   int xstart, ystart, xend, yend, zstart, zend;
   int subpidx = blockIdx.x;
@@ -1271,7 +1281,8 @@ __global__ void InterpSubproblem3DKernel(
   int ix, iy, iz;
   int outidx;
   int ptstart = binstartpts[bidx]+binsubp_idx * max_subprob_size;
-  int nupts = min(max_subprob_size, bin_sizes[bidx]-binsubp_idx * max_subprob_size);
+  int nupts = min(max_subprob_size,
+                  bin_sizes[bidx] - binsubp_idx * max_subprob_size);
 
   int xoffset = (bidx % nbinx) * bin_size_x;
   int yoffset = ((bidx / nbinx)%nbiny) * bin_size_y;
@@ -1280,21 +1291,26 @@ __global__ void InterpSubproblem3DKernel(
   int N = (bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0))*
       (bin_size_z + 2 * ceil(ns / 2.0));
 
-  for (int n = threadIdx.x;n<N; n += blockDim.x) {
-    int i = n % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
-    int j = (int) (n /(bin_size_x + 2 * ceil(ns / 2.0))) % (int) (bin_size_y + 2 * ceil(ns / 2.0));
-    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0)));
+  for (int n = threadIdx.x; n < N; n += blockDim.x) {
+    int i = n % static_cast<int>(bin_size_x + 2 * ceil(ns / 2.0));
+    int j = static_cast<int>(n /(bin_size_x + 2 * ceil(ns / 2.0))) %
+            static_cast<int>(bin_size_y + 2 * ceil(ns / 2.0));
+    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0)) *
+                 (bin_size_y + 2 * ceil(ns / 2.0)));
 
     ix = xoffset - ceil(ns / 2.0) + i;
     iy = yoffset - ceil(ns / 2.0) + j;
     iz = zoffset - ceil(ns / 2.0) + k;
-    if (ix<(nf1 + ceil(ns / 2.0)) && iy<(nf2 + ceil(ns / 2.0)) && iz<(nf3 + ceil(ns / 2.0))) {
+    if (ix < (nf1 + ceil(ns / 2.0)) &&
+        iy < (nf2 + ceil(ns / 2.0)) &&
+        iz < (nf3 + ceil(ns / 2.0))) {
       ix = ix < 0 ? ix + nf1 : (ix > nf1 - 1 ? ix - nf1 : ix);
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       iz = iz < 0 ? iz + nf3 : (iz > nf3 - 1 ? iz - nf3 : iz);
       outidx = ix + iy * nf1 + iz * nf1 * nf2;
-      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2)+
-        k * (bin_size_x + ceil(ns / 2.0) * 2) * (bin_size_y + ceil(ns / 2.0) * 2);
+      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2) +
+                      k * (bin_size_x + ceil(ns / 2.0) * 2) *
+                          (bin_size_y + ceil(ns / 2.0) * 2);
       fwshared[sharedidx].x = fw[outidx].x;
       fwshared[sharedidx].y = fw[outidx].y;
     }
@@ -1304,7 +1320,7 @@ __global__ void InterpSubproblem3DKernel(
 
   FloatType x_rescaled, y_rescaled, z_rescaled;
   GpuComplex<FloatType> cnow;
-  for (int i = threadIdx.x; i<nupts; i += blockDim.x) {
+  for (int i = threadIdx.x; i < nupts; i += blockDim.x) {
     int idx = ptstart + i;
     x_rescaled = RESCALE(x[idxnupts[idx]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[idx]], nf2, pirange);
@@ -1319,27 +1335,26 @@ __global__ void InterpSubproblem3DKernel(
     yend   = floor(y_rescaled + ns / 2.0) - yoffset;
     zend   = floor(z_rescaled + ns / 2.0) - zoffset;
 
-
-      for (int zz = zstart; zz<=zend; zz++) {
+    for (int zz = zstart; zz <= zend; zz++) {
       FloatType disz = abs(z_rescaled - zz);
       FloatType kervalue3 = EvaluateKernel(disz, es_c, es_beta, ns);
       iz = zz + ceil(ns / 2.0);
-      for (int yy = ystart; yy<=yend; yy++) {
+      for (int yy = ystart; yy <= yend; yy++) {
         FloatType disy = abs(y_rescaled - yy);
         FloatType kervalue2 = EvaluateKernel(disy, es_c, es_beta, ns);
         iy = yy + ceil(ns / 2.0);
-        for (int xx = xstart; xx<=xend; xx++) {
+        for (int xx = xstart; xx <= xend; xx++) {
           ix = xx + ceil(ns / 2.0);
-          outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2)+
-            iz * (bin_size_x + ceil(ns / 2.0) * 2)*
-               (bin_size_y + ceil(ns / 2.0) * 2);
+          outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2) +
+                    iz * (bin_size_x + ceil(ns / 2.0) * 2) *
+                    (bin_size_y + ceil(ns / 2.0) * 2);
 
           FloatType disx = abs(x_rescaled - xx);
           FloatType kervalue1 = EvaluateKernel(disx, es_c, es_beta, ns);
           cnow.x += fwshared[outidx].x * kervalue1 * kervalue2 * kervalue3;
           cnow.y += fwshared[outidx].y * kervalue1 * kervalue2 * kervalue3;
-            }
-          }
+        }
+      }
     }
     c[idxnupts[idx]].x = cnow.x;
     c[idxnupts[idx]].y = cnow.y;
@@ -1354,8 +1369,10 @@ __global__ void InterpSubproblemHorner3DKernel(
     int bin_size_y, int bin_size_z, int* subprob_bins, int* subprob_start_pts,
     int* num_subprob, int max_subprob_size, int nbinx, int nbiny, int nbinz,
     int* idxnupts, int pirange) {
-  extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
-  GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
+  extern __shared__ __align__(sizeof(GpuComplex<FloatType>))
+  unsigned char fwshared_[];
+  GpuComplex<FloatType> *fwshared =
+      reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
 
   int xstart, ystart, xend, yend, zstart, zend;
   int subpidx = blockIdx.x;
@@ -1374,20 +1391,24 @@ __global__ void InterpSubproblemHorner3DKernel(
       (bin_size_z + 2 * ceil(ns / 2.0));
 
   for (int n = threadIdx.x; n < N; n += blockDim.x) {
-    int i = n % (int) (bin_size_x + 2 * ceil(ns / 2.0) );
-    int j = (int) (n /(bin_size_x + 2 * ceil(ns / 2.0))) % (int) (bin_size_y + 2 * ceil(ns / 2.0));
-    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0)));
+    int i = n % static_cast<int>(bin_size_x + 2 * ceil(ns / 2.0));
+    int j = static_cast<int>(n /(bin_size_x + 2 * ceil(ns / 2.0))) %
+            static_cast<int>(bin_size_y + 2 * ceil(ns / 2.0));
+    int k = n / ((bin_size_x + 2 * ceil(ns / 2.0)) *
+                 (bin_size_y + 2 * ceil(ns / 2.0)));
 
     ix = xoffset - ceil(ns / 2.0) + i;
     iy = yoffset - ceil(ns / 2.0) + j;
     iz = zoffset - ceil(ns / 2.0) + k;
-    if (ix<(nf1 + ceil(ns / 2.0)) && iy < (nf2 + ceil(ns / 2.0)) && iz < (nf3 + ceil(ns / 2.0))) {
+    if (ix < (nf1 + ceil(ns / 2.0)) && iy < (nf2 + ceil(ns / 2.0)) &&
+        iz < (nf3 + ceil(ns / 2.0))) {
       ix = ix < 0 ? ix + nf1 : (ix > nf1 - 1 ? ix - nf1 : ix);
       iy = iy < 0 ? iy + nf2 : (iy > nf2 - 1 ? iy - nf2 : iy);
       iz = iz < 0 ? iz + nf3 : (iz > nf3 - 1 ? iz - nf3 : iz);
       outidx = ix + iy * nf1 + iz * nf1 * nf2;
-      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2)+
-        k * (bin_size_x + ceil(ns / 2.0) * 2) * (bin_size_y + ceil(ns / 2.0) * 2);
+      int sharedidx = i + j * (bin_size_x + ceil(ns / 2.0) * 2) +
+                      k * (bin_size_x + ceil(ns / 2.0) * 2) *
+                      (bin_size_y + ceil(ns / 2.0) * 2);
       fwshared[sharedidx].x = fw[outidx].x;
       fwshared[sharedidx].y = fw[outidx].y;
     }
@@ -1398,7 +1419,7 @@ __global__ void InterpSubproblemHorner3DKernel(
   FloatType ker3[kMaxKernelWidth];
   FloatType x_rescaled, y_rescaled, z_rescaled;
   GpuComplex<FloatType> cnow;
-  for (int i = threadIdx.x; i<nupts; i += blockDim.x) {
+  for (int i = threadIdx.x; i < nupts; i += blockDim.x) {
     int idx = ptstart + i;
     x_rescaled = RESCALE(x[idxnupts[idx]], nf1, pirange);
     y_rescaled = RESCALE(y[idxnupts[idx]], nf2, pirange);
@@ -1417,13 +1438,13 @@ __global__ void InterpSubproblemHorner3DKernel(
     EvaluateKernelVectorHorner(ker1, xstart + xoffset - x_rescaled, ns, sigma);
     EvaluateKernelVectorHorner(ker2, ystart + yoffset - y_rescaled, ns, sigma);
     EvaluateKernelVectorHorner(ker3, zstart + zoffset - z_rescaled, ns, sigma);
-      for (int zz = zstart; zz<=zend; zz++) {
+      for (int zz = zstart; zz <= zend; zz++) {
       FloatType kervalue3 = ker3[zz - zstart];
       iz = zz + ceil(ns / 2.0);
-      for (int yy = ystart; yy<=yend; yy++) {
+      for (int yy = ystart; yy <= yend; yy++) {
         FloatType kervalue2 = ker2[yy - ystart];
         iy = yy + ceil(ns / 2.0);
-        for (int xx = xstart; xx<=xend; xx++) {
+        for (int xx = xstart; xx <= xend; xx++) {
           ix = xx + ceil(ns / 2.0);
           outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2)+
                iz * (bin_size_x + ceil(ns / 2.0) * 2)*
@@ -1472,7 +1493,7 @@ Status Plan<GPUDevice, FloatType>::initialize(
     return errors::InvalidArgument("num_transforms must be >= 1");
   }
 
-  // TODO: check options.
+  // TODO(jmontalt): check options.
   //  - If mode_order == FFT, raise unimplemented error.
   //  - If check_bounds == true, raise unimplemented error.
 
@@ -1557,7 +1578,7 @@ Status Plan<GPUDevice, FloatType>::initialize(
   // Select maximum batch size.
   if (this->options_.max_batch_size == 0)
     // Heuristic from test codes.
-    this->options_.max_batch_size = min(num_transforms, 8); 
+    this->options_.max_batch_size = min(num_transforms, 8);
 
   if (this->type_ == TransformType::TYPE_1)
     this->spread_params_.spread_direction = SpreadDirection::SPREAD;
@@ -1623,8 +1644,7 @@ Status Plan<GPUDevice, FloatType>::initialize(
     Tensor kernel_fseries_host[3];
     FloatType* kernel_fseries_host_data[3];
     for (int i = 0; i < this->rank_; i++) {
-
-      // Number of Fourier coefficients.      
+      // Number of Fourier coefficients.
       int num_coeffs = this->grid_dims_[i] / 2 + 1;
 
       // Allocate host memory and calculate the Fourier series on the CPU.
@@ -1690,14 +1710,13 @@ Status Plan<GPUDevice, FloatType>::initialize(
 
     if (result != CUFFT_SUCCESS) {
       return errors::Internal("cufftPlanMany failed with code: ", result);
-    }   
+    }
   }
   return Status::OK();
 }
 
 template<typename FloatType>
 Plan<GPUDevice, FloatType>::~Plan() {
-
   if (this->fft_plan_)
     cufftDestroy(this->fft_plan_);
 
@@ -1741,7 +1760,7 @@ Status Plan<GPUDevice, FloatType>::set_points(
   switch (this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
       this->idx_nupts_ = reinterpret_cast<int*>(
-          this->device_.allocate(num_bytes));      
+          this->device_.allocate(num_bytes));
       if (this->spread_params_.sort_points == SortPoints::YES) {
         this->sort_idx_ = reinterpret_cast<int*>(
             this->device_.allocate(num_bytes));
@@ -1749,7 +1768,7 @@ Status Plan<GPUDevice, FloatType>::set_points(
       break;
     case SpreadMethod::SUBPROBLEM:
       this->idx_nupts_ = reinterpret_cast<int*>(
-          this->device_.allocate(num_bytes));    
+          this->device_.allocate(num_bytes));
       this->sort_idx_ = reinterpret_cast<int*>(
           this->device_.allocate(num_bytes));
       break;
@@ -1758,7 +1777,7 @@ Status Plan<GPUDevice, FloatType>::set_points(
       return errors::Unimplemented("Invalid spread method: ",
           static_cast<int>(this->options_.spread_method));
   }
-  
+
   TF_RETURN_IF_ERROR(this->init_spreader());
 
   return Status::OK();
@@ -1766,7 +1785,6 @@ Status Plan<GPUDevice, FloatType>::set_points(
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
-
   switch (this->type_) {
     case TransformType::TYPE_1:
       TF_RETURN_IF_ERROR(this->execute_type_1(d_c, d_fk));
@@ -1782,14 +1800,14 @@ Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
-
   int batch_size;
   DType* d_fkstart;
   DType* d_cstart;
-  
-  for (int i = 0; i * this->options_.max_batch_size < this->num_transforms_; i++) {
-    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size, 
-      this->options_.max_batch_size);
+
+  for (int i = 0; i * this->options_.max_batch_size < this->num_transforms_;
+       i++) {
+    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size,
+                     this->options_.max_batch_size);
     d_cstart  = d_c  + i * this->options_.max_batch_size * this->num_points_;
     d_fkstart = d_fk + i * this->options_.max_batch_size * this->mode_count_;
 
@@ -1798,12 +1816,11 @@ Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
 
     TF_RETURN_IF_ERROR(this->interp_batch(batch_size));
   }
-  
-  using namespace thrust::placeholders;
+
   thrust::device_ptr<FloatType> dev_ptr(reinterpret_cast<FloatType*>(d_c));
   thrust::transform(thrust::cuda::par.on(this->device_.stream()), dev_ptr,
                     dev_ptr + 2 * this->num_transforms_ * this->num_points_,
-                    dev_ptr, _1 * static_cast<FloatType>(
+                    dev_ptr, thrust::placeholders::_1 * static_cast<FloatType>(
                         this->spread_params_.kernel_scale));
 
   return Status::OK();
@@ -1811,28 +1828,28 @@ Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
-
   int batch_size;
   DType* d_fkstart;
   DType* d_cstart;
 
-  for (int i = 0; i * this->options_.max_batch_size < this->num_transforms_; i++) {
-    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size, 
+  for (int i = 0;
+       i * this->options_.max_batch_size < this->num_transforms_;
+       i++) {
+    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size,
       this->options_.max_batch_size);
     d_cstart   = d_c + i * this->options_.max_batch_size * this->num_points_;
     d_fkstart  = d_fk + i * this->options_.max_batch_size * this->mode_count_;
-    
+
     this->c_  = d_cstart;
     this->grid_data_ = d_fkstart;
 
     TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
   }
 
-  using namespace thrust::placeholders;
   thrust::device_ptr<FloatType> dev_ptr(reinterpret_cast<FloatType*>(d_fk));
   thrust::transform(thrust::cuda::par.on(this->device_.stream()), dev_ptr,
                     dev_ptr + 2 * this->num_transforms_ * this->mode_count_,
-                    dev_ptr, _1 * static_cast<FloatType>(
+                    dev_ptr, thrust::placeholders::_1 * static_cast<FloatType>(
                         this->spread_params_.kernel_scale));
 
   return Status::OK();
@@ -1843,9 +1860,11 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
   int batch_size;
   DType* d_fkstart;
   DType* d_cstart;
-  for (int i = 0; i * this->options_.max_batch_size < this->num_transforms_; i++) {
-    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size, 
-      this->options_.max_batch_size);
+  for (int i = 0;
+       i * this->options_.max_batch_size < this->num_transforms_;
+       i++) {
+    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size,
+                     this->options_.max_batch_size);
     d_cstart = d_c + i * this->options_.max_batch_size * this->num_points_;
     d_fkstart = d_fk + i * this->options_.max_batch_size * this->mode_count_;
     this->c_ = d_cstart;
@@ -1883,9 +1902,11 @@ Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
   int batch_size;
   DType* d_fkstart;
   DType* d_cstart;
-  for (int i = 0; i * this->options_.max_batch_size < this->num_transforms_; i++) {
-    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size, 
-      this->options_.max_batch_size);
+  for (int i = 0;
+       i * this->options_.max_batch_size < this->num_transforms_;
+       i++) {
+    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size,
+                     this->options_.max_batch_size);
     d_cstart  = d_c  + i * this->options_.max_batch_size * this->num_points_;
     d_fkstart = d_fk + i * this->options_.max_batch_size * this->mode_count_;
 
@@ -1896,7 +1917,7 @@ Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
     TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
 
     // Step 2: FFT
-    this->device_.synchronize(); // Is this necessary?
+    this->device_.synchronize();  // Is this necessary?
     auto result = cufftSetStream(this->fft_plan_, this->device_.stream());
     if (result != CUFFT_SUCCESS) {
       return errors::Internal(
@@ -1917,7 +1938,7 @@ Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::spread_batch(int batch_size) {
-  switch(this->options_.spread_method) {
+  switch (this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
       TF_RETURN_IF_ERROR(this->spread_batch_nupts_driven(batch_size));
       break;
@@ -1934,7 +1955,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch(int batch_size) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::interp_batch(int batch_size) {
-  switch(this->options_.spread_method) {
+  switch (this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
       TF_RETURN_IF_ERROR(this->interp_batch_nupts_driven(batch_size));
       break;
@@ -1954,7 +1975,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int batch_size) {
   dim3 threads_per_block;
   dim3 num_blocks;
 
-  int kernel_width = this->spread_params_.kernel_width;   // psi's support in terms of number of cells
+  int kernel_width = this->spread_params_.kernel_width;
   int pirange = this->spread_params_.pirange;
   FloatType es_c = this->spread_params_.kernel_c;
   FloatType es_beta = this->spread_params_.kernel_beta;
@@ -1965,7 +1986,8 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int batch_size) {
 
   threads_per_block.x = 16;
   threads_per_block.y = 1;
-  num_blocks.x = (this->num_points_ + threads_per_block.x - 1)/threads_per_block.x;
+  num_blocks.x = (this->num_points_ + threads_per_block.x - 1) /
+                 threads_per_block.x;
   num_blocks.y = 1;
 
   switch (this->rank_) {
@@ -2038,7 +2060,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int batch_size) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int batch_size) {
-  int kernel_width = this->spread_params_.kernel_width;// psi's support in terms of number of cells
+  int kernel_width = this->spread_params_.kernel_width;
   FloatType es_c = this->spread_params_.kernel_c;
   FloatType es_beta = this->spread_params_.kernel_beta;
   int max_subprob_size = this->options_.gpu_max_subproblem_size;
@@ -2088,11 +2110,12 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int batch_size) {
                 threads_per_block, shared_memory_size, this->device_.stream(),
                 this->points_[0], this->points_[1], d_c + t * this->num_points_,
                 d_fw + t * this->grid_size_, this->num_points_, kernel_width,
-                this->grid_dims_[0], this->grid_dims_[1], sigma, this->bin_start_pts_,
-                this->bin_sizes_, this->bin_dims_[0], this->bin_dims_[1],
-                this->subprob_bins_, this->subprob_start_pts_,
-                this->num_subprob_, max_subprob_size, this->num_bins_[0],
-                this->num_bins_[1], this->idx_nupts_, pirange));
+                this->grid_dims_[0], this->grid_dims_[1], sigma,
+                this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0],
+                this->bin_dims_[1], this->subprob_bins_,
+                this->subprob_start_pts_, this->num_subprob_, max_subprob_size,
+                this->num_bins_[0], this->num_bins_[1], this->idx_nupts_,
+                pirange));
           }
           break;
         default:
@@ -2109,11 +2132,11 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int batch_size) {
                 SpreadSubproblem3DKernel<FloatType>, num_blocks,
                 threads_per_block, shared_memory_size, this->device_.stream(),
                 this->points_[0], this->points_[1], this->points_[2],
-                d_c + t * this->num_points_, d_fw + t * this->grid_size_, 
+                d_c + t * this->num_points_, d_fw + t * this->grid_size_,
                 this->num_points_, kernel_width, this->grid_dims_[0],
                 this->grid_dims_[1], this->grid_dims_[2], es_c, es_beta,
                 this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0],
-                this->bin_dims_[1], this->bin_dims_[2], this->subprob_bins_, 
+                this->bin_dims_[1], this->bin_dims_[2], this->subprob_bins_,
                 this->subprob_start_pts_, this->num_subprob_, max_subprob_size,
                 this->num_bins_[0], this->num_bins_[1], this->num_bins_[2],
                 this->idx_nupts_, pirange));
@@ -2125,7 +2148,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int batch_size) {
                 SpreadSubproblemHorner3DKernel<FloatType>, num_blocks,
                 threads_per_block, shared_memory_size, this->device_.stream(),
                 this->points_[0], this->points_[1], this->points_[2],
-                d_c + t * this->num_points_, d_fw + t * this->grid_size_, 
+                d_c + t * this->num_points_, d_fw + t * this->grid_size_,
                 this->num_points_, kernel_width, this->grid_dims_[0],
                 this->grid_dims_[1], this->grid_dims_[2], sigma,
                 this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0],
@@ -2152,7 +2175,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int batch_size) {
   dim3 threads_per_block;
   dim3 num_blocks;
 
-  int kernel_width = this->spread_params_.kernel_width;   // psi's support in terms of number of cells
+  int kernel_width = this->spread_params_.kernel_width;
   FloatType es_c = this->spread_params_.kernel_c;
   FloatType es_beta = this->spread_params_.kernel_beta;
   FloatType sigma = this->options_.upsampling_factor;
@@ -2165,7 +2188,8 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int batch_size) {
     case 2:
       threads_per_block.x = 32;
       threads_per_block.y = 1;
-      num_blocks.x = (this->num_points_ + threads_per_block.x - 1)/threads_per_block.x;
+      num_blocks.x = (this->num_points_ + threads_per_block.x - 1) /
+                     threads_per_block.x;
       num_blocks.y = 1;
       switch (this->options_.kernel_evaluation_method) {
         case KernelEvaluationMethod::DIRECT:
@@ -2199,7 +2223,8 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int batch_size) {
     case 3:
       threads_per_block.x = 16;
       threads_per_block.y = 1;
-      num_blocks.x = (this->num_points_ + threads_per_block.x - 1) / threads_per_block.x;
+      num_blocks.x = (this->num_points_ + threads_per_block.x - 1) /
+                     threads_per_block.x;
       num_blocks.y = 1;
       switch (this->options_.kernel_evaluation_method) {
         case KernelEvaluationMethod::DIRECT:
@@ -2208,9 +2233,9 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int batch_size) {
                 InterpNuptsDriven3DKernel<FloatType>, num_blocks,
                 threads_per_block, 0, this->device_.stream(), this->points_[0],
                 this->points_[1], this->points_[2], d_c + t * this->num_points_,
-                d_fw + t * this->grid_size_, this->num_points_, kernel_width, 
+                d_fw + t * this->grid_size_, this->num_points_, kernel_width,
                 this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
-                es_c, es_beta, this->idx_nupts_,pirange));
+                es_c, es_beta, this->idx_nupts_, pirange));
           }
           break;
         case KernelEvaluationMethod::HORNER:
@@ -2267,7 +2292,8 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int batch_size) {
 
   switch (this->rank_) {
     case 2:
-      if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+      if (this->options_.kernel_evaluation_method ==
+          KernelEvaluationMethod::HORNER) {
         for (int t = 0; t < batch_size; t++) {
           TF_CHECK_OK(GpuLaunchKernel(
               InterpSubproblemHorner2DKernel<FloatType>, num_blocks,
@@ -2275,10 +2301,10 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int batch_size) {
               this->points_[0], this->points_[1], d_c + t * this->num_points_,
               d_fw + t * this->grid_size_, this->num_points_, kernel_width,
               this->grid_dims_[0], this->grid_dims_[1], sigma,
-              this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0], this->bin_dims_[1],
-              this->subprob_bins_, this->subprob_start_pts_, this->num_subprob_,
-              max_subprob_size, this->num_bins_[0], this->num_bins_[1], this->idx_nupts_,
-              pirange));
+              this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0],
+              this->bin_dims_[1], this->subprob_bins_, this->subprob_start_pts_,
+              this->num_subprob_, max_subprob_size, this->num_bins_[0],
+              this->num_bins_[1], this->idx_nupts_, pirange));
         }
       } else {
         for (int t = 0; t < batch_size; t++) {
@@ -2288,38 +2314,39 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int batch_size) {
               this->points_[0], this->points_[1], d_c + t * this->num_points_,
               d_fw + t * this->grid_size_, this->num_points_, kernel_width,
               this->grid_dims_[0], this->grid_dims_[1], es_c, es_beta, sigma,
-              this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0], this->bin_dims_[1],
-              this->subprob_bins_, this->subprob_start_pts_,
-              this->num_subprob_, max_subprob_size, this->num_bins_[0], this->num_bins_[1],
-              this->idx_nupts_, pirange));
+              this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0],
+              this->bin_dims_[1], this->subprob_bins_, this->subprob_start_pts_,
+              this->num_subprob_, max_subprob_size, this->num_bins_[0],
+              this->num_bins_[1], this->idx_nupts_, pirange));
         }
       }
       break;
     case 3:
       for (int t = 0; t < batch_size; t++) {
-        if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::HORNER) {
+        if (this->options_.kernel_evaluation_method ==
+            KernelEvaluationMethod::HORNER) {
           TF_CHECK_OK(GpuLaunchKernel(
               InterpSubproblemHorner3DKernel<FloatType>, num_blocks,
               threads_per_block, shared_memory_size, this->device_.stream(),
               this->points_[0], this->points_[1], this->points_[2],
-              d_c + t * this->num_points_, d_fw + t * this->grid_size_, 
+              d_c + t * this->num_points_, d_fw + t * this->grid_size_,
               this->num_points_, kernel_width, this->grid_dims_[0],
               this->grid_dims_[1], this->grid_dims_[2], sigma,
               this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0],
               this->bin_dims_[1], this->bin_dims_[2], this->subprob_bins_,
               this->subprob_start_pts_, this->num_subprob_,
-              max_subprob_size, this->num_bins_[0], this->num_bins_[1], this->num_bins_[2],
-              this->idx_nupts_, pirange));
+              max_subprob_size, this->num_bins_[0], this->num_bins_[1],
+              this->num_bins_[2], this->idx_nupts_, pirange));
         } else {
           TF_CHECK_OK(GpuLaunchKernel(
               InterpSubproblem3DKernel<FloatType>, num_blocks,
               threads_per_block, shared_memory_size, this->device_.stream(),
               this->points_[0], this->points_[1], this->points_[2],
-              d_c + t * this->num_points_, d_fw + t * this->grid_size_, 
+              d_c + t * this->num_points_, d_fw + t * this->grid_size_,
               this->num_points_, kernel_width, this->grid_dims_[0],
               this->grid_dims_[1], this->grid_dims_[2], es_c, es_beta,
               this->bin_start_pts_, this->bin_sizes_, this->bin_dims_[0],
-              this->bin_dims_[1], this->bin_dims_[2], this->subprob_bins_, 
+              this->bin_dims_[1], this->bin_dims_[2], this->subprob_bins_,
               this->subprob_start_pts_, this->num_subprob_, max_subprob_size,
               this->num_bins_[0], this->num_bins_[1], this->num_bins_[2],
               this->idx_nupts_, pirange));
@@ -2334,7 +2361,8 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int batch_size) {
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
   int threads_per_block = 256;
-  int num_blocks = (this->mode_count_ + threads_per_block - 1) / threads_per_block;
+  int num_blocks = (this->mode_count_ + threads_per_block - 1) /
+                   threads_per_block;
 
   if (this->spread_params_.spread_direction == SpreadDirection::SPREAD) {
     switch (this->rank_) {
@@ -2345,7 +2373,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
               this->device_.stream(), this->num_modes_[0], this->num_modes_[1],
               this->grid_dims_[0], this->grid_dims_[1],
               this->grid_data_ + t * this->grid_size_,
-              this->f_ + t * this->mode_count_, this->fseries_data_[0], 
+              this->f_ + t * this->mode_count_, this->fseries_data_[0],
               this->fseries_data_[1]));
         }
         break;
@@ -2396,8 +2424,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::init_spreader() {
-
-  switch(this->options_.spread_method) {
+  switch (this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
       TF_RETURN_IF_ERROR(this->init_spreader_nupts_driven());
       break;
@@ -2413,12 +2440,10 @@ Status Plan<GPUDevice, FloatType>::init_spreader() {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
-  
   int num_blocks = (this->num_points_ + 1024 - 1) / 1024;
   int threads_per_block = 1024;
 
   if (this->spread_params_.sort_points == SortPoints::YES) {
-
     // This may not be necessary.
     this->device_.synchronize();
 
@@ -2430,19 +2455,20 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
             CalcBinSizeNoGhost2DKernel<FloatType>,
             num_blocks, threads_per_block, 0, this->device_.stream(),
             this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
-            this->bin_dims_[0], this->bin_dims_[1], this->num_bins_[0], this->num_bins_[1],
-            this->bin_sizes_, this->points_[0], this->points_[1], this->sort_idx_,
-            this->spread_params_.pirange));
+            this->bin_dims_[0], this->bin_dims_[1], this->num_bins_[0],
+            this->num_bins_[1], this->bin_sizes_, this->points_[0],
+            this->points_[1], this->sort_idx_, this->spread_params_.pirange));
         break;
       case 3:
         TF_CHECK_OK(GpuLaunchKernel(
             CalcBinSizeNoGhost3DKernel<FloatType>,
             num_blocks, threads_per_block, 0, this->device_.stream(),
             this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
-            this->grid_dims_[2],
-            this->bin_dims_[0],this->bin_dims_[1],this->bin_dims_[2],this->num_bins_[0],this->num_bins_[1],this->num_bins_[2],
-            this->bin_sizes_,this->points_[0],this->points_[1],this->points_[2],
-            this->sort_idx_,this->spread_params_.pirange));
+            this->grid_dims_[2], this->bin_dims_[0], this->bin_dims_[1],
+            this->bin_dims_[2], this->num_bins_[0], this->num_bins_[1],
+            this->num_bins_[2], this->bin_sizes_, this->points_[0],
+            this->points_[1], this->points_[2], this->sort_idx_,
+            this->spread_params_.pirange));
         break;
       default:
         return errors::Unimplemented("Invalid rank: ", this->rank_);
@@ -2459,11 +2485,11 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
         TF_CHECK_OK(GpuLaunchKernel(
             CalcInvertofGlobalSortIdx2DKernel<FloatType>,
             num_blocks, threads_per_block, 0, this->device_.stream(),
-            this->num_points_, this->bin_dims_[0], this->bin_dims_[1], this->num_bins_[0],
-            this->num_bins_[1], this->bin_start_pts_, this->sort_idx_,
-            this->points_[0], this->points_[1], this->idx_nupts_,
-            this->spread_params_.pirange, this->grid_dims_[0],
-            this->grid_dims_[1]));
+            this->num_points_, this->bin_dims_[0], this->bin_dims_[1],
+            this->num_bins_[0], this->num_bins_[1], this->bin_start_pts_,
+            this->sort_idx_, this->points_[0], this->points_[1],
+            this->idx_nupts_, this->spread_params_.pirange,
+            this->grid_dims_[0], this->grid_dims_[1]));
         break;
       case 3:
         TF_CHECK_OK(GpuLaunchKernel(
@@ -2510,8 +2536,8 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
           num_blocks, threads_per_block, 0, this->device_.stream(),
           this->num_points_, this->grid_dims_[0],
           this->grid_dims_[1], this->bin_dims_[0], this->bin_dims_[1],
-          this->num_bins_[0], this->num_bins_[1], this->bin_sizes_, this->points_[0],
-          this->points_[1], this->sort_idx_, pirange));
+          this->num_bins_[0], this->num_bins_[1], this->bin_sizes_,
+          this->points_[0], this->points_[1], this->sort_idx_, pirange));
       break;
     case 3:
       TF_CHECK_OK(GpuLaunchKernel(
@@ -2519,8 +2545,10 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
           num_blocks, threads_per_block, 0, this->device_.stream(),
           this->num_points_, this->grid_dims_[0], this->grid_dims_[1],
           this->grid_dims_[2], this->bin_dims_[0],
-          this->bin_dims_[1], this->bin_dims_[2], this->num_bins_[0], this->num_bins_[1], this->num_bins_[2], this->bin_sizes_,
-          this->points_[0], this->points_[1], this->points_[2], this->sort_idx_, pirange));
+          this->bin_dims_[1], this->bin_dims_[2], this->num_bins_[0],
+          this->num_bins_[1], this->num_bins_[2], this->bin_sizes_,
+          this->points_[0], this->points_[1], this->points_[2],
+          this->sort_idx_, pirange));
       break;
     default:
       return errors::Unimplemented("Invalid rank: ", this->rank_);
@@ -2593,7 +2621,8 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
 
 namespace {
 // Initializes spreader kernel parameters given desired NUFFT tol eps,
-// upsampling factor ( = sigma in paper, or R in Dutt - Rokhlin), and ker eval meth
+// upsampling factor ( = sigma in paper, or R in Dutt - Rokhlin), and ker eval
+// meth
 // Also sets all default options in SpreadParameters<FloatType>.
 // Must call before any kernel evals done.
 template<typename FloatType>
@@ -2611,7 +2640,7 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
           "upsampling_factor must be > 1.0, but is ", upsampling_factor);
     }
   }
-    
+
   // defaults... (user can change after this function called)
   spread_params.spread_direction = SpreadDirection::SPREAD;
   spread_params.pirange = 1;             // user also should always set this
@@ -2678,7 +2707,7 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
 }
 
 void set_bin_sizes(TransformType type, int rank, Options& options) {
-  switch(rank) {
+  switch (rank) {
     case 2:
       options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 32 :
           options.gpu_bin_size.x;
@@ -2687,7 +2716,7 @@ void set_bin_sizes(TransformType type, int rank, Options& options) {
       options.gpu_bin_size.z = 1;
       break;
     case 3:
-      switch(options.spread_method) {
+      switch (options.spread_method) {
         case SpreadMethod::NUPTS_DRIVEN:
         case SpreadMethod::SUBPROBLEM:
           options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 16 :
@@ -2722,7 +2751,7 @@ Status set_grid_size(int ms,
                      const Options& options,
                      const SpreadParameters<FloatType>& spread_params,
                      int* grid_size) {
-  // for spread / interp only, we do not apply oversampling (Montalt 6 / 8/2021).
+  // For spread / interp only, we do not apply oversampling.
   if (options.spread_only) {
     *grid_size = ms;
   } else {

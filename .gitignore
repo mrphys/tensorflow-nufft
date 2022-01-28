@@ -5,6 +5,7 @@
 *.so
 *.dlink
 
+.vscode/
 *.ipynb_checkpoints*
 __pycache__/
 artifacts/

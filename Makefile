@@ -57,7 +57,7 @@ FINUFFT_CFLAGS = -DFFTW_PLAN_SAFE -funroll-loops -fcx-limited-range
 # NVCC options
 # ==============================================================================
 
-NVARCH ?= \
+NVARCH_FLAGS ?= \
 	-gencode=arch=compute_35,code=sm_35 \
 	-gencode=arch=compute_50,code=sm_50 \
 	-gencode=arch=compute_52,code=sm_52 \
@@ -71,15 +71,9 @@ NVARCH ?= \
 
 CUDAFE = --diag_suppress=174 --diag_suppress=611 --diag_suppress=20012 --diag_suppress=1886 --display_error_number
 
-CUFLAGS = $(NVARCH) -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-constexpr
+CUFLAGS = $(NVARCH_FLAGS) -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-constexpr
 CUFLAGS += -I$(ROOT_DIR)
 CUFLAGS += -Xcudafe "$(CUDAFE)"
-
-CUFINUFFT_CUFLAGS ?= -std=c++14 -ccbin=$(CXX) -O3 $(NVARCH) \
-	-Wno-deprecated-gpu-targets --default-stream per-thread \
-	-Xcompiler "$(CXXFLAGS)" --expt-relaxed-constexpr
-CUFINUFFT_CUFLAGS += -I$(CUFINUFFT_ROOT)
-CUFINUFFT_CUFLAGS += -Xcudafe "$(CUDAFE)"
 
 
 # ==============================================================================

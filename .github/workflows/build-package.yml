@@ -79,7 +79,7 @@ jobs:
 
 
   release:
-    
+
     name: Release
     needs: build
     runs-on: ubuntu-latest

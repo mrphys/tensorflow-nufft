@@ -114,9 +114,7 @@ def _nufft_grad(op, grad):
         tf.constant(0.0, dtype=dtype.real_dtype),
         tf.constant(1.0, dtype=dtype.real_dtype))
 
-  grad_points = None
   if transform_type == 'type_2':
-    # print((tf.expand_dims(source, -(rank + 1)) * grid_points).shape, tf.expand_dims(points, -3).shape)
     grad_points = nufft(tf.expand_dims(source, -(rank + 1)) * grid_points,
                         tf.expand_dims(points, -3),
                         transform_type='type_2',

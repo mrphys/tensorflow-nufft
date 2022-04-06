@@ -90,10 +90,15 @@ class NUFFTOpsTest(tf.test.TestCase):
       num_points = tf.math.reduce_prod(grid_shape)
 
       # Generate random signal and points.
+      batch_shape = tf.broadcast_static_shape(
+          tf.TensorShape(source_batch_shape),
+          tf.TensorShape(points_batch_shape))
       if transform_type == 'type_1':    # nonuniform to uniform
         source_shape = source_batch_shape + [num_points]
+        target_shape = batch_shape + grid_shape
       elif transform_type == 'type_2':  # uniform to nonuniform
         source_shape = source_batch_shape + grid_shape
+        target_shape = batch_shape + [num_points]
 
       source = tf.dtypes.complex(
           tf.random.uniform(
@@ -105,6 +110,12 @@ class NUFFTOpsTest(tf.test.TestCase):
       points = tf.random.uniform(
           points_shape, minval=-np.pi, maxval=np.pi,
           dtype=dtype.real_dtype)
+
+      multiplier = tf.dtypes.complex(
+          tf.random.uniform(
+              target_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype),
+          tf.random.uniform(
+              target_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype))
 
       with tf.GradientTape(persistent=True) as tape:
 
@@ -122,11 +133,22 @@ class NUFFTOpsTest(tf.test.TestCase):
           transform_type=transform_type,
           fft_direction=fft_direction)
 
+        # Additional operation to test gradients with a complex-valued
+        # non-trivial upstream gradient.
+        result_nufft_mult = result_nufft * multiplier
+        result_nudft_mult = result_nudft * multiplier
+
       # Compute gradients.
       grad_source_nufft, grad_points_nufft = tape.gradient(
           result_nufft, [source, points])
       grad_source_nudft, grad_points_nudft = tape.gradient(
           result_nudft, [source, points])
+
+      # Compute gradients with non-trivial upstream gradient.
+      grad_source_nufft_mult, grad_points_nufft_mult = tape.gradient(
+          result_nufft_mult, [source, points])
+      grad_source_nudft_mult, grad_points_nudft_mult = tape.gradient(
+          result_nudft_mult, [source, points])
 
       tol = DEFAULT_TOLERANCE
       self.assertAllClose(result_nufft, result_nudft,
@@ -135,6 +157,11 @@ class NUFFTOpsTest(tf.test.TestCase):
                           rtol=tol, atol=tol)
       self.assertAllClose(grad_points_nufft, grad_points_nudft,
                           rtol=tol, atol=tol)
+      self.assertAllClose(grad_source_nufft_mult, grad_source_nudft_mult,
+                          rtol=tol, atol=tol)
+      self.assertAllClose(grad_points_nufft_mult, grad_points_nudft_mult,
+                          rtol=tol, atol=tol)
+      self.assertAllEqual(result_nufft.shape, target_shape)
 
 
 

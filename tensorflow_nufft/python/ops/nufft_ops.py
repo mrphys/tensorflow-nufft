@@ -21,7 +21,7 @@ import tensorflow as tf
 
 
 _nufft_ops = tf.load_op_library(
-  tf.compat.v1.resource_loader.get_path_to_datafile('_nufft_ops.so'))
+    tf.compat.v1.resource_loader.get_path_to_datafile('_nufft_ops.so'))
 
 
 interp = _nufft_ops.interp
@@ -114,6 +114,7 @@ def _nufft_grad(op, grad):
         tf.constant(0.0, dtype=dtype.real_dtype),
         tf.constant(1.0, dtype=dtype.real_dtype))
 
+  grad = tf.math.conj(grad)
   if transform_type == 'type_2':
     grad_points = nufft(tf.expand_dims(source, -(rank + 1)) * grid_points,
                         tf.expand_dims(points, -3),
@@ -235,9 +236,6 @@ def _nudft_matrix(points, grid_shape, fft_direction):
   elif fft_direction == 'forward':
     nudft_matrix = tf.exp(-1j * points_grid)
 
-#   TODO: scaling?
-#   nudft_matrix = nudft_matrix / (
-#     np.sqrt(tf.reduce_prod(grid_shape)) * np.power(np.sqrt(2), rank))
   return nudft_matrix
 
 

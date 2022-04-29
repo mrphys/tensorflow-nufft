@@ -1,8 +1,15 @@
-Release 0.7.1
+Release 0.7.2
 =============
 
 Bug Fixes and Other Changes
 ---------------------------
 
-* Fixed a bug in computation of the gradient with respect to points that would
-  result in incorrect gradients when passed a complex-valued upstream gradient.
+* Fixed a race condition in the GPU implementation that would occasionally
+  result in the computation returning NaNs or incorrect results.
+
+
+Thanks to our Contributors
+--------------------------
+
+This release contains contributions by
+`chaithyagr <https://github.com/chaithyagr>`_.

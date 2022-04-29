@@ -1949,7 +1949,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch(int batch_size) {
     case SpreadMethod::BLOCK_GATHER:
       return errors::Unimplemented("spread method not implemented");
   }
-
+  this->device_.synchronize();
   return Status::OK();
 }
 
@@ -1966,7 +1966,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch(int batch_size) {
     case SpreadMethod::BLOCK_GATHER:
       return errors::Unimplemented("interp method not implemented");
   }
-
+  this->device_.synchronize();
   return Status::OK();
 }
 
@@ -2419,6 +2419,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
         break;
     }
   }
+  this->device_.synchronize(); 
   return Status::OK();
 }
 

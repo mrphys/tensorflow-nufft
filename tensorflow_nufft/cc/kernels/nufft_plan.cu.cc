@@ -1842,6 +1842,10 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
 
     this->c_  = d_cstart;
     this->grid_data_ = d_fkstart;
+    // Set fine grid to zero.
+    size_t grid_bytes = sizeof(DType) * this->grid_size_ *
+                        this->options_.max_batch_size;
+    this->device_.memset(this->grid_data_, 0, grid_bytes);
 
     TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
   }
@@ -1949,7 +1953,6 @@ Status Plan<GPUDevice, FloatType>::spread_batch(int batch_size) {
     case SpreadMethod::BLOCK_GATHER:
       return errors::Unimplemented("spread method not implemented");
   }
-  this->device_.synchronize();
   return Status::OK();
 }
 
@@ -1966,7 +1969,6 @@ Status Plan<GPUDevice, FloatType>::interp_batch(int batch_size) {
     case SpreadMethod::BLOCK_GATHER:
       return errors::Unimplemented("interp method not implemented");
   }
-  this->device_.synchronize();
   return Status::OK();
 }
 
@@ -2419,7 +2421,6 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
         break;
     }
   }
-  this->device_.synchronize(); 
   return Status::OK();
 }
 

@@ -1843,9 +1843,9 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
     this->c_  = d_cstart;
     this->grid_data_ = d_fkstart;
     // Set fine grid to zero.
-    // size_t grid_bytes = sizeof(DType) * this->grid_size_ *
-    //                     this->options_.max_batch_size;
-    // this->device_.memset(this->grid_data_, 0, grid_bytes);
+    size_t grid_bytes = sizeof(DType) * this->grid_size_ *
+                        this->options_.max_batch_size;
+    this->device_.memset(this->grid_data_, 0, grid_bytes);
 
     TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
   }

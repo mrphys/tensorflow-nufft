@@ -54,6 +54,7 @@ versions of TensorFlow and TensorFlow NUFFT according to the table below.
 ========================  ========================  ============
 TensorFlow NUFFT Version  TensorFlow Compatibility  Release Date
 ========================  ========================  ============
+v0.7.3                    v2.8.x                    May 4, 2022
 v0.7.2                    v2.8.x                    Apr 29, 2022
 v0.7.1                    v2.8.x                    Apr 6, 2022
 v0.7.0                    v2.8.x                    Feb 8, 2022

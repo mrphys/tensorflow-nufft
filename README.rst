@@ -54,6 +54,8 @@ versions of TensorFlow and TensorFlow NUFFT according to the table below.
 ========================  ========================  ============
 TensorFlow NUFFT Version  TensorFlow Compatibility  Release Date
 ========================  ========================  ============
+v0.7.3                    v2.8.x                    May 4, 2022
+v0.7.2                    v2.8.x                    Apr 29, 2022
 v0.7.1                    v2.8.x                    Apr 6, 2022
 v0.7.0                    v2.8.x                    Feb 8, 2022
 v0.6.0                    v2.7.x                    Jan 27, 2022
@@ -72,18 +74,23 @@ Documentation
 Visit the `docs <https://mrphys.github.io/tensorflow-nufft/>`_ for the API
 reference and examples of usage. 
 
-Contributions
--------------
+Issues
+------
 
 If you use this package and something does not work as you expected, please
 `file an issue <https://github.com/mrphys/tensorflow-nufft/issues/new>`_
-describing your problem. We will do our best to help.
+describing your problem. We're here to help!
 
-Contributions are very welcome. Please create a pull request if you would like
-to make a contribution.
+Credits
+-------
 
-Citation
---------
-
-If you find this software useful in your work, please
+If you find this software useful in your research, please
 `cite us <https://doi.org/10.5281/zenodo.5198288>`_.
+
+Contributors
+------------
+
+Thanks to all our contributors: `jmontalt <https://github.com/jmontalt>`_,
+`chaithyagr <https://github.com/chaithyagr>`_.
+
+Contributions of any kind are welcome!

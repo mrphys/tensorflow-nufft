@@ -24,7 +24,7 @@ CUDA_LIBDIR = /usr/local/cuda/targets/x86_64-linux/lib
 
 CUDA ?= 1
 OMP ?= 1
-CFLAGS = -O3 -march=x86-64 -mtune=generic
+CFLAGS = -O3 -march=x86-64 -mtune=generic -funroll-loops -fcx-limited-range
 
 -include make.inc
 
@@ -48,8 +48,6 @@ endif
 # header files, which we can't do anything about. Therefore, disable these
 # warnings.
 CXXFLAGS += -Wno-deprecated-declarations
-
-FINUFFT_CFLAGS = -DFFTW_PLAN_SAFE -funroll-loops -fcx-limited-range
 
 # ==============================================================================
 # NVCC options
@@ -88,50 +86,8 @@ endif
 
 ifeq ($(CUDA), 1)
 LDFLAGS += -L$(CUDA_LIBDIR)
-LDFLAGS += -lcudart -lnvToolsExt
+LDFLAGS += -lcudart_static
 endif
-
-
-# ==============================================================================
-# FINUFFT
-# ==============================================================================
-
-# FINUFFT_LIB = $(FINUFFT_ROOT)/libfinufft.a
-# FINUFFT_HEADERS = $(wildcard $(FINUFFT_ROOT)/*.h)
-
-# # spreader is subset of the library with self-contained testing, hence own objs:
-# # double-prec spreader object files that also need single precision...
-# SOBJS = $(FINUFFT_ROOT)/spreadinterp.o $(FINUFFT_ROOT)/utils.o
-# # their single-prec versions
-# SOBJSF = $(SOBJS:%.o=%_32.o)
-# # precision-dependent spreader object files (compiled & linked only once)...
-# SOBJS_PI = $(FINUFFT_ROOT)/utils_precindep.o
-# # spreader dual-precision objs
-# SOBJSD = $(SOBJS) $(SOBJSF) $(SOBJS_PI)
-
-# # double-prec library object files that also need single precision...
-# OBJS = $(SOBJS) $(FINUFFT_ROOT)/finufft.o
-# # their single-prec versions
-# OBJSF = $(OBJS:%.o=%_32.o)
-# # precision-dependent library object files (compiled & linked only once)...
-# OBJS_PI = $(SOBJS_PI)
-# # all lib dual-precision objs
-# OBJSD = $(OBJS) $(OBJSF) $(OBJS_PI)
-
-# finufft: $(FINUFFT_LIB)
-
-# $(FINUFFT_LIB): $(OBJSD)
-# 	ar rcs $(FINUFFT_LIB) $(OBJSD)
-
-# # implicit rules for objects (note -o ensures writes to correct dir)
-# $(FINUFFT_ROOT)/%.o: $(FINUFFT_ROOT)/%.cpp $(FINUFFT_HEADERS)
-# 	$(CXX) -c $(CXXFLAGS) $(FINUFFT_CFLAGS) $< -o $@
-# $(FINUFFT_ROOT)/%_32.o: $(FINUFFT_ROOT)/%.cpp $(FINUFFT_HEADERS)
-# 	$(CXX) -DSINGLE -c $(CXXFLAGS) $(FINUFFT_CFLAGS) $< -o $@
-# $(FINUFFT_ROOT)/%.o: $(FINUFFT_ROOT)/%.c $(FINUFFT_HEADERS)
-# 	$(CC) -c $(CFLAGS) $(FINUFFT_CFLAGS) $< -o $@
-# $(FINUFFT_ROOT)/%_32.o: $(FINUFFT_ROOT)/%.c $(FINUFFT_HEADERS)
-# 	$(CC) -DSINGLE -c $(CFLAGS) $(FINUFFT_CFLAGS) $< -o $@
 
 
 # ==============================================================================
@@ -184,4 +140,4 @@ clean:
 	rm -f $(CUOBJECTS)
 	rm -rf artifacts/
 
-.PHONY: all lib finufft wheel test benchmark lint docs clean allclean
+.PHONY: all lib wheel test benchmark lint docs clean allclean

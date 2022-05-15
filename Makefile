@@ -76,8 +76,7 @@ CUFLAGS += -Xcudafe "$(CUDAFE)"
 # Linker options
 # ==============================================================================
 
-LDFLAGS = $(TF_LDFLAGS)
-LDFLAGS += -lfftw3 -lfftw3f
+LDFLAGS = -lfftw3 -lfftw3f
 
 ifeq ($(OMP), 1)
 LDFLAGS += -lgomp
@@ -86,8 +85,10 @@ endif
 
 ifeq ($(CUDA), 1)
 LDFLAGS += -L$(CUDA_LIBDIR)
-LDFLAGS += -lcudart_static
+LDFLAGS += -lcufft_static_nocallback -lcudart_static -lculibos
 endif
+
+LDFLAGS += $(TF_LDFLAGS)
 
 
 # ==============================================================================
@@ -99,10 +100,10 @@ all: lib wheel
 lib: $(TARGET_LIB)
 
 %.cu.o: %.cu.cc
-	$(NVCC) -ccbin $(CXX) -dc -x cu $(CUFLAGS) -o $@ -c $<
+	$(NVCC) -ccbin $(CXX) -dc -x cu $(CUFLAGS) -t 0 -o $@ -c $<
 
 $(TARGET_DLINK): $(CUOBJECTS)
-	$(NVCC) -ccbin $(CXX) -dlink $(CUFLAGS) -o $@ $^
+	$(NVCC) -ccbin $(CXX) -dlink $(CUFLAGS) -t 0 -o $@ $^
 
 $(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK)
 	$(CXX) -shared $(CXXFLAGS) -o $@ $^ $(LDFLAGS)

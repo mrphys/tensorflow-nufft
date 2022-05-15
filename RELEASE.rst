@@ -1,17 +1,10 @@
-Release 0.7.3
+Release 0.7.4
 =============
 
 Bug Fixes and Other Changes
 ---------------------------
 
-* Fixed an uninitialized memory issue in the GPU implementation of the
-  ``spread`` op that would occasionally result in the computation returning
-  NaNs or incorrect results.
-
-
-Thanks to our Contributors
---------------------------
-
-This release contains contributions by `chaithyagr`_.
-
-.. _chaithyagr: https://github.com/chaithyagr
+* The op library now links against the static form of the CUDA runtime
+  library, which should allow it to be used on systems without a CUDA
+  installation.
+* FINUFFT code now fully integrated.

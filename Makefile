@@ -4,8 +4,6 @@ PY_VERSION ?= 3.8
 PYTHON = python$(PY_VERSION)
 
 ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
-FINUFFT_ROOT = tensorflow_nufft/cc/kernels/finufft/cpu
-CUFINUFFT_ROOT = tensorflow_nufft/cc/kernels/finufft/gpu
 
 KERNELS_DIR = tensorflow_nufft/cc/kernels
 OPS_DIR = tensorflow_nufft/cc/ops
@@ -98,42 +96,42 @@ endif
 # FINUFFT
 # ==============================================================================
 
-FINUFFT_LIB = $(FINUFFT_ROOT)/libfinufft.a
-FINUFFT_HEADERS = $(wildcard $(FINUFFT_ROOT)/*.h)
+# FINUFFT_LIB = $(FINUFFT_ROOT)/libfinufft.a
+# FINUFFT_HEADERS = $(wildcard $(FINUFFT_ROOT)/*.h)
 
-# spreader is subset of the library with self-contained testing, hence own objs:
-# double-prec spreader object files that also need single precision...
-SOBJS = $(FINUFFT_ROOT)/spreadinterp.o $(FINUFFT_ROOT)/utils.o
-# their single-prec versions
-SOBJSF = $(SOBJS:%.o=%_32.o)
-# precision-dependent spreader object files (compiled & linked only once)...
-SOBJS_PI = $(FINUFFT_ROOT)/utils_precindep.o
-# spreader dual-precision objs
-SOBJSD = $(SOBJS) $(SOBJSF) $(SOBJS_PI)
+# # spreader is subset of the library with self-contained testing, hence own objs:
+# # double-prec spreader object files that also need single precision...
+# SOBJS = $(FINUFFT_ROOT)/spreadinterp.o $(FINUFFT_ROOT)/utils.o
+# # their single-prec versions
+# SOBJSF = $(SOBJS:%.o=%_32.o)
+# # precision-dependent spreader object files (compiled & linked only once)...
+# SOBJS_PI = $(FINUFFT_ROOT)/utils_precindep.o
+# # spreader dual-precision objs
+# SOBJSD = $(SOBJS) $(SOBJSF) $(SOBJS_PI)
 
-# double-prec library object files that also need single precision...
-OBJS = $(SOBJS) $(FINUFFT_ROOT)/finufft.o
-# their single-prec versions
-OBJSF = $(OBJS:%.o=%_32.o)
-# precision-dependent library object files (compiled & linked only once)...
-OBJS_PI = $(SOBJS_PI)
-# all lib dual-precision objs
-OBJSD = $(OBJS) $(OBJSF) $(OBJS_PI)
+# # double-prec library object files that also need single precision...
+# OBJS = $(SOBJS) $(FINUFFT_ROOT)/finufft.o
+# # their single-prec versions
+# OBJSF = $(OBJS:%.o=%_32.o)
+# # precision-dependent library object files (compiled & linked only once)...
+# OBJS_PI = $(SOBJS_PI)
+# # all lib dual-precision objs
+# OBJSD = $(OBJS) $(OBJSF) $(OBJS_PI)
 
-finufft: $(FINUFFT_LIB)
+# finufft: $(FINUFFT_LIB)
 
-$(FINUFFT_LIB): $(OBJSD)
-	ar rcs $(FINUFFT_LIB) $(OBJSD)
+# $(FINUFFT_LIB): $(OBJSD)
+# 	ar rcs $(FINUFFT_LIB) $(OBJSD)
 
-# implicit rules for objects (note -o ensures writes to correct dir)
-$(FINUFFT_ROOT)/%.o: $(FINUFFT_ROOT)/%.cpp $(FINUFFT_HEADERS)
-	$(CXX) -c $(CXXFLAGS) $(FINUFFT_CFLAGS) $< -o $@
-$(FINUFFT_ROOT)/%_32.o: $(FINUFFT_ROOT)/%.cpp $(FINUFFT_HEADERS)
-	$(CXX) -DSINGLE -c $(CXXFLAGS) $(FINUFFT_CFLAGS) $< -o $@
-$(FINUFFT_ROOT)/%.o: $(FINUFFT_ROOT)/%.c $(FINUFFT_HEADERS)
-	$(CC) -c $(CFLAGS) $(FINUFFT_CFLAGS) $< -o $@
-$(FINUFFT_ROOT)/%_32.o: $(FINUFFT_ROOT)/%.c $(FINUFFT_HEADERS)
-	$(CC) -DSINGLE -c $(CFLAGS) $(FINUFFT_CFLAGS) $< -o $@
+# # implicit rules for objects (note -o ensures writes to correct dir)
+# $(FINUFFT_ROOT)/%.o: $(FINUFFT_ROOT)/%.cpp $(FINUFFT_HEADERS)
+# 	$(CXX) -c $(CXXFLAGS) $(FINUFFT_CFLAGS) $< -o $@
+# $(FINUFFT_ROOT)/%_32.o: $(FINUFFT_ROOT)/%.cpp $(FINUFFT_HEADERS)
+# 	$(CXX) -DSINGLE -c $(CXXFLAGS) $(FINUFFT_CFLAGS) $< -o $@
+# $(FINUFFT_ROOT)/%.o: $(FINUFFT_ROOT)/%.c $(FINUFFT_HEADERS)
+# 	$(CC) -c $(CFLAGS) $(FINUFFT_CFLAGS) $< -o $@
+# $(FINUFFT_ROOT)/%_32.o: $(FINUFFT_ROOT)/%.c $(FINUFFT_HEADERS)
+# 	$(CC) -DSINGLE -c $(CFLAGS) $(FINUFFT_CFLAGS) $< -o $@
 
 
 # ==============================================================================
@@ -150,7 +148,7 @@ lib: $(TARGET_LIB)
 $(TARGET_DLINK): $(CUOBJECTS)
 	$(NVCC) -ccbin $(CXX) -dlink $(CUFLAGS) -o $@ $^
 
-$(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK) $(FINUFFT_LIB)
+$(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK)
 	$(CXX) -shared $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 
@@ -185,7 +183,5 @@ clean:
 	rm -f $(TARGET_DLINK)
 	rm -f $(CUOBJECTS)
 	rm -rf artifacts/
-	rm -f $(FINUFFT_LIB)
-	rm -f $(FINUFFT_ROOT)/*.o $(FINUFFT_ROOT)/contrib/*.o
 
 .PHONY: all lib finufft wheel test benchmark lint docs clean allclean

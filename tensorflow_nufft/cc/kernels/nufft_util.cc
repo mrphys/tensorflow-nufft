@@ -132,6 +132,15 @@ IntType next_smooth_int(IntType n, IntType b) {
   return nplus;
 }
 
+template<typename FloatType>
+void array_range(int64_t n, FloatType* a, FloatType *lo, FloatType *hi) {
+  *lo = INFINITY; *hi = -INFINITY;
+  for (int64_t m = 0; m < n; ++m) {
+    if (a[m] < *lo) *lo = a[m];
+    if (a[m] > *hi) *hi = a[m];
+  }
+}
+
 template float calculate_scale_factor<float>(
     int, const SpreadParameters<float>&);
 template double calculate_scale_factor<double>(
@@ -145,6 +154,8 @@ template void kernel_fseries_1d<double>(
 template int next_smooth_int<int>(int, int);
 template int64_t next_smooth_int<int64_t>(int64_t, int64_t);
 
+template void array_range<float>(int64_t, float*, float*, float*);
+template void array_range<double>(int64_t, double*, double*, double*);
 
 }  // namespace nufft
 }  // namespace tensorflow

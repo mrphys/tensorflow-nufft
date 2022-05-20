@@ -61,6 +61,7 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
 
 template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::initialize(
+    OpKernelContext* ctx,
     TransformType type,
     int rank,
     int* num_modes,
@@ -368,7 +369,7 @@ Status Plan<CPUDevice, FloatType>::set_points(
 }
 
 template<typename FloatType>
-Status Plan<CPUDevice, FloatType>::execute(DType* c, DType* f) {
+Status Plan<CPUDevice, FloatType>::execute(OpKernelContext* ctx, DType* c, DType* f) {
   // TODO: refactor this implementation.
   int err = execute_impl<FloatType>(this, c, f);
   if (err > 1) {

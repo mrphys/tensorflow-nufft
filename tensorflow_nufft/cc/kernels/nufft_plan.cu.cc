@@ -65,23 +65,18 @@ constexpr cufftType kCufftType<float> = CUFFT_C2C;
 template<>
 constexpr cufftType kCufftType<double> = CUFFT_Z2Z;
 
-template<typename FloatType>
-cufftResult cufftExec(
-    cufftHandle plan, GpuComplex<FloatType> *idata,
-    GpuComplex<FloatType> *odata, int direction);
-
-template<>
-cufftResult cufftExec<float>(
-    cufftHandle plan, GpuComplex<float> *idata,
-    GpuComplex<float> *odata, int direction) {
-  return cufftExecC2C(plan, idata, odata, direction);
+template <typename T>
+se::DeviceMemory<T> AsDeviceMemory(const T* cuda_memory) {
+  se::DeviceMemoryBase wrapped(const_cast<T*>(cuda_memory));
+  se::DeviceMemory<T> typed(wrapped);
+  return typed;
 }
 
-template<>
-cufftResult cufftExec<double>(
-    cufftHandle plan, GpuComplex<double> *idata,
-    GpuComplex<double> *odata, int direction) {
-  return cufftExecZ2Z(plan, idata, odata, direction);
+template <typename T>
+se::DeviceMemory<T> AsDeviceMemory(const T* cuda_memory, uint64 size) {
+  se::DeviceMemoryBase wrapped(const_cast<T*>(cuda_memory), size * sizeof(T));
+  se::DeviceMemory<T> typed(wrapped);
+  return typed;
 }
 
 template<typename FloatType>
@@ -1464,6 +1459,7 @@ __global__ void InterpSubproblemHorner3DKernel(
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::initialize(
+    OpKernelContext* ctx,
     TransformType type,
     int rank,
     int* num_modes,
@@ -1701,24 +1697,20 @@ Status Plan<GPUDevice, FloatType>::initialize(
       default:
         return errors::Unimplemented("Invalid rank: ", this->rank_);
     }
+    auto* stream = ctx->op_device_context()->stream();
+    auto direction = this->fft_direction_ == FftDirection::FORWARD ? se::fft::Type::kC2CForward : se::fft::Type::kC2CInverse;
+    this->fft_plan_ = stream->parent()->AsFft()->CreateBatchedPlan(
+        stream, this->rank_, (uint64_t *) fft_dims, 
+        (uint64_t *) input_embed, input_stride, input_distance,
+        (uint64_t *) output_embed, output_stride, output_distance,
+        direction, true, batch_size);
 
-    cufftResult result = cufftPlanMany(
-        &this->fft_plan_, this->rank_, fft_dims,
-        input_embed, input_stride, input_distance,
-        output_embed, output_stride, output_distance,
-        kCufftType<FloatType>, batch_size);
-
-    if (result != CUFFT_SUCCESS) {
-      return errors::Internal("cufftPlanMany failed with code: ", result);
-    }
   }
   return Status::OK();
 }
 
 template<typename FloatType>
 Plan<GPUDevice, FloatType>::~Plan() {
-  if (this->fft_plan_)
-    cufftDestroy(this->fft_plan_);
 
   // Free memory allocated on the device. Some of these pointers are not
   // guaranteed to be allocated, but that's ok because `deallocate` will
@@ -1784,13 +1776,13 @@ Status Plan<GPUDevice, FloatType>::set_points(
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
+Status Plan<GPUDevice, FloatType>::execute(OpKernelContext* ctx, DType* d_c, DType* d_fk) {
   switch (this->type_) {
     case TransformType::TYPE_1:
-      TF_RETURN_IF_ERROR(this->execute_type_1(d_c, d_fk));
+      TF_RETURN_IF_ERROR(this->execute_type_1(ctx, d_c, d_fk));
       break;
     case TransformType::TYPE_2:
-      TF_RETURN_IF_ERROR(this->execute_type_2(d_c, d_fk));
+      TF_RETURN_IF_ERROR(this->execute_type_2(ctx, d_c, d_fk));
       break;
     case TransformType::TYPE_3:
       return errors::Unimplemented("type 3 transform is not implemented");
@@ -1860,7 +1852,7 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
+Status Plan<GPUDevice, FloatType>::execute_type_1(OpKernelContext* ctx, DType* d_c, DType* d_fk) {
   int batch_size;
   DType* d_fkstart;
   DType* d_cstart;
@@ -1883,18 +1875,9 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
     TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
 
     // Step 2: FFT
-    auto result = cufftSetStream(this->fft_plan_, this->device_.stream());
-    if (result != CUFFT_SUCCESS) {
-      return errors::Internal(
-          "Failed to associate cuFFT plan with CUDA stream: ", result);
-    }
-    result = cufftExec<FloatType>(
-      this->fft_plan_, this->grid_data_, this->grid_data_,
-      static_cast<int>(this->fft_direction_));
-    if (result != CUFFT_SUCCESS) {
-      return errors::Internal("cuFFT execute failed with code: ", result);
-    }
-
+    auto src = AsDeviceMemory<std::complex<FloatType>>(this->grid_tensor_.flat<std::complex<FloatType>>().data(), this->grid_tensor_.shape().num_elements());
+    ctx->op_device_context()->stream()->ThenFft(this->fft_plan_.get(), src, &src);
+    
     // Step 3: deconvolve and shuffle
     TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
   }
@@ -1902,7 +1885,7 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
+Status Plan<GPUDevice, FloatType>::execute_type_2(OpKernelContext* ctx, DType* d_c, DType* d_fk) {
   int batch_size;
   DType* d_fkstart;
   DType* d_cstart;
@@ -1922,18 +1905,9 @@ Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
 
     // Step 2: FFT
     this->device_.synchronize();  // Is this necessary?
-    auto result = cufftSetStream(this->fft_plan_, this->device_.stream());
-    if (result != CUFFT_SUCCESS) {
-      return errors::Internal(
-          "Failed to associate cuFFT plan with CUDA stream: ", result);
-    }
-    result = cufftExec<FloatType>(
-      this->fft_plan_, this->grid_data_, this->grid_data_,
-      static_cast<int>(this->fft_direction_));
-    if (result != CUFFT_SUCCESS) {
-      return errors::Internal("cuFFT execute failed with code: ", result);
-    }
-
+    auto src = AsDeviceMemory<std::complex<FloatType>>(this->grid_tensor_.flat<std::complex<FloatType>>().data(), this->grid_tensor_.shape().num_elements());
+    ctx->op_device_context()->stream()->ThenFft(this->fft_plan_.get(), src, &src);
+    
     // Step 3: interpolate
     TF_RETURN_IF_ERROR(this->interp_batch(batch_size));
   }

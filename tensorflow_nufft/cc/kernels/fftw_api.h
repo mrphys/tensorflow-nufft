@@ -179,6 +179,19 @@ inline typename PlanType<double>::Type plan_many_dft<double>(
 }
 
 template<typename FloatType>
+inline void execute(typename PlanType<FloatType>::Type& plan);  // NOLINT
+
+template<>
+inline void execute<float>(typename PlanType<float>::Type& plan) {  // NOLINT
+  fftwf_execute(plan);
+}
+
+template<>
+inline void execute<double>(typename PlanType<double>::Type& plan) {  // NOLINT
+  fftw_execute(plan);
+}
+
+template<typename FloatType>
 inline void destroy_plan(typename PlanType<FloatType>::Type& plan);  // NOLINT
 
 template<>

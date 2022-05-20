@@ -1,4 +1,4 @@
-CXX := /dt7/usr/bin/g++
+CXX := /dt9/usr/bin/g++
 NVCC := nvcc
 PY_VERSION ?= 3.8
 PYTHON = python$(PY_VERSION)
@@ -83,12 +83,18 @@ LDFLAGS += -lgomp
 LDFLAGS += -lfftw3_omp -lfftw3f_omp
 endif
 
+LDFLAGS += $(TF_LDFLAGS)
+
 ifeq ($(CUDA), 1)
 LDFLAGS += -L$(CUDA_LIBDIR)
-LDFLAGS += -lcufft_static_nocallback -lcudart_static -lculibos
+# We do not currently link against cuFFT because it increases the size of
+# the shared library by 200 MB (and above the 100 MB limit for PyPI). As a
+# result TensorFlow NUFFT cannot currently be loaded in environments without
+# CUDA. However this issue should be fixed once the following has been
+# addressed: https://github.com/mrphys/tensorflow-nufft/issues/24
+# LDFLAGS += -lcufft_static_nocallback
+LDFLAGS += -lcudart_static -lculibos
 endif
-
-LDFLAGS += $(TF_LDFLAGS)
 
 
 # ==============================================================================

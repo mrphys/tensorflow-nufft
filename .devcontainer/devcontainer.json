@@ -6,11 +6,12 @@
 	"extensions": [
 		"ms-python.python",
 		"ms-vscode.cpptools",
+		"ms-vscode.makefile-tools",
 		"github.copilot"
 	],
 	// Enable GPUs.
 	"runArgs": [
-		"--gpus=all",
+		"--gpus=all"
 	],
 	// Enable plotting.
 	"mounts": [

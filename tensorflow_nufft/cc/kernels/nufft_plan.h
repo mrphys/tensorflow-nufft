@@ -289,7 +289,107 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
   Status spread(DType* c, DType* f) override;
 
+ protected:
+
+  // If opts.spread_direction=1, evaluate, in the 1D case,
+
+  //                       N1-1
+  // data_nonuniform[j] =  SUM phi(kx[j] - n) data_uniform[n],   for j=0...M-1
+  //                       n=0
+
+  // If opts.spread_direction=2, evaluate its transpose, in the 1D case,
+
+  //                   M-1
+  // data_uniform[n] =  SUM phi(kx[j] - n) data_nonuniform[j],   for n=0...N1-1
+  //                   j=0
+
+  // In each case phi is the spreading kernel, which has support
+  // [-opts.kernel_width/2,opts.kernel_width/2]. In 2D or 3D, the generalization with
+  // product of 1D kernels is performed.
+  // For 1D set N2=N3=1; for 2D set N3=1; for 3D set N1,N2,N3>1.
+
+  // Notes:
+  // No particular normalization of the spreading kernel is assumed.
+  // Uniform (U) points are centered at coords
+  // [0,1,...,N1-1] in 1D, analogously in 2D and 3D. They are stored in x
+  // fastest, y medium, z slowest ordering, up to however many
+  // dimensions are relevant; note that this is Fortran-style ordering for an
+  // array f(x,y,z), but C style for f[z][y][x]. This is to match the Fortran
+  // interface of the original CMCL libraries.
+  // Non-uniform (NU) points kx,ky,kz are real, and may lie in the central three
+  // periods in each coordinate (these are folded into the central period).
+  // If pirange=0, the periodic domain for kx is [0,N1], ky [0,N2], kz [0,N3].
+  // If pirange=1, the periodic domain is instead [-pi,pi] for each coord.
+  // The SpreadParameters<FLT> struct must have been set up already by calling setup_kernel.
+  // It is assumed that 2*opts.kernel_width < min(N1,N2,N3), so that the kernel
+  // only ever wraps once when falls below 0 or off the top of a uniform grid
+  // dimension.
+
+  // Inputs:
+  // N1,N2,N3 - grid sizes in x (fastest), y (medium), z (slowest) respectively.
+  //           If N2==1, 1D spreading is done. If N3==1, 2D spreading.
+  //     Otherwise, 3D.
+  // M - number of NU pts.
+  // kx, ky, kz - length-M real arrays of NU point coordinates (only kx read in
+  //             1D, only kx and ky read in 2D).
+
+  // These should lie in the box 0<=kx<=N1 etc (if pirange=0),
+  //             or -pi<=kx<=pi (if pirange=1). However, points up to +-1 period
+  //             outside this domain are also correctly folded back into this
+  //             domain, but pts beyond this either raise an error (if check_bounds=1)
+  //             or a crash (if check_bounds=0).
+  // opts - spread/interp options struct, documented in ../include/SpreadParameters<FLT>.h
+
+  // Inputs/Outputs:
+  // data_uniform - output values on grid (dir=1) OR input grid data (dir=2)
+  // data_nonuniform - input strengths of the sources (dir=1)
+  //                   OR output values at targets (dir=2)
+  // Returned value:
+  // 0 indicates success; other values have meanings in ../docs/error.rst, with
+  // following modifications:
+  //   3 : one or more non-trivial box dimensions is less than 2.kernel_width.
+  //   4 : nonuniform points outside [-Nm,2*Nm] or [-3pi,3pi] in at least one
+  //       dimension m=1,2,3.
+  //   5 : failed allocate sort indices
+
+  // Magland Dec 2016. Barnett openmp version, many speedups 1/16/17-2/16/17
+  // error codes 3/13/17. pirange 3/28/17. Rewritten 6/15/17. parallel sort 2/9/18
+  // No separate subprob indices in t-1 2/11/18.
+  // sort_threads (since for M<<N, multithread sort slower than single) 3/27/18
+  // kereval, pad_kernel 4/24/18
+  // Melody Shih split into 3 routines: check, sort, spread. Jun 2018, making
+  // this routine just a caller to them. Name change, Barnett 7/27/18
+  // Tidy, Barnett 5/20/20. Tidy doc, Barnett 10/22/20.
+  Status spread_or_interp(DType* c, DType* f);
+
+  // Spreads (or interpolates) a batch of batch_size strength vectors in cBatch
+  // to (or from) the batch of fine working grids this->grid_data_, using the same set of
+  // (index-sorted) NU points this->points_[0],Y,Z for each vector in the batch.
+  // The direction (spread vs interpolate) is set by this->spread_params_.spread_direction.
+  // Returns 0 (no error reporting for now).
+  // Notes:
+  // 1) cBatch is already assumed to have the correct offset, ie here we
+  //    read from the start of cBatch (unlike Malleo). grid_data_ also has zero offset
+  // 2) this routine is a batched version of spreadinterpSorted in spreadinterp.cpp
+  // Barnett 5/19/20, based on Malleo 2019.
+  // 3) the 3rd parameter is used when doing interp/spread only. When received,
+  //    input/output data is read/written from/to this pointer instead of from/to
+  //    the internal array this->fWBatch. Montalt 5/8/2021
+  Status spread_or_interp_sorted_batch(
+      int batch_size, DType* cBatch, DType* fBatch=nullptr);
+
+  // Type 1: deconvolves (amplifies) from each interior fw array in this->grid_data_
+  // into each output array fk in fkBatch.
+  // Type 2: deconvolves from user-supplied input fk to 0-padded interior fw,
+  // again looping over fk in fkBatch and fw in this->grid_data_.
+  // The direction (spread vs interpolate) is set by this->spread_params_.spread_direction.
+  // This is mostly a loop calling deconvolveshuffle?d for the needed rank batch_size
+  // times.
+  // Barnett 5/21/20, simplified from Malleo 2019 (eg t3 logic won't be in here)
+  Status deconvolve_batch(int batch_size, DType* fkBatch);
+
  public:  // TODO(jmontalt): make private after refactoring FINUFFT.
+
   // Number of computations in one batch.
   int batch_size_;
   // Number of batches in one execution (includes all the transforms in

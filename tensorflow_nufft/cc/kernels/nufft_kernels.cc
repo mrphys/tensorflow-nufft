@@ -24,7 +24,6 @@ limitations under the License.
 #include "tensorflow/core/framework/tensor_util.h"
 #include "tensorflow/core/util/bcast.h"
 
-#include "tensorflow_nufft/cc/kernels/finufft/cpu/finufft.h"
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 #include "tensorflow_nufft/cc/kernels/reverse_functor.h"
 #include "tensorflow_nufft/cc/kernels/transpose_functor.h"

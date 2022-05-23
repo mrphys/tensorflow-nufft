@@ -67,6 +67,12 @@ void kernel_fseries_1d(int grid_size,
 template<typename IntType>
 IntType next_smooth_int(IntType n, IntType b = 1);
 
+// With a a length-n array, writes out min(a) to lo and max(a) to hi,
+// so that all a values lie in [lo,hi].
+// If n==0, lo and hi are not finite.
+template<typename FloatType>
+void array_range(int64_t n, FloatType* a, FloatType *lo, FloatType *hi);
+
 }  // namespace nufft
 }  // namespace tensorflow
 

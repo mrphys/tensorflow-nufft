@@ -1670,9 +1670,9 @@ Status Plan<GPUDevice, FloatType>::initialize(
     }
 
     // Make the cuFFT plan.
-    int fft_dims[3];
-    int *input_embed = fft_dims;
-    int *output_embed = fft_dims;
+    uint64_t fft_dims[3];
+    uint64_t *input_embed = fft_dims;
+    uint64_t *output_embed = fft_dims;
     int input_distance = 0;
     int output_distance = 0;
     int input_stride = 1;
@@ -1700,9 +1700,9 @@ Status Plan<GPUDevice, FloatType>::initialize(
     auto* stream = ctx->op_device_context()->stream();
     auto direction = this->fft_direction_ == FftDirection::FORWARD ? se::fft::Type::kC2CForward : se::fft::Type::kC2CInverse;
     this->fft_plan_ = stream->parent()->AsFft()->CreateBatchedPlan(
-        stream, this->rank_, (uint64_t *) fft_dims, 
-        (uint64_t *) input_embed, input_stride, input_distance,
-        (uint64_t *) output_embed, output_stride, output_distance,
+        stream, this->rank_, fft_dims, 
+        input_embed, input_stride, input_distance,
+        output_embed, output_stride, output_distance,
         direction, true, batch_size);
 
   }
@@ -1877,6 +1877,7 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(OpKernelContext* ctx, DType* d
     // Step 2: FFT
     auto src = AsDeviceMemory<std::complex<FloatType>>(this->grid_tensor_.flat<std::complex<FloatType>>().data(), this->grid_tensor_.shape().num_elements());
     ctx->op_device_context()->stream()->ThenFft(this->fft_plan_.get(), src, &src);
+    SE_CHECK_OK(ctx->op_device_context()->stream()->BlockHostUntilDone());
     
     // Step 3: deconvolve and shuffle
     TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
@@ -1904,10 +1905,10 @@ Status Plan<GPUDevice, FloatType>::execute_type_2(OpKernelContext* ctx, DType* d
     TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
 
     // Step 2: FFT
-    this->device_.synchronize();  // Is this necessary?
     auto src = AsDeviceMemory<std::complex<FloatType>>(this->grid_tensor_.flat<std::complex<FloatType>>().data(), this->grid_tensor_.shape().num_elements());
-    ctx->op_device_context()->stream()->ThenFft(this->fft_plan_.get(), src, &src);
-    
+    ctx->op_device_context()->stream()->ThenFft(this->fft_plan_.get(), src, &src).ok();
+    SE_CHECK_OK(ctx->op_device_context()->stream()->BlockHostUntilDone());
+
     // Step 3: interpolate
     TF_RETURN_IF_ERROR(this->interp_batch(batch_size));
   }

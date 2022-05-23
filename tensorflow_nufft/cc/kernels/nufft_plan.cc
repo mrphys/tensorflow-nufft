@@ -143,9 +143,10 @@ static inline void eval_kernel_vec_Horner(FloatType *ker, const FloatType z, con
 template<typename FloatType>
 void interp_line(FloatType *out,FloatType *du, FloatType *ker,int64_t i1,int64_t N1,int ns);
 
-template<typename FloaUsually the latter is very interesting since 50% of the time you solve the problem on your own after writing the minimal example. The other 50%, at least you get a better view of what's happening.
+template<typename FloatType>
+void interp_square(FloatType *out,FloatType *du, FloatType *ker1, FloatType *ker2, int64_t i1,int64_t i2,int64_t N1,int64_t N2,int ns);
 
-tType>
+template<typename FloatType>
 void interp_cube(FloatType *out,FloatType *du, FloatType *ker1, FloatType *ker2, FloatType *ker3,
 		 int64_t i1,int64_t i2,int64_t i3,int64_t N1,int64_t N2,int64_t N3,int ns);
 

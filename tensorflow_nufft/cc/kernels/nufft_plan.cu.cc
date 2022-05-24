@@ -36,6 +36,7 @@ limitations under the License.
 #include <thrust/scan.h>
 
 #include "tensorflow/core/platform/stream_executor.h"
+#include "tensorflow/core/util/env_var.h"
 #include "tensorflow/core/util/gpu_device_functions.h"
 #include "tensorflow/core/util/gpu_kernel_helper.h"
 
@@ -58,13 +59,6 @@ namespace {
 template<typename FloatType>
 using GpuComplex = typename ComplexType<GPUDevice, FloatType>::Type;
 
-template<typename FloatType>
-constexpr cufftType kCufftType = CUFFT_C2C;
-template<>
-constexpr cufftType kCufftType<float> = CUFFT_C2C;
-template<>
-constexpr cufftType kCufftType<double> = CUFFT_Z2Z;
-
 template <typename T>
 se::DeviceMemory<T> AsDeviceMemory(const T* cuda_memory) {
   se::DeviceMemoryBase wrapped(const_cast<T*>(cuda_memory));
@@ -77,6 +71,68 @@ se::DeviceMemory<T> AsDeviceMemory(const T* cuda_memory, uint64 size) {
   se::DeviceMemoryBase wrapped(const_cast<T*>(cuda_memory), size * sizeof(T));
   se::DeviceMemory<T> typed(wrapped);
   return typed;
+}
+
+// A class to provide scratch-space allocator for Stream-Executor Cufft
+// callback. Tensorflow is responsible for releasing the temporary buffers after
+// the kernel finishes.
+// from tensorflow/core/kernels/fft_ops.cc
+class CufftScratchAllocator : public se::ScratchAllocator {
+ public:
+  ~CufftScratchAllocator() override {}
+  CufftScratchAllocator(int64_t memory_limit, OpKernelContext* context)
+      : memory_limit_(memory_limit), total_byte_size_(0), context_(context) {}
+  int64_t GetMemoryLimitInBytes() override { return memory_limit_; }
+  se::port::StatusOr<se::DeviceMemory<uint8>> AllocateBytes(
+      int64_t byte_size) override {
+    Tensor temporary_memory;
+    if (byte_size > memory_limit_) {
+      return se::port::StatusOr<se::DeviceMemory<uint8>>();
+    }
+    AllocationAttributes allocation_attr;
+    allocation_attr.retry_on_failure = false;
+    Status allocation_status(context_->allocate_temp(
+        DT_UINT8, TensorShape({byte_size}), &temporary_memory,
+        AllocatorAttributes(), allocation_attr));
+    if (!allocation_status.ok()) {
+      return se::port::StatusOr<se::DeviceMemory<uint8>>();
+    }
+    // Hold the reference of the allocated tensors until the end of the
+    // allocator.
+    allocated_tensors_.push_back(temporary_memory);
+    total_byte_size_ += byte_size;
+    return se::port::StatusOr<se::DeviceMemory<uint8>>(
+        AsDeviceMemory(temporary_memory.flat<uint8>().data(),
+                       temporary_memory.flat<uint8>().size()));
+  }
+  // The following is not currently used, so is commented out to avoid compiler
+  // warnings.
+  // int64_t TotalByteSize() { return total_byte_size_; }
+
+ private:
+  int64_t memory_limit_;
+  int64_t total_byte_size_;
+  OpKernelContext* context_;
+  std::vector<Tensor> allocated_tensors_;
+};
+
+// Returns the workspace size limit for cuFFT.
+int64_t GetCufftWorkspaceLimit(const string& envvar_in_mb,
+                               int64_t default_value_in_bytes) {
+  const char* workspace_limit_in_mb_str = getenv(envvar_in_mb.c_str());
+  if (workspace_limit_in_mb_str != nullptr &&
+      strcmp(workspace_limit_in_mb_str, "") != 0) {
+    int64_t scratch_limit_in_mb = -1;
+    Status status = ReadInt64FromEnvVar(envvar_in_mb, default_value_in_bytes,
+                                        &scratch_limit_in_mb);
+    if (!status.ok()) {
+      LOG(WARNING) << "Invalid value for env-var " << envvar_in_mb << ": "
+                   << workspace_limit_in_mb_str;
+    } else {
+      return scratch_limit_in_mb * (1 << 20);
+    }
+  }
+  return default_value_in_bytes;
 }
 
 template<typename FloatType>
@@ -1702,15 +1758,22 @@ Status Plan<GPUDevice, FloatType>::initialize(
         return errors::Unimplemented("Invalid rank: ", this->rank_);
     }
 
-    auto direction = this->fft_direction_ == FftDirection::FORWARD ?
-        se::fft::Type::kC2CForward : se::fft::Type::kC2CInverse;
+    constexpr bool kInPlaceFft = true;
+    constexpr bool kIsDoublePrec = std::is_same<FloatType, double>::value;
 
-    this->fft_plan_ = stream->parent()->AsFft()->CreateBatchedPlan(
-        stream, this->rank_, fft_dims, 
-        input_embed, input_stride, input_distance,
-        output_embed, output_stride, output_distance,
-        direction, true, batch_size);
+    const auto kFftType = this->fft_direction_ == FftDirection::FORWARD
+        ? (kIsDoublePrec ? se::fft::Type::kZ2ZForward
+                         : se::fft::Type::kC2CForward)
+        : (kIsDoublePrec ? se::fft::Type::kZ2ZInverse
+                         : se::fft::Type::kC2CInverse);
 
+    CufftScratchAllocator scratch_allocator(CufftScratchSize, ctx);
+    this->fft_plan_ =
+        stream->parent()->AsFft()->CreateBatchedPlanWithScratchAllocator(
+            stream, this->rank_, fft_dims, 
+            input_embed, input_stride, input_distance,
+            output_embed, output_stride, output_distance,
+            kFftType, kInPlaceFft, batch_size, &scratch_allocator);
   }
   return Status::OK();
 }
@@ -1819,7 +1882,8 @@ Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
     auto src = AsDeviceMemory<std::complex<FloatType>>(
         this->grid_tensor_.flat<std::complex<FloatType>>().data(),
         this->grid_tensor_.shape().num_elements());
-    stream->ThenFft(this->fft_plan_.get(), src, &src);
+    if (!stream->ThenFft(this->fft_plan_.get(), src, &src).ok())
+      return errors::Internal("fft failed");
     SE_CHECK_OK(stream->BlockHostUntilDone());
 
     // Step 3: deconvolve (type 1) or interp (type 2).
@@ -2747,6 +2811,12 @@ Status set_grid_size(int ms,
 }
 
 }  // namespace
+
+template<typename FloatType>
+int64_t Plan<GPUDevice, FloatType>::CufftScratchSize = GetCufftWorkspaceLimit(
+    // default value is in bytes despite the name of the environment variable
+    "TF_CUFFT_WORKSPACE_LIMIT_IN_MB", 1LL << 32  // 4GB
+);
 
 template class Plan<GPUDevice, float>;
 template class Plan<GPUDevice, double>;

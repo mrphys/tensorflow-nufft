@@ -42,9 +42,9 @@ limitations under the License.
 #if GOOGLE_CUDA
 #include "third_party/gpus/cuda/include/cuComplex.h"
 #include "third_party/gpus/cuda/include/cufft.h"
-#include "tensorflow/core/platform/stream_executor.h"
 #endif
 #include "tensorflow/core/framework/op_kernel.h"
+#include "tensorflow/core/platform/stream_executor.h"
 #include "tensorflow_nufft/cc/kernels/fftw_api.h"
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
@@ -446,6 +446,9 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   Status interp(DType* d_c, DType* d_fk) override;
 
   Status spread(DType* d_c, DType* d_fk) override;
+
+ protected:
+  static int64_t CufftScratchSize;
 
  private:
   Status init_spreader();

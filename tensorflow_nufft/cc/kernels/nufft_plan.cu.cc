@@ -1783,15 +1783,56 @@ Status Plan<GPUDevice, FloatType>::set_points(
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
-  switch (this->type_) {
-    case TransformType::TYPE_1:
-      TF_RETURN_IF_ERROR(this->execute_type_1(d_c, d_fk));
-      break;
-    case TransformType::TYPE_2:
-      TF_RETURN_IF_ERROR(this->execute_type_2(d_c, d_fk));
-      break;
-    case TransformType::TYPE_3:
-      return errors::Unimplemented("type 3 transform is not implemented");
+  auto* ctx = this->context_;
+  auto* stream = ctx->op_device_context()->stream();
+  if (!stream)
+    return errors::Internal("No GPU stream available.");
+
+  int batch_size;
+  DType* d_fkstart;
+  DType* d_cstart;
+
+  for (int i = 0;
+       i * this->options_.max_batch_size < this->num_transforms_;
+       i++) {
+    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size,
+                     this->options_.max_batch_size);
+    d_cstart = d_c + i * this->options_.max_batch_size * this->num_points_;
+    d_fkstart = d_fk + i * this->options_.max_batch_size * this->mode_count_;
+
+    this->c_ = d_cstart;
+    this->f_ = d_fkstart;
+
+    // Step 1: spread (type 1) or deconvolve (type 2).
+    switch (this->type_) {
+      case TransformType::TYPE_1:
+          TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
+          break;
+        case TransformType::TYPE_2:
+          TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
+          break;
+        case TransformType::TYPE_3:
+          return errors::Unimplemented("type 3 transform is not implemented");
+    }
+
+    // Step 2: FFT (type 1 and/or 2).
+    auto src = AsDeviceMemory<std::complex<FloatType>>(
+        this->grid_tensor_.flat<std::complex<FloatType>>().data(),
+        this->grid_tensor_.shape().num_elements());
+    stream->ThenFft(this->fft_plan_.get(), src, &src);
+    SE_CHECK_OK(stream->BlockHostUntilDone());
+
+    // Step 3: deconvolve (type 1) or interp (type 2).
+    switch (this->type_) {
+      case TransformType::TYPE_1:
+          TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
+          break;
+        case TransformType::TYPE_2:
+          TF_RETURN_IF_ERROR(this->interp_batch(batch_size));
+          break;
+        case TransformType::TYPE_3:
+          return errors::Unimplemented("type 3 transform is not implemented");
+    }
   }
   return Status::OK();
 }
@@ -1840,10 +1881,6 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
 
     this->c_  = d_cstart;
     this->grid_data_ = d_fkstart;
-    // Set fine grid to zero.
-    size_t grid_bytes = sizeof(DType) * this->grid_size_ *
-                        this->options_.max_batch_size;
-    this->device_.memset(this->grid_data_, 0, grid_bytes);
 
     TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
   }
@@ -1858,85 +1895,12 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
-  auto* ctx = this->context_;
-  auto* stream = ctx->op_device_context()->stream();
-  if (!stream)
-    return errors::Internal("No GPU stream available.");
-
-  int batch_size;
-  DType* d_fkstart;
-  DType* d_cstart;
-  for (int i = 0;
-       i * this->options_.max_batch_size < this->num_transforms_;
-       i++) {
-    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size,
-                     this->options_.max_batch_size);
-    d_cstart = d_c + i * this->options_.max_batch_size * this->num_points_;
-    d_fkstart = d_fk + i * this->options_.max_batch_size * this->mode_count_;
-    this->c_ = d_cstart;
-    this->f_ = d_fkstart;
-
-    // Set fine grid to zero.
-    size_t grid_bytes = sizeof(DType) * this->grid_size_ *
-                        this->options_.max_batch_size;
-    this->device_.memset(this->grid_data_, 0, grid_bytes);
-
-    // Step 1: Spread
-    TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
-
-    // Step 2: FFT
-    auto src = AsDeviceMemory<std::complex<FloatType>>(
-        this->grid_tensor_.flat<std::complex<FloatType>>().data(),
-        this->grid_tensor_.shape().num_elements());
-    stream->ThenFft(this->fft_plan_.get(), src, &src);
-    SE_CHECK_OK(stream->BlockHostUntilDone());
-
-    // Step 3: deconvolve and shuffle
-    TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
-  }
-  return Status::OK();
-}
-
-template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
-  auto* ctx = this->context_;
-  auto* stream = ctx->op_device_context()->stream();
-  if (!stream)
-    return errors::Internal("No GPU stream available.");
-
-  int batch_size;
-  DType* d_fkstart;
-  DType* d_cstart;
-  for (int i = 0;
-       i * this->options_.max_batch_size < this->num_transforms_;
-       i++) {
-    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size,
-                     this->options_.max_batch_size);
-    d_cstart  = d_c  + i * this->options_.max_batch_size * this->num_points_;
-    d_fkstart = d_fk + i * this->options_.max_batch_size * this->mode_count_;
-
-    this->c_ = d_cstart;
-    this->f_ = d_fkstart;
-
-    // Step 1: amplify Fourier coeffs fk and copy into upsampled array fw
-    TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
-
-    // Step 2: FFT
-    auto src = AsDeviceMemory<std::complex<FloatType>>(
-        this->grid_tensor_.flat<std::complex<FloatType>>().data(),
-        this->grid_tensor_.shape().num_elements());
-    stream->ThenFft(this->fft_plan_.get(), src, &src).ok();
-    SE_CHECK_OK(stream->BlockHostUntilDone());
-
-    // Step 3: interpolate
-    TF_RETURN_IF_ERROR(this->interp_batch(batch_size));
-  }
-  return Status::OK();
-}
-
-template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::spread_batch(int batch_size) {
+  // Set fine grid to zero.
+  size_t grid_bytes = sizeof(DType) * this->grid_size_ *
+                      this->options_.max_batch_size;
+  this->device_.memset(this->grid_data_, 0, grid_bytes);
+
   switch (this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
       TF_RETURN_IF_ERROR(this->spread_batch_nupts_driven(batch_size));

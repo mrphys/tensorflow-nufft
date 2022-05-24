@@ -451,14 +451,6 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   Status init_spreader();
   Status init_spreader_nupts_driven();
   Status init_spreader_subproblem();
-  // Performs type-1 NUFFT. This consists of 3 steps: (1) spreading of
-  // non-uniform data to fine grid, (2) FFT on fine grid, and (3) deconvolution
-  // (division of modes by Fourier series of kernel).
-  Status execute_type_1(DType* d_c, DType* d_fk);
-  // Performs type-2 NUFFT. This consists of 3 steps: (1) deconvolution
-  // (division of modes by Fourier series of kernel), (2) FFT on fine grid, and
-  // (3) interpolation of data to non-uniform points.
-  Status execute_type_2(DType* d_c, DType* d_fk);
   Status spread_batch(int batch_size);
   Status interp_batch(int batch_size);
   Status spread_batch_nupts_driven(int batch_size);

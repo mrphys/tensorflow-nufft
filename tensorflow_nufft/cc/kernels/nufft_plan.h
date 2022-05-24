@@ -190,8 +190,7 @@ class PlanBase {
 
   // Initializes a new NUFFT plan. Allocates memory for internal working arrays,
   // evaluates spreading kernel coefficients, and instantiates the FFT plan.
-  virtual Status initialize(OpKernelContext* ctx,
-                            TransformType type,
+  virtual Status initialize(TransformType type,
                             int rank,
                             int* num_modes,
                             FftDirection fft_direction,
@@ -212,7 +211,7 @@ class PlanBase {
   // Executes the plan. Must be called after initialize() and set_points(). `c`
   // and `f` are the non-uniform and uniform grid arrays, respectively. Each
   // may be an input or an output depending on the type of the transform.
-  virtual Status execute(OpKernelContext* ctx, DType* c, DType* f) = 0;
+  virtual Status execute(DType* c, DType* f) = 0;
 
   // Performs the interpolation step only. Must be called after initialize() and
   // set_points().
@@ -269,8 +268,7 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
   ~Plan();
 
-  Status initialize(OpKernelContext* ctx,
-                    TransformType type,
+  Status initialize(TransformType type,
                     int rank,
                     int* num_modes,
                     FftDirection fft_direction,
@@ -283,7 +281,7 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
                     FloatType* points_y,
                     FloatType* points_z) override;
 
-  Status execute(OpKernelContext* ctx, DType* c, DType* f) override;
+  Status execute(DType* c, DType* f) override;
 
   Status interp(DType* c, DType* f) override;
 
@@ -430,8 +428,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
   ~Plan();
 
-  Status initialize(OpKernelContext* ctx,
-                    TransformType type,
+  Status initialize(TransformType type,
                     int rank,
                     int* num_modes,
                     FftDirection fft_direction,
@@ -444,7 +441,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
                     FloatType* points_y,
                     FloatType* points_z) override;
 
-  Status execute(OpKernelContext* ctx, DType* d_c, DType* d_fk) override;
+  Status execute(DType* d_c, DType* d_fk) override;
 
   Status interp(DType* d_c, DType* d_fk) override;
 
@@ -457,11 +454,11 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // Performs type-1 NUFFT. This consists of 3 steps: (1) spreading of
   // non-uniform data to fine grid, (2) FFT on fine grid, and (3) deconvolution
   // (division of modes by Fourier series of kernel).
-  Status execute_type_1(OpKernelContext* ctx, DType* d_c, DType* d_fk);
+  Status execute_type_1(DType* d_c, DType* d_fk);
   // Performs type-2 NUFFT. This consists of 3 steps: (1) deconvolution
   // (division of modes by Fourier series of kernel), (2) FFT on fine grid, and
   // (3) interpolation of data to non-uniform points.
-  Status execute_type_2(OpKernelContext* ctx, DType* d_c, DType* d_fk);
+  Status execute_type_2(DType* d_c, DType* d_fk);
   Status spread_batch(int batch_size);
   Status interp_batch(int batch_size);
   Status spread_batch_nupts_driven(int batch_size);

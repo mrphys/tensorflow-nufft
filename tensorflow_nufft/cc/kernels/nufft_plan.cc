@@ -184,7 +184,6 @@ void get_subgrid(int64_t &offset1,int64_t &offset2,int64_t &offset3,int64_t &siz
 
 template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::initialize(
-    OpKernelContext* ctx,
     TransformType type,
     int rank,
     int* num_modes,
@@ -451,7 +450,7 @@ Status Plan<CPUDevice, FloatType>::set_points(
    Barnett 5/20/20, based on Malleo 2019.
 */
 template<typename FloatType>
-Status Plan<CPUDevice, FloatType>::execute(OpKernelContext* ctx, DType* cj, DType* fk){
+Status Plan<CPUDevice, FloatType>::execute(DType* cj, DType* fk){
 
   if (this->type_ != TransformType::TYPE_3) {
   

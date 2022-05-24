@@ -127,7 +127,7 @@ struct DoNUFFTBase {
     // Make the NUFFT plan.
     auto plan = std::make_unique<Plan<Device, FloatType>>(ctx);
     TF_RETURN_IF_ERROR(plan->initialize(
-        ctx, type, rank, num_modes_int, fft_direction,
+        type, rank, num_modes_int, fft_direction,
         num_transforms, tol, options));
 
     // Pointers to a certain batch.
@@ -181,7 +181,7 @@ struct DoNUFFTBase {
       // Execute the NUFFT.
       switch (op_type) {
         case OpType::NUFFT:
-          TF_RETURN_IF_ERROR(plan->execute(ctx, c_batch, f_batch));
+          TF_RETURN_IF_ERROR(plan->execute(c_batch, f_batch));
           break;
         case OpType::INTERP:
           TF_RETURN_IF_ERROR(plan->interp(c_batch, f_batch));

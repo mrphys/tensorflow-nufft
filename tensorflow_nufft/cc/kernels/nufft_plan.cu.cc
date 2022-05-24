@@ -1459,7 +1459,6 @@ __global__ void InterpSubproblemHorner3DKernel(
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::initialize(
-    OpKernelContext* ctx,
     TransformType type,
     int rank,
     int* num_modes,
@@ -1467,6 +1466,11 @@ Status Plan<GPUDevice, FloatType>::initialize(
     int num_transforms,
     FloatType tol,
     const Options& options) {
+
+  auto* ctxt = this->context_;
+  auto* stream = ctxt->op_device_context()->stream();
+  if (!stream)
+    return errors::Internal("No GPU stream available.");
 
   this->idx_nupts_ = nullptr;
   this->sort_idx_ = nullptr;
@@ -1673,10 +1677,10 @@ Status Plan<GPUDevice, FloatType>::initialize(
     uint64_t fft_dims[3];
     uint64_t *input_embed = fft_dims;
     uint64_t *output_embed = fft_dims;
-    int input_distance = 0;
-    int output_distance = 0;
-    int input_stride = 1;
-    int output_stride = 1;
+    uint64_t input_distance = 0;
+    uint64_t output_distance = 0;
+    uint64_t input_stride = 1;
+    uint64_t output_stride = 1;
     int batch_size = this->options_.max_batch_size;
     switch (this->rank_) {
       case 2: {
@@ -1697,8 +1701,10 @@ Status Plan<GPUDevice, FloatType>::initialize(
       default:
         return errors::Unimplemented("Invalid rank: ", this->rank_);
     }
-    auto* stream = ctx->op_device_context()->stream();
-    auto direction = this->fft_direction_ == FftDirection::FORWARD ? se::fft::Type::kC2CForward : se::fft::Type::kC2CInverse;
+
+    auto direction = this->fft_direction_ == FftDirection::FORWARD ?
+        se::fft::Type::kC2CForward : se::fft::Type::kC2CInverse;
+
     this->fft_plan_ = stream->parent()->AsFft()->CreateBatchedPlan(
         stream, this->rank_, fft_dims, 
         input_embed, input_stride, input_distance,
@@ -1776,13 +1782,13 @@ Status Plan<GPUDevice, FloatType>::set_points(
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::execute(OpKernelContext* ctx, DType* d_c, DType* d_fk) {
+Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
   switch (this->type_) {
     case TransformType::TYPE_1:
-      TF_RETURN_IF_ERROR(this->execute_type_1(ctx, d_c, d_fk));
+      TF_RETURN_IF_ERROR(this->execute_type_1(d_c, d_fk));
       break;
     case TransformType::TYPE_2:
-      TF_RETURN_IF_ERROR(this->execute_type_2(ctx, d_c, d_fk));
+      TF_RETURN_IF_ERROR(this->execute_type_2(d_c, d_fk));
       break;
     case TransformType::TYPE_3:
       return errors::Unimplemented("type 3 transform is not implemented");
@@ -1852,7 +1858,12 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::execute_type_1(OpKernelContext* ctx, DType* d_c, DType* d_fk) {
+Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
+  auto* ctxt = this->context_;
+  auto* stream = ctxt->op_device_context()->stream();
+  if (!stream)
+    return errors::Internal("No GPU stream available.");
+
   int batch_size;
   DType* d_fkstart;
   DType* d_cstart;
@@ -1875,10 +1886,12 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(OpKernelContext* ctx, DType* d
     TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
 
     // Step 2: FFT
-    auto src = AsDeviceMemory<std::complex<FloatType>>(this->grid_tensor_.flat<std::complex<FloatType>>().data(), this->grid_tensor_.shape().num_elements());
-    ctx->op_device_context()->stream()->ThenFft(this->fft_plan_.get(), src, &src);
-    SE_CHECK_OK(ctx->op_device_context()->stream()->BlockHostUntilDone());
-    
+    auto src = AsDeviceMemory<std::complex<FloatType>>(
+        this->grid_tensor_.flat<std::complex<FloatType>>().data(),
+        this->grid_tensor_.shape().num_elements());
+    stream->ThenFft(this->fft_plan_.get(), src, &src);
+    SE_CHECK_OK(stream->BlockHostUntilDone());
+
     // Step 3: deconvolve and shuffle
     TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
   }
@@ -1886,7 +1899,12 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(OpKernelContext* ctx, DType* d
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::execute_type_2(OpKernelContext* ctx, DType* d_c, DType* d_fk) {
+Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
+  auto* ctxt = this->context_;
+  auto* stream = ctxt->op_device_context()->stream();
+  if (!stream)
+    return errors::Internal("No GPU stream available.");
+
   int batch_size;
   DType* d_fkstart;
   DType* d_cstart;
@@ -1905,9 +1923,11 @@ Status Plan<GPUDevice, FloatType>::execute_type_2(OpKernelContext* ctx, DType* d
     TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
 
     // Step 2: FFT
-    auto src = AsDeviceMemory<std::complex<FloatType>>(this->grid_tensor_.flat<std::complex<FloatType>>().data(), this->grid_tensor_.shape().num_elements());
-    ctx->op_device_context()->stream()->ThenFft(this->fft_plan_.get(), src, &src).ok();
-    SE_CHECK_OK(ctx->op_device_context()->stream()->BlockHostUntilDone());
+    auto src = AsDeviceMemory<std::complex<FloatType>>(
+        this->grid_tensor_.flat<std::complex<FloatType>>().data(),
+        this->grid_tensor_.shape().num_elements());
+    stream->ThenFft(this->fft_plan_.get(), src, &src).ok();
+    SE_CHECK_OK(stream->BlockHostUntilDone());
 
     // Step 3: interpolate
     TF_RETURN_IF_ERROR(this->interp_batch(batch_size));

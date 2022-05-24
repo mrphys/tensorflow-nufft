@@ -1467,8 +1467,8 @@ Status Plan<GPUDevice, FloatType>::initialize(
     FloatType tol,
     const Options& options) {
 
-  auto* ctxt = this->context_;
-  auto* stream = ctxt->op_device_context()->stream();
+  auto* ctx = this->context_;
+  auto* stream = ctx->op_device_context()->stream();
   if (!stream)
     return errors::Internal("No GPU stream available.");
 
@@ -1859,8 +1859,8 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
-  auto* ctxt = this->context_;
-  auto* stream = ctxt->op_device_context()->stream();
+  auto* ctx = this->context_;
+  auto* stream = ctx->op_device_context()->stream();
   if (!stream)
     return errors::Internal("No GPU stream available.");
 
@@ -1900,8 +1900,8 @@ Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
-  auto* ctxt = this->context_;
-  auto* stream = ctxt->op_device_context()->stream();
+  auto* ctx = this->context_;
+  auto* stream = ctx->op_device_context()->stream();
   if (!stream)
     return errors::Internal("No GPU stream available.");
 

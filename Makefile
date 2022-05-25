@@ -65,11 +65,11 @@ NVARCH_FLAGS ?= \
 	-gencode=arch=compute_86,code=sm_86 \
 	-gencode=arch=compute_86,code=compute_86
 
-CUDAFE = --diag_suppress=174 --diag_suppress=611 --diag_suppress=20012 --diag_suppress=1886 --display_error_number
+CUDAFE = --diag_suppress=174 --diag_suppress=177 --diag_suppress=611 --diag_suppress=20012 --diag_suppress=1886 --display_error_number
 
 CUFLAGS = $(NVARCH_FLAGS) -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-constexpr
 CUFLAGS += -I$(ROOT_DIR)
-CUFLAGS += -Xcudafe "$(CUDAFE)"
+CUFLAGS += -Xcudafe "$(CUDAFE)" -Wno-deprecated-gpu-targets
 
 
 # ==============================================================================

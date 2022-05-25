@@ -105,9 +105,7 @@ class CufftScratchAllocator : public se::ScratchAllocator {
         AsDeviceMemory(temporary_memory.flat<uint8>().data(),
                        temporary_memory.flat<uint8>().size()));
   }
-  // The following is not currently used, so is commented out to avoid compiler
-  // warnings.
-  // int64_t TotalByteSize() { return total_byte_size_; }
+  int64_t TotalByteSize() { return total_byte_size_; }
 
  private:
   int64_t memory_limit_;
@@ -1884,7 +1882,6 @@ Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
         this->grid_tensor_.shape().num_elements());
     if (!stream->ThenFft(this->fft_plan_.get(), src, &src).ok())
       return errors::Internal("fft failed");
-    SE_CHECK_OK(stream->BlockHostUntilDone());
 
     // Step 3: deconvolve (type 1) or interp (type 2).
     switch (this->type_) {

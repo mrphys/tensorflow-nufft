@@ -105,9 +105,7 @@ class CufftScratchAllocator : public se::ScratchAllocator {
         AsDeviceMemory(temporary_memory.flat<uint8>().data(),
                        temporary_memory.flat<uint8>().size()));
   }
-  // The following is not currently used, so is commented out to avoid compiler
-  // warnings.
-  // int64_t TotalByteSize() { return total_byte_size_; }
+  int64_t TotalByteSize() { return total_byte_size_; }
 
  private:
   int64_t memory_limit_;

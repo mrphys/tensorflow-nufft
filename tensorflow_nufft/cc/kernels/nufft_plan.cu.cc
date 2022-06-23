@@ -36,6 +36,7 @@ limitations under the License.
 #include <thrust/scan.h>
 
 #include "tensorflow/core/platform/stream_executor.h"
+#include "tensorflow/core/util/env_var.h"
 #include "tensorflow/core/util/gpu_device_functions.h"
 #include "tensorflow/core/util/gpu_kernel_helper.h"
 
@@ -58,30 +59,78 @@ namespace {
 template<typename FloatType>
 using GpuComplex = typename ComplexType<GPUDevice, FloatType>::Type;
 
-template<typename FloatType>
-constexpr cufftType kCufftType = CUFFT_C2C;
-template<>
-constexpr cufftType kCufftType<float> = CUFFT_C2C;
-template<>
-constexpr cufftType kCufftType<double> = CUFFT_Z2Z;
-
-template<typename FloatType>
-cufftResult cufftExec(
-    cufftHandle plan, GpuComplex<FloatType> *idata,
-    GpuComplex<FloatType> *odata, int direction);
-
-template<>
-cufftResult cufftExec<float>(
-    cufftHandle plan, GpuComplex<float> *idata,
-    GpuComplex<float> *odata, int direction) {
-  return cufftExecC2C(plan, idata, odata, direction);
+template <typename T>
+se::DeviceMemory<T> AsDeviceMemory(const T* cuda_memory) {
+  se::DeviceMemoryBase wrapped(const_cast<T*>(cuda_memory));
+  se::DeviceMemory<T> typed(wrapped);
+  return typed;
 }
 
-template<>
-cufftResult cufftExec<double>(
-    cufftHandle plan, GpuComplex<double> *idata,
-    GpuComplex<double> *odata, int direction) {
-  return cufftExecZ2Z(plan, idata, odata, direction);
+template <typename T>
+se::DeviceMemory<T> AsDeviceMemory(const T* cuda_memory, uint64 size) {
+  se::DeviceMemoryBase wrapped(const_cast<T*>(cuda_memory), size * sizeof(T));
+  se::DeviceMemory<T> typed(wrapped);
+  return typed;
+}
+
+// A class to provide scratch-space allocator for Stream-Executor Cufft
+// callback. Tensorflow is responsible for releasing the temporary buffers after
+// the kernel finishes.
+// from tensorflow/core/kernels/fft_ops.cc
+class CufftScratchAllocator : public se::ScratchAllocator {
+ public:
+  ~CufftScratchAllocator() override {}
+  CufftScratchAllocator(int64_t memory_limit, OpKernelContext* context)
+      : memory_limit_(memory_limit), total_byte_size_(0), context_(context) {}
+  int64_t GetMemoryLimitInBytes() override { return memory_limit_; }
+  se::port::StatusOr<se::DeviceMemory<uint8>> AllocateBytes(
+      int64_t byte_size) override {
+    Tensor temporary_memory;
+    if (byte_size > memory_limit_) {
+      return se::port::StatusOr<se::DeviceMemory<uint8>>();
+    }
+    AllocationAttributes allocation_attr;
+    allocation_attr.retry_on_failure = false;
+    Status allocation_status(context_->allocate_temp(
+        DT_UINT8, TensorShape({byte_size}), &temporary_memory,
+        AllocatorAttributes(), allocation_attr));
+    if (!allocation_status.ok()) {
+      return se::port::StatusOr<se::DeviceMemory<uint8>>();
+    }
+    // Hold the reference of the allocated tensors until the end of the
+    // allocator.
+    allocated_tensors_.push_back(temporary_memory);
+    total_byte_size_ += byte_size;
+    return se::port::StatusOr<se::DeviceMemory<uint8>>(
+        AsDeviceMemory(temporary_memory.flat<uint8>().data(),
+                       temporary_memory.flat<uint8>().size()));
+  }
+  int64_t TotalByteSize() { return total_byte_size_; }
+
+ private:
+  int64_t memory_limit_;
+  int64_t total_byte_size_;
+  OpKernelContext* context_;
+  std::vector<Tensor> allocated_tensors_;
+};
+
+// Returns the workspace size limit for cuFFT.
+int64_t GetCufftWorkspaceLimit(const string& envvar_in_mb,
+                               int64_t default_value_in_bytes) {
+  const char* workspace_limit_in_mb_str = getenv(envvar_in_mb.c_str());
+  if (workspace_limit_in_mb_str != nullptr &&
+      strcmp(workspace_limit_in_mb_str, "") != 0) {
+    int64_t scratch_limit_in_mb = -1;
+    Status status = ReadInt64FromEnvVar(envvar_in_mb, default_value_in_bytes,
+                                        &scratch_limit_in_mb);
+    if (!status.ok()) {
+      LOG(WARNING) << "Invalid value for env-var " << envvar_in_mb << ": "
+                   << workspace_limit_in_mb_str;
+    } else {
+      return scratch_limit_in_mb * (1 << 20);
+    }
+  }
+  return default_value_in_bytes;
 }
 
 template<typename FloatType>
@@ -1472,6 +1521,11 @@ Status Plan<GPUDevice, FloatType>::initialize(
     FloatType tol,
     const Options& options) {
 
+  auto* ctx = this->context_;
+  auto* stream = ctx->op_device_context()->stream();
+  if (!stream)
+    return errors::Internal("No GPU stream available.");
+
   this->idx_nupts_ = nullptr;
   this->sort_idx_ = nullptr;
   this->num_subprob_ = nullptr;
@@ -1674,13 +1728,13 @@ Status Plan<GPUDevice, FloatType>::initialize(
     }
 
     // Make the cuFFT plan.
-    int fft_dims[3];
-    int *input_embed = fft_dims;
-    int *output_embed = fft_dims;
-    int input_distance = 0;
-    int output_distance = 0;
-    int input_stride = 1;
-    int output_stride = 1;
+    uint64_t fft_dims[3];
+    uint64_t *input_embed = fft_dims;
+    uint64_t *output_embed = fft_dims;
+    uint64_t input_distance = 0;
+    uint64_t output_distance = 0;
+    uint64_t input_stride = 1;
+    uint64_t output_stride = 1;
     int batch_size = this->options_.max_batch_size;
     switch (this->rank_) {
       case 2: {
@@ -1702,23 +1756,28 @@ Status Plan<GPUDevice, FloatType>::initialize(
         return errors::Unimplemented("Invalid rank: ", this->rank_);
     }
 
-    cufftResult result = cufftPlanMany(
-        &this->fft_plan_, this->rank_, fft_dims,
-        input_embed, input_stride, input_distance,
-        output_embed, output_stride, output_distance,
-        kCufftType<FloatType>, batch_size);
+    constexpr bool kInPlaceFft = true;
+    constexpr bool kIsDoublePrec = std::is_same<FloatType, double>::value;
 
-    if (result != CUFFT_SUCCESS) {
-      return errors::Internal("cufftPlanMany failed with code: ", result);
-    }
+    const auto kFftType = this->fft_direction_ == FftDirection::FORWARD
+        ? (kIsDoublePrec ? se::fft::Type::kZ2ZForward
+                         : se::fft::Type::kC2CForward)
+        : (kIsDoublePrec ? se::fft::Type::kZ2ZInverse
+                         : se::fft::Type::kC2CInverse);
+
+    CufftScratchAllocator scratch_allocator(CufftScratchSize, ctx);
+    this->fft_plan_ =
+        stream->parent()->AsFft()->CreateBatchedPlanWithScratchAllocator(
+            stream, this->rank_, fft_dims, 
+            input_embed, input_stride, input_distance,
+            output_embed, output_stride, output_distance,
+            kFftType, kInPlaceFft, batch_size, &scratch_allocator);
   }
   return Status::OK();
 }
 
 template<typename FloatType>
 Plan<GPUDevice, FloatType>::~Plan() {
-  if (this->fft_plan_)
-    cufftDestroy(this->fft_plan_);
 
   // Free memory allocated on the device. Some of these pointers are not
   // guaranteed to be allocated, but that's ok because `deallocate` will
@@ -1785,15 +1844,56 @@ Status Plan<GPUDevice, FloatType>::set_points(
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
-  switch (this->type_) {
-    case TransformType::TYPE_1:
-      TF_RETURN_IF_ERROR(this->execute_type_1(d_c, d_fk));
-      break;
-    case TransformType::TYPE_2:
-      TF_RETURN_IF_ERROR(this->execute_type_2(d_c, d_fk));
-      break;
-    case TransformType::TYPE_3:
-      return errors::Unimplemented("type 3 transform is not implemented");
+  auto* ctx = this->context_;
+  auto* stream = ctx->op_device_context()->stream();
+  if (!stream)
+    return errors::Internal("No GPU stream available.");
+
+  int batch_size;
+  DType* d_fkstart;
+  DType* d_cstart;
+
+  for (int i = 0;
+       i * this->options_.max_batch_size < this->num_transforms_;
+       i++) {
+    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size,
+                     this->options_.max_batch_size);
+    d_cstart = d_c + i * this->options_.max_batch_size * this->num_points_;
+    d_fkstart = d_fk + i * this->options_.max_batch_size * this->mode_count_;
+
+    this->c_ = d_cstart;
+    this->f_ = d_fkstart;
+
+    // Step 1: spread (type 1) or deconvolve (type 2).
+    switch (this->type_) {
+      case TransformType::TYPE_1:
+          TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
+          break;
+        case TransformType::TYPE_2:
+          TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
+          break;
+        case TransformType::TYPE_3:
+          return errors::Unimplemented("type 3 transform is not implemented");
+    }
+
+    // Step 2: FFT (type 1 and/or 2).
+    auto src = AsDeviceMemory<std::complex<FloatType>>(
+        this->grid_tensor_.flat<std::complex<FloatType>>().data(),
+        this->grid_tensor_.shape().num_elements());
+    if (!stream->ThenFft(this->fft_plan_.get(), src, &src).ok())
+      return errors::Internal("fft failed");
+
+    // Step 3: deconvolve (type 1) or interp (type 2).
+    switch (this->type_) {
+      case TransformType::TYPE_1:
+          TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
+          break;
+        case TransformType::TYPE_2:
+          TF_RETURN_IF_ERROR(this->interp_batch(batch_size));
+          break;
+        case TransformType::TYPE_3:
+          return errors::Unimplemented("type 3 transform is not implemented");
+    }
   }
   return Status::OK();
 }
@@ -1842,10 +1942,6 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
 
     this->c_  = d_cstart;
     this->grid_data_ = d_fkstart;
-    // Set fine grid to zero.
-    size_t grid_bytes = sizeof(DType) * this->grid_size_ *
-                        this->options_.max_batch_size;
-    this->device_.memset(this->grid_data_, 0, grid_bytes);
 
     TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
   }
@@ -1860,88 +1956,12 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
 }
 
 template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::execute_type_1(DType* d_c, DType* d_fk) {
-  int batch_size;
-  DType* d_fkstart;
-  DType* d_cstart;
-  for (int i = 0;
-       i * this->options_.max_batch_size < this->num_transforms_;
-       i++) {
-    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size,
-                     this->options_.max_batch_size);
-    d_cstart = d_c + i * this->options_.max_batch_size * this->num_points_;
-    d_fkstart = d_fk + i * this->options_.max_batch_size * this->mode_count_;
-    this->c_ = d_cstart;
-    this->f_ = d_fkstart;
-
-    // Set fine grid to zero.
-    size_t grid_bytes = sizeof(DType) * this->grid_size_ *
-                        this->options_.max_batch_size;
-    this->device_.memset(this->grid_data_, 0, grid_bytes);
-
-    // Step 1: Spread
-    TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
-
-    // Step 2: FFT
-    auto result = cufftSetStream(this->fft_plan_, this->device_.stream());
-    if (result != CUFFT_SUCCESS) {
-      return errors::Internal(
-          "Failed to associate cuFFT plan with CUDA stream: ", result);
-    }
-    result = cufftExec<FloatType>(
-      this->fft_plan_, this->grid_data_, this->grid_data_,
-      static_cast<int>(this->fft_direction_));
-    if (result != CUFFT_SUCCESS) {
-      return errors::Internal("cuFFT execute failed with code: ", result);
-    }
-
-    // Step 3: deconvolve and shuffle
-    TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
-  }
-  return Status::OK();
-}
-
-template<typename FloatType>
-Status Plan<GPUDevice, FloatType>::execute_type_2(DType* d_c, DType* d_fk) {
-  int batch_size;
-  DType* d_fkstart;
-  DType* d_cstart;
-  for (int i = 0;
-       i * this->options_.max_batch_size < this->num_transforms_;
-       i++) {
-    batch_size = min(this->num_transforms_ - i * this->options_.max_batch_size,
-                     this->options_.max_batch_size);
-    d_cstart  = d_c  + i * this->options_.max_batch_size * this->num_points_;
-    d_fkstart = d_fk + i * this->options_.max_batch_size * this->mode_count_;
-
-    this->c_ = d_cstart;
-    this->f_ = d_fkstart;
-
-    // Step 1: amplify Fourier coeffs fk and copy into upsampled array fw
-    TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size));
-
-    // Step 2: FFT
-    this->device_.synchronize();  // Is this necessary?
-    auto result = cufftSetStream(this->fft_plan_, this->device_.stream());
-    if (result != CUFFT_SUCCESS) {
-      return errors::Internal(
-          "Failed to associate cuFFT plan with CUDA stream: ", result);
-    }
-    result = cufftExec<FloatType>(
-      this->fft_plan_, this->grid_data_, this->grid_data_,
-      static_cast<int>(this->fft_direction_));
-    if (result != CUFFT_SUCCESS) {
-      return errors::Internal("cuFFT execute failed with code: ", result);
-    }
-
-    // Step 3: interpolate
-    TF_RETURN_IF_ERROR(this->interp_batch(batch_size));
-  }
-  return Status::OK();
-}
-
-template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::spread_batch(int batch_size) {
+  // Set fine grid to zero.
+  size_t grid_bytes = sizeof(DType) * this->grid_size_ *
+                      this->options_.max_batch_size;
+  this->device_.memset(this->grid_data_, 0, grid_bytes);
+
   switch (this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
       TF_RETURN_IF_ERROR(this->spread_batch_nupts_driven(batch_size));
@@ -2788,6 +2808,12 @@ Status set_grid_size(int ms,
 }
 
 }  // namespace
+
+template<typename FloatType>
+int64_t Plan<GPUDevice, FloatType>::CufftScratchSize = GetCufftWorkspaceLimit(
+    // default value is in bytes despite the name of the environment variable
+    "TF_CUFFT_WORKSPACE_LIMIT_IN_MB", 1LL << 32  // 4GB
+);
 
 template class Plan<GPUDevice, float>;
 template class Plan<GPUDevice, double>;

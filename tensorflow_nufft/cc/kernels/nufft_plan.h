@@ -44,6 +44,7 @@ limitations under the License.
 #include "third_party/gpus/cuda/include/cufft.h"
 #endif
 #include "tensorflow/core/framework/op_kernel.h"
+#include "tensorflow/core/platform/stream_executor.h"
 #include "tensorflow_nufft/cc/kernels/fftw_api.h"
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
@@ -446,18 +447,13 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
   Status spread(DType* d_c, DType* d_fk) override;
 
+ protected:
+  static int64_t CufftScratchSize;
+
  private:
   Status init_spreader();
   Status init_spreader_nupts_driven();
   Status init_spreader_subproblem();
-  // Performs type-1 NUFFT. This consists of 3 steps: (1) spreading of
-  // non-uniform data to fine grid, (2) FFT on fine grid, and (3) deconvolution
-  // (division of modes by Fourier series of kernel).
-  Status execute_type_1(DType* d_c, DType* d_fk);
-  // Performs type-2 NUFFT. This consists of 3 steps: (1) deconvolution
-  // (division of modes by Fourier series of kernel), (2) FFT on fine grid, and
-  // (3) interpolation of data to non-uniform points.
-  Status execute_type_2(DType* d_c, DType* d_fk);
   Status spread_batch(int batch_size);
   Status interp_batch(int batch_size);
   Status spread_batch_nupts_driven(int batch_size);
@@ -478,7 +474,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // the first `rank` pointers are valid.
   FloatType* fseries_data_[3];
   // The cuFFT plan.
-  cufftHandle fft_plan_;
+  std::unique_ptr<se::fft::Plan> fft_plan_;
   // The parameters for the spreading algorithm/s.
   SpreadParameters<FloatType> spread_params_;
   // The GPU bin dimension sizes.

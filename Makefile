@@ -65,11 +65,11 @@ NVARCH_FLAGS ?= \
 	-gencode=arch=compute_86,code=sm_86 \
 	-gencode=arch=compute_86,code=compute_86
 
-CUDAFE = --diag_suppress=174 --diag_suppress=611 --diag_suppress=20012 --diag_suppress=1886 --display_error_number
+CUDAFE = --diag_suppress=174 --diag_suppress=177 --diag_suppress=611 --diag_suppress=20012 --diag_suppress=1886 --display_error_number
 
 CUFLAGS = $(NVARCH_FLAGS) -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-constexpr
 CUFLAGS += -I$(ROOT_DIR)
-CUFLAGS += -Xcudafe "$(CUDAFE)"
+CUFLAGS += -Xcudafe "$(CUDAFE)" -Wno-deprecated-gpu-targets
 
 
 # ==============================================================================
@@ -83,19 +83,12 @@ LDFLAGS += -lgomp
 LDFLAGS += -lfftw3_omp -lfftw3f_omp
 endif
 
-LDFLAGS += $(TF_LDFLAGS)
-
 ifeq ($(CUDA), 1)
 LDFLAGS += -L$(CUDA_LIBDIR)
-# We do not currently link against cuFFT because it increases the size of
-# the shared library by 200 MB (and above the 100 MB limit for PyPI). As a
-# result TensorFlow NUFFT cannot currently be loaded in environments without
-# CUDA. However this issue should be fixed once the following has been
-# addressed: https://github.com/mrphys/tensorflow-nufft/issues/24
-# LDFLAGS += -lcufft_static_nocallback
-LDFLAGS += -lcudart_static -lculibos
+LDFLAGS += -lcudart_static
 endif
 
+LDFLAGS += $(TF_LDFLAGS)
 
 # ==============================================================================
 # TensorFlow NUFFT

@@ -43,6 +43,7 @@ struct DoNUFFTBase {
                  FftDirection fft_direction,
                  int num_transforms,
                  FloatType tol,
+                 int max_batch_size,
                  OpType op_type,
                  int64_t batch_rank,
                  int64_t* source_batch_dims,
@@ -128,7 +129,7 @@ struct DoNUFFTBase {
     auto plan = std::make_unique<Plan<Device, FloatType>>(ctx);
     TF_RETURN_IF_ERROR(plan->initialize(
         type, rank, num_modes_int, fft_direction,
-        num_transforms, tol, options));
+        num_transforms, tol, max_batch_size, options));
 
     // Pointers to a certain batch.
     Complex<Device, FloatType>* c_batch = nullptr;
@@ -203,6 +204,7 @@ struct DoNUFFT : DoNUFFTBase<Device, FloatType> {
                     FftDirection fft_direction,
                     int num_transforms,
                     FloatType tol,
+                    int max_batch_size,
                     OpType op_type,
                     int64_t batch_rank,
                     int64_t* source_batch_dims,

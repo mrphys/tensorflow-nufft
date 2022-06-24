@@ -50,6 +50,7 @@ struct DoNUFFT<CPUDevice, FloatType> : DoNUFFTBase<CPUDevice, FloatType> {
                     FftDirection fft_direction,
                     int num_transforms,
                     FloatType tol,
+                    int max_batch_size,
                     OpType op_type,
                     int64_t batch_rank,
                     int64_t* source_batch_dims,
@@ -60,8 +61,8 @@ struct DoNUFFT<CPUDevice, FloatType> : DoNUFFTBase<CPUDevice, FloatType> {
                     Complex<CPUDevice, FloatType>* source,
                     Complex<CPUDevice, FloatType>* target) {
     return this->compute(
-        ctx, type, rank, fft_direction, num_transforms, tol, op_type,
-        batch_rank, source_batch_dims, points_batch_dims,
+        ctx, type, rank, fft_direction, num_transforms, tol, max_batch_size,
+        op_type, batch_rank, source_batch_dims, points_batch_dims,
         num_modes, num_points, points, source, target);
   }
 };
@@ -363,6 +364,7 @@ class NUFFTBaseOp : public OpKernel {
         fft_direction_,
         num_transforms,
         static_cast<FloatType>(tol_),
+        max_batch_size_,
         op_type_,
         outer_dims.size(),
         (int64_t*) psource->shape().dim_sizes().data(),
@@ -387,6 +389,7 @@ class NUFFTBaseOp : public OpKernel {
   TransformType transform_type_;
   FftDirection fft_direction_;
   float tol_;
+  int max_batch_size_;
   OpType op_type_;
 };
 
@@ -404,6 +407,7 @@ class NUFFT : public NUFFTBaseOp<Device, FloatType> {
     OP_REQUIRES_OK(ctx, ctx->GetAttr("transform_type", &transform_type_str));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("fft_direction", &fft_direction_str));
     OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("max_batch_size", &this->max_batch_size_));
 
     if (transform_type_str == "type_1") {
       this->transform_type_ = TransformType::TYPE_1;
@@ -430,6 +434,7 @@ class Interp : public NUFFTBaseOp<Device, FloatType> {
   explicit Interp(OpKernelConstruction* ctx) : NUFFTBaseOp<Device, FloatType>(ctx) {
 
     OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("max_batch_size", &this->max_batch_size_));
 
     this->transform_type_ = TransformType::TYPE_2;
     this->fft_direction_ = FftDirection::BACKWARD; // irrelevant
@@ -447,6 +452,7 @@ class Spread : public NUFFTBaseOp<Device, FloatType> {
   explicit Spread(OpKernelConstruction* ctx) : NUFFTBaseOp<Device, FloatType>(ctx) {
 
     OP_REQUIRES_OK(ctx, ctx->GetAttr("tol", &this->tol_));
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("max_batch_size", &this->max_batch_size_));
 
     this->transform_type_ = TransformType::TYPE_1;
     this->fft_direction_ = FftDirection::BACKWARD; // irrelevant

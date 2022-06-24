@@ -1519,6 +1519,7 @@ Status Plan<GPUDevice, FloatType>::initialize(
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
+    int max_batch_size,
     const Options& options) {
 
   auto* ctx = this->context_;
@@ -1628,7 +1629,9 @@ Status Plan<GPUDevice, FloatType>::initialize(
   this->fft_direction_ = fft_direction;
   this->num_transforms_ = num_transforms;
   this->type_ = type;
-
+  // Feed in user provided max batch size at higher priority.
+  // By default it is zero
+  this->options_.max_batch_size = max_batch_size;
   // Select maximum batch size.
   if (this->options_.max_batch_size == 0)
     // Heuristic from test codes.

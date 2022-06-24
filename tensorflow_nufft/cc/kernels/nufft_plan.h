@@ -196,6 +196,7 @@ class PlanBase {
                             FftDirection fft_direction,
                             int num_transforms,
                             FloatType tol,
+                            int max_batch_size,
                             const Options& options) = 0;
 
   // Sets the number and coordinates of the non-uniform points. Allocates arrays
@@ -274,6 +275,7 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
                     FftDirection fft_direction,
                     int num_transforms,
                     FloatType tol,
+                    int max_batch_size,
                     const Options& options) override;
 
   Status set_points(int num_points,
@@ -434,6 +436,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
                     FftDirection fft_direction,
                     int num_transforms,
                     FloatType tol,
+                    int max_batch_size,
                     const Options& options) override;
 
   Status set_points(int num_points,

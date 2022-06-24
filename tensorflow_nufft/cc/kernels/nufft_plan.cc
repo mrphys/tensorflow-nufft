@@ -190,6 +190,7 @@ Status Plan<CPUDevice, FloatType>::initialize(
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
+    int max_batch_size,
     const Options& options) {
 
   if (type == TransformType::TYPE_3) {

@@ -139,6 +139,7 @@ REGISTER_OP("Interp")
   .Input("points: Treal")
   .Output("target: Tcomplex")
   .Attr("tol: float = 1e-6")
+  .Attr("max_batch_size: int = 0")
   .SetShapeFn(InterpShapeFn)
   .Doc(R"doc(
 Interpolate a regular grid at an arbitrary set of points.
@@ -160,6 +161,9 @@ points: The target non-uniform point coordinates. Must have shape `[..., M, N]`,
 tol: The desired relative precision. Should be in the range `[1e-06, 1e-01]`
   for `complex64` types and `[1e-14, 1e-01]` for `complex128` types. The
   computation may take longer for smaller values of `tol`.
+max_batch_size: The maximum batch size to be used. Higher batch size can result
+  in faster runs but more memory usage. The default value is `0` meaning that 
+  the value is automatically calculated.
 target: The target point set. Has shape `[..., M]`, where the batch shape `...`
   is the result of broadcasting the batch shapes of `source` and `points`.
 )doc");
@@ -174,6 +178,7 @@ REGISTER_OP("Spread")
   .Input("grid_shape: Tshape")
   .Output("target: Tcomplex")
   .Attr("tol: float = 1e-6")
+  .Attr("max_batch_size: int = 0")
   .SetShapeFn(SpreadShapeFn)
   .Doc(R"doc(
 Spread an arbitrary set of points into a regular grid.
@@ -195,6 +200,9 @@ grid_shape: The shape of the output grid.
 tol: The desired relative precision. Should be in the range `[1e-06, 1e-01]`
   for `complex64` types and `[1e-14, 1e-01]` for `complex128` types. The
   computation may take longer for smaller values of `tol`.
+max_batch_size: The maximum batch size to be used. Higher batch size can result
+  in faster runs but more memory usage. The default value is `0` meaning that 
+  the value is automatically calculated.
 target: The target grid. Has shape `[...] + grid_shape`, where the batch shape
   `...` is the result of broadcasting the batch shapes of `source` and `points`.
 )doc");
@@ -211,6 +219,7 @@ REGISTER_OP("NUFFT")
   .Attr("transform_type: {'type_1', 'type_2'} = 'type_2'")
   .Attr("fft_direction: {'forward', 'backward'} = 'forward'")
   .Attr("tol: float = 1e-6")
+  .Attr("max_batch_size: int = 0")
   .SetShapeFn(NUFFTShapeFn)
   .Doc(R"doc(
 Compute the non-uniform discrete Fourier transform via NUFFT.
@@ -255,6 +264,9 @@ fft_direction: Defines the sign of the exponent in the formula of the Fourier
 tol: The desired relative precision. Should be in the range `[1e-06, 1e-01]`
   for `complex64` types and `[1e-14, 1e-01]` for `complex128` types. The
   computation may take longer for smaller values of `tol`.
+max_batch_size: The maximum batch size to be used. Higher batch size can result
+  in faster runs but more memory usage. The default value is `0` meaning that 
+  the value is automatically calculated.
 target: The target point set, for type-2 transforms, or the target grid, for
   type-1 transforms. If `transform_type` is `"type_2"`, the output has shape
   `[..., M]`, where the batch shape `...` is the result of broadcasting the

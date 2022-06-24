@@ -37,6 +37,7 @@ struct DoNUFFT<GPUDevice, FloatType> : DoNUFFTBase<GPUDevice, FloatType> {
                     FftDirection fft_direction,
                     int num_transforms,
                     FloatType tol,
+                    int max_batch_size,
                     OpType op_type,
                     int64_t batch_rank,
                     int64_t* source_batch_dims,
@@ -47,8 +48,8 @@ struct DoNUFFT<GPUDevice, FloatType> : DoNUFFTBase<GPUDevice, FloatType> {
                     Complex<GPUDevice, FloatType>* source,
                     Complex<GPUDevice, FloatType>* target) {
     return this->compute(
-        ctx, type, rank, fft_direction, num_transforms, tol, op_type,
-        batch_rank, source_batch_dims, points_batch_dims,
+        ctx, type, rank, fft_direction, num_transforms, tol, max_batch_size,
+        op_type, batch_rank, source_batch_dims, points_batch_dims,
         num_modes, num_points, points, source, target);
   }
 };

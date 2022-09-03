@@ -1,4 +1,4 @@
-# Copyright 2021 University College London. All Rights Reserved.
+# Copyright 2021 The TensorFlow NUFFT Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,10 +28,10 @@ __title__ = "tensorflow-nufft"
 __summary__ = "A fast, native non-uniform FFT op for TensorFlow."
 __uri__ = "https://github.com/mrphys/tensorflow-nufft"
 
-__version__ = "0.8.1"
+__version__ = "0.9.0"
 
 __author__ = "Javier Montalt Tordera"
 __email__ = "javier.montalt@outlook.com"
 
 __license__ = "Apache 2.0"
-__copyright__ = "2021 University College London"
+__copyright__ = "2021 The TensorFlow NUFFT Authors"

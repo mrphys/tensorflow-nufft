@@ -1,4 +1,4 @@
-# Copyright 2021 University College London. All Rights Reserved.
+# Copyright 2021 The TensorFlow NUFFT Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ class BinaryDistribution(Distribution):
 
     def has_ext_modules(self):
         return True
-    
+
     def is_pure(self):
         return False
 
@@ -79,5 +79,5 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules'
     ],
     license=ABOUT['__license__'],
-    keywords=['tensorflow', 'nufft', 'ml']   
+    keywords=['tensorflow', 'nufft', 'ml']
 )

@@ -1,4 +1,4 @@
-/* Copyright 2021 University College London. All Rights Reserved.
+/* Copyright 2021 The TensorFlow NUFFT Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -132,7 +132,7 @@ class NUFFTBaseOp : public OpKernel {
         break;
       }
     }
-    
+
     // Get the ranks of the source/point elements.
     int points_elem_rank = 2;  // A points element is always 2D.
     int source_elem_rank;
@@ -299,7 +299,7 @@ class NUFFTBaseOp : public OpKernel {
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(kRealDType<FloatType>,
                                            tpoints_shape,
                                            &tpoints));
-    
+
     OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
         ctx->eigen_device<Device>(),
         rpoints,
@@ -313,19 +313,19 @@ class NUFFTBaseOp : public OpKernel {
       for (int i = 0; i < reshaped_source.dims(); i++) {
         tsource_shape.set_dim(i, reshaped_source.dim_size(source_perm[i]));
       }
-      
+
       OP_REQUIRES_OK(ctx, ctx->allocate_temp(kComplexDType<FloatType>,
                                              tsource_shape,
                                              &tsource));
-      
+
       OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
           ctx->eigen_device<Device>(),
           reshaped_source,
           source_perm,
           &tsource));
-      
+
       psource = &tsource;
-      
+
     } else {
       psource = &reshaped_source;
     }
@@ -337,12 +337,12 @@ class NUFFTBaseOp : public OpKernel {
       for (int i = 0; i < target->dims(); i++) {
         ttarget_shape.set_dim(i, target->dim_size(target_perm[i]));
       }
-      
+
       OP_REQUIRES_OK(ctx,
                      ctx->allocate_temp(kComplexDType<FloatType>,
                                         ttarget_shape,
                                         &ttarget));
-                
+
       ptarget = &ttarget;
     } else {
       ptarget = target;
@@ -353,7 +353,7 @@ class NUFFTBaseOp : public OpKernel {
     if (rank == 2)
       std::swap(grid_shape_vec[0], grid_shape_vec[1]);
     else if (rank == 3)
-      std::swap(grid_shape_vec[0], grid_shape_vec[2]);   
+      std::swap(grid_shape_vec[0], grid_shape_vec[2]);
 
     // Perform operation.
     OP_REQUIRES_OK(ctx, DoNUFFT<Device, FloatType>()(

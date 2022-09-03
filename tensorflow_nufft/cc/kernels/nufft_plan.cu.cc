@@ -140,15 +140,15 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
 
 template<typename FloatType>
 Status setup_spreader_for_nufft(int rank, FloatType eps,
-                                const Options& options,
+                                const InternalOptions& options,
                                 SpreadParameters<FloatType> &spread_params);
 
-void set_bin_sizes(TransformType type, int rank, Options& options);
+void set_bin_sizes(TransformType type, int rank, InternalOptions& options);
 
 template<typename FloatType>
 Status set_grid_size(int ms,
                      int bin_size,
-                     const Options& options,
+                     const InternalOptions& options,
                      const SpreadParameters<FloatType>& spread_params,
                      int* grid_size);
 
@@ -1519,7 +1519,7 @@ Status Plan<GPUDevice, FloatType>::initialize(
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
-    const Options& options) {
+    const InternalOptions& options) {
 
   auto* ctx = this->context_;
   auto* stream = ctx->op_device_context()->stream();
@@ -2712,7 +2712,7 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
 // options. Report status of setup_spreader.  Barnett 10 / 30 / 17
 template<typename FloatType>
 Status setup_spreader_for_nufft(int rank, FloatType eps,
-                                const Options& options,
+                                const InternalOptions& options,
                                 SpreadParameters<FloatType>& spread_params) {
   TF_RETURN_IF_ERROR(setup_spreader(
       rank, eps, options.upsampling_factor,
@@ -2728,7 +2728,7 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
   return Status::OK();
 }
 
-void set_bin_sizes(TransformType type, int rank, Options& options) {
+void set_bin_sizes(TransformType type, int rank, InternalOptions& options) {
   switch (rank) {
     case 2:
       options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 32 :
@@ -2770,7 +2770,7 @@ void set_bin_sizes(TransformType type, int rank, Options& options) {
 template<typename FloatType>
 Status set_grid_size(int ms,
                      int bin_size,
-                     const Options& options,
+                     const InternalOptions& options,
                      const SpreadParameters<FloatType>& spread_params,
                      int* grid_size) {
   // For spread / interp only, we do not apply oversampling.

@@ -58,7 +58,7 @@ namespace {
 // Forward declarations. Defined below.
 template<typename FloatType>
 Status set_grid_size(int ms,
-                     const Options& options,
+                     const InternalOptions& options,
                      SpreadParameters<FloatType> spread_params,
                      int* grid_size);
 
@@ -69,7 +69,7 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
 
 template<typename FloatType>
 Status setup_spreader_for_nufft(int rank, FloatType eps,
-                                const Options& options,
+                                const InternalOptions& options,
                                 SpreadParameters<FloatType> &spread_params);
 
 static int get_transform_rank(int64_t n1, int64_t n2, int64_t n3);
@@ -190,7 +190,7 @@ Status Plan<CPUDevice, FloatType>::initialize(
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
-    const Options& options) {
+    const InternalOptions& options) {
 
   if (type == TransformType::TYPE_3) {
     return errors::Unimplemented("type-3 transforms are not implemented");
@@ -579,7 +579,7 @@ namespace {
 // Fourier modes.
 template<typename FloatType>
 Status set_grid_size(int ms,
-                     const Options& options,
+                     const InternalOptions& options,
                      SpreadParameters<FloatType> spread_params,
                      int* grid_size) {
   // for spread/interp only, we do not apply oversampling (Montalt 6/8/2021).
@@ -699,7 +699,7 @@ Status setup_spreader(
 
 template<typename FloatType>
 Status setup_spreader_for_nufft(int rank, FloatType eps,
-                                const Options& options,
+                                const InternalOptions& options,
                                 SpreadParameters<FloatType> &spread_params)
 // Set up the spreader parameters given eps, and pass across various nufft
 // options. Return status of setup_spreader. Uses pass-by-ref. Barnett 10/30/17

@@ -17,3 +17,4 @@
 from tensorflow_nufft.__about__ import *
 
 from tensorflow_nufft.python.ops.nufft_ops import *
+from tensorflow_nufft.python.ops.nufft_options import *

@@ -19,6 +19,8 @@ This module contains ops to calculate the NUFFT and some related functionality.
 
 import tensorflow as tf
 
+from tensorflow_nufft.python.ops import nufft_options
+
 
 _nufft_ops = tf.load_op_library(
     tf.compat.v1.resource_loader.get_path_to_datafile('_nufft_ops.so'))
@@ -33,7 +35,8 @@ def nufft(source,  # pylint: disable=missing-function-docstring
           grid_shape=None,
           transform_type='type_2',
           fft_direction='forward',
-          tol=1e-6):
+          tol=1e-6,
+          options=None):
   # This Python wrapper provides a default value for the `grid_shape` input.
   if grid_shape is None:
     # We only need `grid_shape` to pass TF framework checks (i.e. int32 tensor).
@@ -42,10 +45,13 @@ def nufft(source,  # pylint: disable=missing-function-docstring
     # relevant checks.
     grid_shape = tf.constant([], dtype=tf.int32)
 
+  options = options or nufft_options.Options()
+  options_serialized = options._to_proto().SerializeToString()
   return _nufft_ops.nufft(source, points, grid_shape,
                           transform_type=transform_type,
                           fft_direction=fft_direction,
-                          tol=tol)
+                          tol=tol,
+                          options=options_serialized)
 
 nufft.__doc__ = _nufft_ops.nufft.__doc__
 

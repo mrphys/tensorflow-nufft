@@ -7,11 +7,13 @@ ROOT_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 KERNELS_DIR = tensorflow_nufft/cc/kernels
 OPS_DIR = tensorflow_nufft/cc/ops
+PROTO_DIR = tensorflow_nufft/proto
+PYOPS_DIR = tensorflow_nufft/python/ops
 
 CUSOURCES = $(wildcard $(KERNELS_DIR)/*.cu.cc)
 CUOBJECTS = $(patsubst %.cu.cc, %.cu.o, $(CUSOURCES))
-CXXSOURCES = $(filter-out $(CUSOURCES), $(wildcard $(KERNELS_DIR)/*.cc)) $(wildcard $(OPS_DIR)/*.cc)
-CXXHEADERS = $(wildcard $(KERNELS_DIR)/*.h) $(wildcard $(OPS_DIR)/*.h) 
+CXXSOURCES = $(filter-out $(CUSOURCES), $(wildcard $(KERNELS_DIR)/*.cc) $(wildcard $(OPS_DIR)/*.cc) $(wildcard $(PROTO_DIR)/*.cc))
+CXXHEADERS = $(wildcard $(KERNELS_DIR)/*.h) $(wildcard $(OPS_DIR)/*.h)
 
 TARGET_LIB = tensorflow_nufft/python/ops/_nufft_ops.so
 TARGET_DLINK = tensorflow_nufft/cc/kernels/nufft_kernels.dlink.o
@@ -96,7 +98,7 @@ LDFLAGS += $(TF_LDFLAGS)
 
 all: lib wheel
 
-lib: $(TARGET_LIB)
+lib: proto $(TARGET_LIB)
 
 %.cu.o: %.cu.cc
 	$(NVCC) -ccbin $(CXX) -dc -x cu $(CUFLAGS) -t 0 -o $@ -c $<
@@ -111,6 +113,9 @@ $(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK)
 # ==============================================================================
 # Miscellaneous
 # ==============================================================================
+
+proto:
+	protoc -I$(PROTO_DIR) --python_out=$(PROTO_DIR) --cpp_out=$(PROTO_DIR) $(PROTO_DIR)/options.proto
 
 wheel:
 	./tools/build/build_pip_pkg.sh make --python $(PYTHON) artifacts
@@ -140,4 +145,4 @@ clean:
 	rm -f $(CUOBJECTS)
 	rm -rf artifacts/
 
-.PHONY: all lib wheel test benchmark lint docs clean allclean
+.PHONY: all lib proto wheel test benchmark lint docs clean allclean

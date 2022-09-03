@@ -1,4 +1,4 @@
-FROM ghcr.io/mrphys/tensorflow-manylinux:1.11.0
+FROM ghcr.io/mrphys/tensorflow-manylinux:1.12.0
 
 # To enable plotting.
 RUN apt-get update && \
@@ -11,6 +11,14 @@ RUN for PYVER in ${PYVERSIONS}; do ${PYBIN}${PYVER} -m pip install pycairo PyGOb
 # Install TFMRI dependencies.
 COPY requirements.txt /tmp/requirements.txt
 RUN for PYVER in ${PYVERSIONS}; do ${PYBIN}${PYVER} -m pip install -r /tmp/requirements.txt; done
+
+# Install protoc.
+ARG PROTOBUF_VERSION="3.9.2"
+RUN mkdir /opt/protoc && \
+    cd /opt/protoc && \
+    wget https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protoc-${PROTOBUF_VERSION}-linux-x86_64.zip && \
+    unzip /opt/protoc/protoc-${PROTOBUF_VERSION}-linux-x86_64.zip && \
+    cp bin/protoc /usr/local/bin/protoc
 
 # Create non-root user.
 ARG USERNAME=vscode

@@ -211,6 +211,7 @@ REGISTER_OP("NUFFT")
   .Attr("transform_type: {'type_1', 'type_2'} = 'type_2'")
   .Attr("fft_direction: {'forward', 'backward'} = 'forward'")
   .Attr("tol: float = 1e-6")
+  .Attr("options: string = ''")
   .SetShapeFn(NUFFTShapeFn)
   .Doc(R"doc(
 Compute the non-uniform discrete Fourier transform via NUFFT.
@@ -261,6 +262,10 @@ target: The target point set, for type-2 transforms, or the target grid, for
   batch shapes of `source` and `points`. If `transform_type` is `"type_1"`, the
   output has shape `[...] + grid_shape`, where the batch shape `...` is the
   result of broadcasting the batch shapes of `source` and `points`.
+options: A `tfft.Options` specifying advanced options. These options affect
+  the internal details of the computation, but do not change the result (beyond
+  the precision specified by `tol`). You might be able to optimize performance
+  or memory usage by tweaking these options. See `tfft.Options` for details.
 )doc");
 
 }  // namespace tensorflow

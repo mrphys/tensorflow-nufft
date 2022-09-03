@@ -196,7 +196,7 @@ class PlanBase {
                             FftDirection fft_direction,
                             int num_transforms,
                             FloatType tol,
-                            const Options& options) = 0;
+                            const InternalOptions& options) = 0;
 
   // Sets the number and coordinates of the non-uniform points. Allocates arrays
   // arrays that depend on the number of points. Maybe sorts the non-uniform
@@ -231,7 +231,7 @@ class PlanBase {
   // How many transforms to compute in one go.
   int num_transforms_;
   // Advanced NUFFT options.
-  Options options_;
+  InternalOptions options_;
   // The number of modes along each dimension.
   int num_modes_[3];
   // The total number of modes.
@@ -274,7 +274,7 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
                     FftDirection fft_direction,
                     int num_transforms,
                     FloatType tol,
-                    const Options& options) override;
+                    const InternalOptions& options) override;
 
   Status set_points(int num_points,
                     FloatType* points_x,
@@ -434,7 +434,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
                     FftDirection fft_direction,
                     int num_transforms,
                     FloatType tol,
-                    const Options& options) override;
+                    const InternalOptions& options) override;
 
   Status set_points(int num_points,
                     FloatType* points_x,

@@ -25,6 +25,7 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 #include "tensorflow_nufft/cc/kernels/reverse_functor.h"
 #include "tensorflow_nufft/cc/kernels/transpose_functor.h"
+#include "tensorflow_nufft/proto/options.pb.h"
 
 
 namespace tensorflow {
@@ -429,7 +430,9 @@ class NUFFTBaseOp : public OpKernel {
     }
 
     // NUFFT options.
-    Options options;
+    InternalOptions options;
+    // Read in user options.
+    options.max_batch_size = this->options_.max_batch_size();
 
     if (op_type != OpType::NUFFT) {
       options.spread_only = true;
@@ -523,6 +526,7 @@ class NUFFTBaseOp : public OpKernel {
   TransformType transform_type_;
   FftDirection fft_direction_;
   float tol_;
+  Options options_;
   OpType op_type_;
 };
 
@@ -554,6 +558,11 @@ class NUFFT : public NUFFTBaseOp<Device, FloatType> {
     }
 
     this->op_type_ = OpType::NUFFT;
+
+    string options_serialized;
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("options", &options_serialized));
+    OP_REQUIRES(ctx, this->options_.ParseFromString(options_serialized),
+                errors::InvalidArgument("Unable to parse options string."));
   }
 };
 

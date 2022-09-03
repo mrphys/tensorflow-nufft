@@ -21,6 +21,7 @@ import numpy as np
 import tensorflow as tf
 
 from tensorflow_nufft.python.ops import nufft_ops
+from tensorflow_nufft.python.ops import nufft_options
 
 
 def parameterized(**params):
@@ -58,6 +59,19 @@ def parameterized(**params):
 
 class NUFFTOpsTest(tf.test.TestCase):
   """Test case for NUFFT functions."""
+  def test_nufft_with_max_batch_size(self):
+    source = tf.dtypes.complex(
+        tf.random.stateless_normal([8, 20, 20], seed=[0, 0]),
+        tf.random.stateless_normal([8, 20, 20], seed=[0, 0]))
+    points = tf.random.stateless_uniform(
+        [8, 400, 2], minval=-np.pi, maxval=np.pi, seed=[0, 0])
+    target1 = nufft_ops.nufft(source, points)
+
+    options = nufft_options.Options()
+    options.max_batch_size = 2
+    target2 = nufft_ops.nufft(source, points, options=options)
+
+    self.assertAllClose(target1, target2)
 
   @parameterized(grid_shape=[[10, 16], [10, 10, 8]],
                  source_batch_shape=[[], [2, 4], [4]],

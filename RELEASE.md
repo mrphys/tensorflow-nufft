@@ -2,4 +2,5 @@
 
 ## Major Features and Improvements
 
-- Added new parameter `options` to specify internal NUFFT options.
+- Added new class `Options`.
+- Added new argument `options` to `nufft` to allow specifying advanced options.

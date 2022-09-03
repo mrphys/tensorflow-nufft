@@ -7,10 +7,11 @@ NUFFT
 
 .. autosummary::
     :toctree: _nufft_ops
-    :template: 
+    :template:
     :nosignatures:
 
     nufft
     interp
     spread
     nudft
+    Options

@@ -37,6 +37,72 @@ def nufft(source,  # pylint: disable=missing-function-docstring
           fft_direction='forward',
           tol=1e-6,
           options=None):
+  """Computes the non-uniform discrete Fourier transform via NUFFT.
+
+  This operator supports 1D, 2D and 3D type-1 and type-2 transforms.
+
+  .. note::
+    Currently 1D transforms are only supported on the CPU.
+
+  Args:
+    source: A `tf.Tensor` of type `complex64` or `complex128`.
+      The source grid, for type-2 transforms, or the source point
+      set, for type-1 transforms. If `transform_type` is `"type_2"`, `source`
+      must have shape `[...] + grid_shape`, where `grid_shape` is the shape of
+      the grid and `...` is any number of batch dimensions. `grid_shape` must
+      have rank 1, 2 or 3. If `transform_type` is `"type_1"`, `source` must
+      have shape `[..., M]`, where `M` is the number of non-uniform points and
+      `...` is any number of batch dimensions.
+    points: A `tf.Tensor` of type `float32` or `float64`.
+      `float64`. The target non-uniform point coordinates, for type-2
+      transforms, or the source non-uniform point coordinates, for type-1
+      transforms. Must have shape `[..., M, N]`, where `M` is the number of
+      non-uniform points, `N` is the rank of the grid and `...` is any number
+      of batch dimensions, which must be broadcastable with the batch
+      dimensions of `source`. `N` must be 1, 2 or 3 and must be equal to the
+      rank of `grid_shape`. The non-uniform coordinates must be in units of
+      radians/pixel, i.e., in the range `[-pi, pi]`.
+    grid_shape: A 1D `tf.Tensor` of type `int32` or `int64`. The shape of the
+      output grid. This argument is required for type-1 transforms and ignored
+      for type-2 transforms.
+    transform_type: An optional `str` from `"type_1"`, `"type_2"`. The type of
+      the transform. A `"type_2"` transform evaluates the DFT on a set of
+      arbitrary points given points on a grid (uniform to non-uniform). A
+      `"type_1"` transform evaluates the DFT on grid points given a set of
+      arbitrary points (non-uniform to uniform).
+    fft_direction: An optional `str` from `"forward"`, `"backward"`. Defines the
+      sign of the exponent in the formula of the Fourier transform. A
+      `"forward"` transform has negative sign and a `"backward"` transform has
+      positive sign.
+    tol: An optional `float`. The desired relative precision. Should be in the
+      range `[1e-06, 1e-01]` for `complex64` types and `[1e-14, 1e-01]` for
+      `complex128` types. The computation may take longer for smaller values of
+      `tol`. Defaults to `1e-06`.
+    options: A `tfft.Options` structure specifying advanced options. These
+      options may affect the internal details of the computation, but do not
+      change the result (beyond the precision specified by `tol`). You might
+      be able to optimize performance or memory usage by tweaking these
+      options. See `tfft.Options` for details.
+
+  Returns:
+    A `tf.Tensor` of the same type as `source`. The target point set, for
+    type-2 transforms, or the target grid, for type-1 transforms. If
+    `transform_type` is `"type_2"`, the output has shape `[..., M]`, where
+    the batch shape `...` is the result of broadcasting the batch shapes of
+    `source` and `points`. If `transform_type` is `"type_1"`, the output has
+    shape `[...] + grid_shape`, where the batch shape `...` is the result of
+    broadcasting the batch shapes of `source` and `points`.
+
+  References:
+    .. [1] Barnett, A.H., Magland, J. and Klinteberg, L. af (2019), A parallel
+      nonuniform fast Fourier transform library based on an “exponential of
+      semicircle" kernel. SIAM J. Sci. Comput., 41(5): C479-C504.
+      https://doi.org/10.1137/18M120885X
+    .. [2] Shih Y., Wright G., Anden J., Blaschke J. and Barnett A.H. (2021),
+      cuFINUFFT: a load-balanced GPU library for general-purpose nonuniform FFTs.
+      2021 IEEE International Parallel and Distributed Processing Symposium
+      Workshops (IPDPSW), 688-697 https://doi.org/10.1109/IPDPSW52791.2021.00105
+  """
   # This Python wrapper provides a default value for the `grid_shape` input.
   if grid_shape is None:
     # We only need `grid_shape` to pass TF framework checks (i.e. int32 tensor).
@@ -46,7 +112,7 @@ def nufft(source,  # pylint: disable=missing-function-docstring
     grid_shape = tf.constant([], dtype=tf.int32)
 
   options = options or nufft_options.Options()
-  options_serialized = options._to_proto().SerializeToString()
+  options_serialized = options.to_proto().SerializeToString()
   return _nufft_ops.nufft(source, points, grid_shape,
                           transform_type=transform_type,
                           fft_direction=fft_direction,
@@ -74,6 +140,7 @@ def _nufft_grad(op, grad):
   transform_type = op.get_attr('transform_type').decode()
   fft_direction = op.get_attr('fft_direction').decode()
   tol = op.get_attr('tol')
+  options = op.get_attr('options')
   rank = points.shape[-1]
   dtype = source.dtype
   if transform_type == 'type_1':
@@ -101,7 +168,8 @@ def _nufft_grad(op, grad):
                       grid_shape=grid_shape,
                       transform_type=grad_transform_type,
                       fft_direction=grad_fft_direction,
-                      tol=tol)
+                      tol=tol,
+                      options=options)
 
   # Compute the gradients with respect to the `points` input.
   grid_vec = [

@@ -22,8 +22,7 @@ class OptionsTest(tf.test.TestCase):
   def test_options_proto(self):
     options = nufft_options.Options()
     options.max_batch_size = 4
-    options2 = nufft_options.Options()
-    options2._from_proto(options._to_proto())
+    options2 = nufft_options.Options.from_proto(options.to_proto())
     self.assertEqual(options2, options)
 
   def test_invalid_value(self):

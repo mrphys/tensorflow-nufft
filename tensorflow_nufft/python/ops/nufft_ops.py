@@ -39,10 +39,13 @@ def nufft(source,  # pylint: disable=missing-function-docstring
           options=None):
   """Computes the non-uniform discrete Fourier transform via NUFFT.
 
-  This operator supports 1D, 2D and 3D type-1 and type-2 transforms.
+  Evaluates the type-1 or type-2 non-uniform discrete Fourier transform (NUDFT)
+  via the non-uniform fast Fourier transform (NUFFT) algorithm. Supports 1D, 2D
+  and 3D transforms.
 
-  .. note::
-    Currently 1D transforms are only supported on the CPU.
+  ```{warning}
+  Currently 1D transforms are only supported on the CPU.
+  ```
 
   Args:
     source: A `tf.Tensor` of type `complex64` or `complex128`.
@@ -94,14 +97,15 @@ def nufft(source,  # pylint: disable=missing-function-docstring
     broadcasting the batch shapes of `source` and `points`.
 
   References:
-    .. [1] Barnett, A.H., Magland, J. and Klinteberg, L. af (2019), A parallel
-      nonuniform fast Fourier transform library based on an “exponential of
-      semicircle" kernel. SIAM J. Sci. Comput., 41(5): C479-C504.
-      https://doi.org/10.1137/18M120885X
-    .. [2] Shih Y., Wright G., Anden J., Blaschke J. and Barnett A.H. (2021),
-      cuFINUFFT: a load-balanced GPU library for general-purpose nonuniform FFTs.
-      2021 IEEE International Parallel and Distributed Processing Symposium
-      Workshops (IPDPSW), 688-697 https://doi.org/10.1109/IPDPSW52791.2021.00105
+    1. Barnett, A.H., Magland, J. and Klinteberg, L. af (2019), A parallel
+       nonuniform fast Fourier transform library based on an “exponential of
+       semicircle" kernel. SIAM J. Sci. Comput., 41(5): C479-C504.
+       https://doi.org/10.1137/18M120885X
+    2. Shih Y., Wright G., Anden J., Blaschke J. and Barnett A.H. (2021),
+       cuFINUFFT: a load-balanced GPU library for general-purpose nonuniform
+       FFTs. 2021 IEEE International Parallel and Distributed Processing
+       Symposium Workshops (IPDPSW), 688-697
+       https://doi.org/10.1109/IPDPSW52791.2021.00105
   """
   # This Python wrapper provides a default value for the `grid_shape` input.
   if grid_shape is None:
@@ -118,8 +122,6 @@ def nufft(source,  # pylint: disable=missing-function-docstring
                           fft_direction=fft_direction,
                           tol=tol,
                           options=options_serialized)
-
-nufft.__doc__ = _nufft_ops.nufft.__doc__
 
 
 @tf.RegisterGradient("NUFFT")
@@ -232,10 +234,11 @@ def nudft(source,
           fft_direction='forward'):
   """Compute the non-uniform discrete Fourier transform.
 
-  .. warning::
-    This function explicitly creates a dense DFT matrix and is very
-    computationally expensive. In most cases, `tfft.nufft` should be used
-    instead. This function exists primarily for testing purposes.
+  ```{warning}
+  This function explicitly creates a dense DFT matrix and is very
+  computationally expensive. In most cases, `tfft.nufft` should be used
+  instead. This function exists primarily for testing purposes.
+  ```
 
   For the parameters, see `tfft.nufft`.
   """

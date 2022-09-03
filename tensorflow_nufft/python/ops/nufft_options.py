@@ -20,18 +20,21 @@ from tensorflow_nufft.proto import options_pb2
 
 
 class Options(pydantic.BaseModel):
-  """Represents options for `nufft`.
+  """Represents options for the `nufft` operator.
 
   This object can be used to control the behavior of the `nufft` operator.
   These are advanced options which may be useful for performance tuning, but
   are not required for most use cases.
 
   Example:
-    >>> options = tfft.Options()
-    >>> options.max_batch_size = 4
-    >>> tfft.nufft(x, k, options=options)
 
-  Attrs:
+  ```python
+  >>> options = tfft.Options()
+  >>> options.max_batch_size = 4
+  >>> tfft.nufft(x, k, options=options)
+  ```
+
+  Attributes:
     max_batch_size: An optional `int`. The maximum batch size to use during
       the vectorized NUFFT computation. If set, limits the internal
       vectorization batch size to this value. Smaller values may reduce memory

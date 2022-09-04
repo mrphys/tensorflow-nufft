@@ -19,6 +19,7 @@ This module contains ops to calculate the NUFFT and some related functionality.
 
 import tensorflow as tf
 
+from tensorflow_nufft.proto import nufft_options_pb2
 from tensorflow_nufft.python.ops import nufft_options
 
 
@@ -116,12 +117,11 @@ def nufft(source,  # pylint: disable=missing-function-docstring
     grid_shape = tf.constant([], dtype=tf.int32)
 
   options = options or nufft_options.Options()
-  options_serialized = options.to_proto().SerializeToString()
   return _nufft_ops.nufft(source, points, grid_shape,
                           transform_type=transform_type,
                           fft_direction=fft_direction,
                           tol=tol,
-                          options=options_serialized)
+                          options=options.to_proto().SerializeToString())
 
 
 @tf.RegisterGradient("NUFFT")
@@ -142,7 +142,9 @@ def _nufft_grad(op, grad):
   transform_type = op.get_attr('transform_type').decode()
   fft_direction = op.get_attr('fft_direction').decode()
   tol = op.get_attr('tol')
-  options = op.get_attr('options')
+  options_proto = nufft_options_pb2.Options()
+  options_proto.ParseFromString(op.get_attr('options'))
+  options = nufft_options.Options.from_proto(options_proto)
   rank = points.shape[-1]
   dtype = source.dtype
   if transform_type == 'type_1':

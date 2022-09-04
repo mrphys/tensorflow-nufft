@@ -10,11 +10,13 @@
 
 ```{autosummary}
 ---
-toctree: _nufft_ops
+toctree: api_docs
 template: class.md
 nosignatures:
 ---
 
+FftwOptions
+FftwPlanningRigor
 Options
 ```
 
@@ -22,13 +24,13 @@ Options
 
 ```{autosummary}
 ---
-toctree: _nufft_ops
+toctree: api_docs
 template: function.md
 nosignatures:
 ---
 
-nufft
 interp
-spread
 nudft
+nufft
+spread
 ```

@@ -1,7 +1,0 @@
-syntax = "proto3";
-
-package tensorflow.nufft;
-
-message Options {
-  int32 max_batch_size = 1;
-}

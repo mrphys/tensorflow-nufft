@@ -115,7 +115,7 @@ $(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK)
 # ==============================================================================
 
 proto:
-	protoc -I$(PROTO_DIR) --python_out=$(PROTO_DIR) --cpp_out=$(PROTO_DIR) $(PROTO_DIR)/options.proto
+	protoc -I$(PROTO_DIR) --python_out=$(PROTO_DIR) --cpp_out=$(PROTO_DIR) $(PROTO_DIR)/nufft_options.proto
 
 wheel:
 	./tools/build/build_pip_pkg.sh make --python $(PYTHON) artifacts

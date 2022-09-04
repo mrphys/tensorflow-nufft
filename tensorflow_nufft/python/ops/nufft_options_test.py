@@ -20,9 +20,14 @@ from tensorflow_nufft.python.ops import nufft_options
 
 class OptionsTest(tf.test.TestCase):
   def test_options_proto(self):
+    # Create example data.
     options = nufft_options.Options()
     options.max_batch_size = 4
+    options.fftw.planning_rigor = nufft_options.FftwPlanningRigor.PATIENT
+    # Test round-trip options -> proto -> options.
     options2 = nufft_options.Options.from_proto(options.to_proto())
+    self.assertEqual(options2.max_batch_size, options.max_batch_size)
+    self.assertEqual(options2.fftw.planning_rigor, options.fftw.planning_rigor)
     self.assertEqual(options2, options)
 
   def test_invalid_value(self):

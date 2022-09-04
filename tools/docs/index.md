@@ -24,7 +24,7 @@ nufft_ops
 
 ```{toctree}
 ---
-caption: API Documentation
+caption: Examples
 hidden:
 ---
 examples/mri_app.ipynb

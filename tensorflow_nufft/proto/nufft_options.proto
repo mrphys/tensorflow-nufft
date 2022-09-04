@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package tensorflow.nufft;
+
+enum FftwPlanningRigor {
+  AUTO = 0;
+  ESTIMATE = 1;
+  MEASURE = 2;
+  PATIENT = 3;
+  EXHAUSTIVE = 4;
+}
+
+message FftwOptions {
+  FftwPlanningRigor planning_rigor = 1;
+}
+
+message Options {
+  int32 max_batch_size = 1;
+
+  FftwOptions fftw = 2;
+}

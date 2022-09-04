@@ -70,8 +70,13 @@ class NUFFTOpsTest(tf.test.TestCase):
     options = nufft_options.Options()
     options.max_batch_size = 2
     target2 = nufft_ops.nufft(source, points, options=options)
-
     self.assertAllClose(target1, target2)
+
+    options = nufft_options.Options()
+    options.fftw.planning_rigor = nufft_options.FftwPlanningRigor.PATIENT
+    target2 = nufft_ops.nufft(source, points, options=options)
+    self.assertAllClose(target1, target2)
+
 
   @parameterized(grid_shape=[[10, 16], [10, 10, 8]],
                  source_batch_shape=[[], [2, 4], [4]],

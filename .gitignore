@@ -10,6 +10,7 @@
 __pycache__/
 artifacts/
 tools/docs/_*
+tools/docs/api_docs
 *_pb2.py
 *.pb.h
 *.pb.cc

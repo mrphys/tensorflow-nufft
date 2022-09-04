@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+"""Tests for module `nufft_options`."""
 
 import tensorflow as tf
 
@@ -19,7 +20,9 @@ from tensorflow_nufft.python.ops import nufft_options
 
 
 class OptionsTest(tf.test.TestCase):
+  """Tests for Options structure."""
   def test_options_proto(self):
+    """Test (de)serialization of Options to/from proto."""
     # Create example data.
     options = nufft_options.Options()
     options.max_batch_size = 4
@@ -31,6 +34,7 @@ class OptionsTest(tf.test.TestCase):
     self.assertEqual(options2, options)
 
   def test_invalid_value(self):
+    """Test that invalid values are rejected."""
     # Test validation on object creation.
     with self.assertRaises(ValueError):
       options = nufft_options.Options(max_batch_size='banana')

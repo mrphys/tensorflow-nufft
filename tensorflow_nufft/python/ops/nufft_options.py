@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
+"""Defines options for NUFFT operator."""
 
 import enum
 import typing
@@ -55,8 +56,7 @@ class FftwPlanningRigor(enum.IntEnum):
   PATIENT = 3
   EXHAUSTIVE = 4
 
-  def to_proto(self):
-    """Convert enum to proto."""
+  def to_proto(self):  # pylint: disable=missing-function-docstring
     if self == FftwPlanningRigor.AUTO:
       return nufft_options_pb2.FftwPlanningRigor.AUTO
     if self == FftwPlanningRigor.ESTIMATE:
@@ -74,8 +74,7 @@ class FftwPlanningRigor(enum.IntEnum):
     )
 
   @classmethod
-  def from_proto(cls, pb):
-    """Convert proto to enum."""
+  def from_proto(cls, pb):  # pylint: disable=missing-function-docstring
     if pb == nufft_options_pb2.FftwPlanningRigor.AUTO:
       return cls.AUTO
     if pb == nufft_options_pb2.FftwPlanningRigor.ESTIMATE:

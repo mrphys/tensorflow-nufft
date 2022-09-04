@@ -59,7 +59,8 @@ def parameterized(**params):
 
 class NUFFTOpsTest(tf.test.TestCase):
   """Test case for NUFFT functions."""
-  def test_nufft_with_max_batch_size(self):
+  def test_nufft_with_options(self):
+    """Test NUFFT with options"""
     source = tf.dtypes.complex(
         tf.random.stateless_normal([8, 20, 20], seed=[0, 0]),
         tf.random.stateless_normal([8, 20, 20], seed=[0, 0]))

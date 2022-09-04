@@ -133,7 +133,7 @@ cpplint:
 	python2.7 tools/lint/cpplint.py $(CXXSOURCES) $(CUSOURCES) $(CXXHEADERS)
 
 docs: $(TARGET)
-	rm -rf docs/_* docs/api_docs
+	rm -rf docs/_* docs/api_docs/tfft/
 	$(MAKE) -C docs dirhtml PY_VERSION=$(PY_VERSION)
 
 # Cleans compiled objects.

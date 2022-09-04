@@ -7,11 +7,13 @@ end-before: <!-- end-intro -->
 ---
 ```
 
-```{include} ../README.md
+
+```{toctree}
 ---
-start-after: <!-- start-install -->
-end-before: <!-- end-install -->
+caption: Guide
+hidden:
 ---
+guide/start
 ```
 
 ```{toctree}
@@ -19,7 +21,7 @@ end-before: <!-- end-install -->
 caption: API Documentation
 hidden:
 ---
-nufft_ops
+api_docs/tfft
 ```
 
 ```{toctree}

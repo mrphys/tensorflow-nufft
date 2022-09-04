@@ -59,6 +59,24 @@ versions of TensorFlow and TensorFlow NUFFT according to the table below.
 
 <!-- end-install -->
 
+<!-- start-usage -->
+
+## Usage
+
+Once installed, you can perform NUFFTs in your TensorFlow code simply as:
+
+```python
+import tensorflow_nufft as tfft
+
+outputs = tfft.nufft(inputs, points)
+```
+
+See the documentation for the
+[`tfft.nufft`](https://mrphys.github.io/tensorflow-nufft/api_docs/tfft/nufft)
+function to learn more about the different parameters.
+
+<!-- end-usage -->
+
 ## Documentation
 
 Visit the [docs](https://mrphys.github.io/tensorflow-nufft/) for the API

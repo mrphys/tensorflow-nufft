@@ -6,6 +6,7 @@
 
 from os import path
 import packaging.version
+import re
 import sys
 
 
@@ -27,7 +28,7 @@ ROOT = path.abspath(path.join(path.dirname(__file__), '..'))
 
 ABOUT = {}
 with open(path.join(ROOT, "tensorflow_nufft/__about__.py")) as f:
-    exec(f.read(), ABOUT)
+  exec(f.read(), ABOUT)
 _version = packaging.version.Version(ABOUT['__version__'])
 
 project = ABOUT['__title__']
@@ -121,8 +122,58 @@ autosummary_filename_map = afm.AutosummaryFilenameMap()
 
 
 def process_docstring(app, what, name, obj, options, lines):
-    """Process autodoc docstrings."""
+  """Process autodoc docstrings."""
+  # Regular expressions.
+  blankline_re = re.compile(r"^\s*$")
+  prompt_re = re.compile(r"^\s*>>>")
+  tf_symbol_re = re.compile(r"`(?P<symbol>tf\.[a-zA-Z0-9_.]+)`")
+  tfft_symbol_re = re.compile(r"`(?P<symbol>tfft\.[a-zA-Z0-9_.]+)`")
+
+  # Loop initialization. `insert_lines` keeps a list of lines to be inserted
+  # as well as their positions.
+  insert_lines = []
+  in_prompt = False
+
+  # Iterate line by line.
+  for lineno, line in enumerate(lines):
+
+    # Check if we're in a prompt block.
+    if in_prompt:
+      # Check if end of prompt block.
+      if blankline_re.match(line):
+        in_prompt = False
+        insert_lines.append((lineno, "```"))
+        continue
+
+    # Check for >>> prompt, if found insert code block (unless already in
+    # prompt).
+    m = prompt_re.match(line)
+    if m and not in_prompt:
+      in_prompt = True
+      # We need to insert a new line. It's not safe to modify the list we're
+      # iterating over, so instead we store the line in `insert_lines` and we
+      # insert it after the loop.
+      insert_lines.append((lineno, "```python"))
+      continue
+
+    # Add links to TF symbols.
+    m = tf_symbol_re.search(line)
+    if m:
+      symbol = m.group('symbol')
+      link = f"https://www.tensorflow.org/api_docs/python/{symbol.replace('.', '/')}"
+      lines[lineno] = line.replace(f"`{symbol}`", f"[`{symbol}`]({link})")
+
+    # Add links to TFFT symbols.
+    m = tfft_symbol_re.search(line)
+    if m:
+      symbol = m.group('symbol')
+      link = f"https://mrphys.github.io/tensorflow-nufft/api_docs/{symbol.replace('.', '/')}"
+      lines[lineno] = line.replace(f"`{symbol}`", f"[`{symbol}`]({link})")
+
+  # Now insert the lines (in reversed order so that line numbers stay valid).
+  for lineno, line in reversed(insert_lines):
+    lines.insert(lineno, line)
 
 
 def setup(app):
-    app.connect('autodoc-process-docstring', process_docstring)
+  app.connect('autodoc-process-docstring', process_docstring)

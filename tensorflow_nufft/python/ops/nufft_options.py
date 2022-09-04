@@ -103,11 +103,9 @@ class FftwOptions(pydantic.BaseModel):
   ```
 
   Example:
-  ```python
   >>> options = tfft.Options()
   >>> options.fftw.planning_rigor = tfft.FftwPlanningRigor.PATIENT
   >>> tfft.nufft(x, k, options=options)
-  ```
 
   Attributes:
     planning_rigor: Controls the rigor (and time) of the planning process.
@@ -136,11 +134,9 @@ class Options(pydantic.BaseModel):
 
   Example:
 
-  ```python
   >>> options = tfft.Options()
   >>> options.max_batch_size = 4
   >>> tfft.nufft(x, k, options=options)
-  ```
 
   Attributes:
     fftw: Options for the FFTW library. See `tfft.FftwOptions` for more

@@ -1,4 +1,4 @@
-# NUFFT
+# tfft
 
 ```{automodule} tensorflow_nufft.python.ops.nufft_ops
 ```
@@ -10,7 +10,7 @@
 
 ```{autosummary}
 ---
-toctree: api_docs
+toctree: tfft
 template: class.md
 nosignatures:
 ---
@@ -24,7 +24,7 @@ Options
 
 ```{autosummary}
 ---
-toctree: api_docs
+toctree: tfft
 template: function.md
 nosignatures:
 ---

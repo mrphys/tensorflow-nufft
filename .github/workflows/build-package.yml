@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: ghcr.io/mrphys/tensorflow-manylinux:1.12.0
+      image: ghcr.io/mrphys/tensorflow-manylinux:1.13.0
 
     strategy:
       matrix:
@@ -67,7 +67,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: docs
-          path: ./tools/docs/_build/html
+          path: ./docs/_build/html
 
       - name: Publish to Test PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

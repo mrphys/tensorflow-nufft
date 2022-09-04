@@ -133,10 +133,8 @@ cpplint:
 	python2.7 tools/lint/cpplint.py $(CXXSOURCES) $(CUSOURCES) $(CXXHEADERS)
 
 docs: $(TARGET)
-	ln -sf tensorflow_nufft tfft
-	rm -rf tools/docs/_*
-	$(MAKE) -C tools/docs html PY_VERSION=$(PY_VERSION)
-	rm tfft
+	rm -rf docs/_* docs/api_docs
+	$(MAKE) -C docs dirhtml PY_VERSION=$(PY_VERSION)
 
 # Cleans compiled objects.
 clean:

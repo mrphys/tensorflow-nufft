@@ -15,13 +15,15 @@ import sys
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-sys.path.insert(0, path.abspath('../..'))
-sys.path.insert(0, path.abspath('extensions'))
+sys.path.insert(0, path.abspath('..'))
+# Custom extensions are installed here by `tensorflow-manylinux`.
+sys.path.insert(0, path.abspath('/opt/sphinx'))
+sys.path.insert(0, path.abspath('/opt/sphinx/extensions'))
 
 
 # -- Project information -----------------------------------------------------
 
-ROOT = path.abspath(path.join(path.dirname(__file__), '../..'))
+ROOT = path.abspath(path.join(path.dirname(__file__), '..'))
 
 ABOUT = {}
 with open(path.join(ROOT, "tensorflow_nufft/__about__.py")) as f:
@@ -42,6 +44,8 @@ version = '.'.join(map(str, (_version.major, _version.minor)))
 # ones.
 extensions = [
     'myst_nb',
+    # Custom extensions installed by `tensorflow-manylinux` in
+    # `/opt/sphinx/extensions`.
     'myst_autodoc',
     'myst_autosummary',
     'myst_napoleon'
@@ -80,7 +84,7 @@ html_theme_options = {
     'launch_buttons': {
         'colab_url': "https://colab.research.google.com/"
     },
-    'path_to_docs': 'tools/docs'
+    'path_to_docs': 'docs'
 }
 
 # -- Options for MyST ----------------------------------------------------------

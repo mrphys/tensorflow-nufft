@@ -9,8 +9,8 @@
 *.ipynb_checkpoints*
 __pycache__/
 artifacts/
-tools/docs/_*
-tools/docs/api_docs
+docs/_*
+docs/api_docs
 *_pb2.py
 *.pb.h
 *.pb.cc

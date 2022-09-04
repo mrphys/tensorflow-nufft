@@ -3,7 +3,7 @@
 ```{automodule} tensorflow_nufft.python.ops.nufft_ops
 ```
 
-```{currentmodule} tfft
+```{currentmodule} tensorflow_nufft
 ```
 
 ## Classes

@@ -67,7 +67,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: docs
-          path: ./docs/_build/html
+          path: ./docs/_build/dirhtml
 
       - name: Publish to Test PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

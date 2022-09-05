@@ -1,4 +1,4 @@
-/* Copyright 2021 University College London. All Rights Reserved.
+/* Copyright 2021 The TensorFlow NUFFT Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -73,9 +73,13 @@ enum class SpreadMethod {
   BLOCK_GATHER = 3
 };
 
-// Options for the NUFFT operations. This class is used for both the CPU and the
-// GPU implementation, although some options are only used by one or the other.
-struct Options {
+// InternalOptions for the NUFFT operations. This class is used for both the
+// CPU and the GPU implementation, although some options are only used by one
+// or the other.
+// TODO(jmontalt): Consider splitting into two classes, one for CPU and one for
+// GPU, derived from a common base.
+// TODO(jmontalt): Consider replacing entirely by proto options.
+struct InternalOptions {
   // The mode order to use. See enum above. Applies only to type 1 and type 2
   // transforms. Applies only to the CPU kernel.
   ModeOrder mode_order = ModeOrder::CMCL;

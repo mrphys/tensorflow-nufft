@@ -1,4 +1,4 @@
-# Copyright 2021 University College London. All Rights Reserved.
+# Copyright 2021 The TensorFlow NUFFT Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,3 +17,4 @@
 from tensorflow_nufft.__about__ import *
 
 from tensorflow_nufft.python.ops.nufft_ops import *
+from tensorflow_nufft.python.ops.nufft_options import *

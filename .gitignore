@@ -9,4 +9,8 @@
 *.ipynb_checkpoints*
 __pycache__/
 artifacts/
-tools/docs/_*
+docs/_*
+docs/api_docs/tfft/
+*_pb2.py
+*.pb.h
+*.pb.cc

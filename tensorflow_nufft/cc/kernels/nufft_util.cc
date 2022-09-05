@@ -1,4 +1,4 @@
-/* Copyright 2021 University College London. All Rights Reserved.
+/* Copyright 2021 The TensorFlow NUFFT Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ FloatType evaluate_kernel(FloatType x, const SpreadParameters<FloatType> &opts) 
 }
 
 template<typename FloatType>
-void kernel_fseries_1d(int grid_size,     
+void kernel_fseries_1d(int grid_size,
                        const SpreadParameters<FloatType>& spread_params,
                        FloatType* fseries_coeffs) {
 
@@ -96,7 +96,7 @@ void kernel_fseries_1d(int grid_size,
   std::vector<int> brk(nt + 1);        // start indices for each thread
   for (int t = 0; t <= nt; ++t)             // split nout mode indices btw threads
     brk[t] = (int)(0.5 + nout * t / (double)nt);
-  
+
   #pragma omp parallel num_threads(nt)
   {                                     // each thread gets own chunk to do
     int t = OMP_GET_THREAD_NUM();
@@ -104,8 +104,8 @@ void kernel_fseries_1d(int grid_size,
 
     for (int n = 0; n < q; ++n)
       aj[n] = pow(a[n], (FloatType)brk[t]);    // init phase factors for chunk
-    
-    for (int j = brk[t]; j < brk[t + 1]; ++j) {          // loop along output array  
+
+    for (int j = brk[t]; j < brk[t + 1]; ++j) {          // loop along output array
       FloatType x = 0.0;                      // accumulator for answer at this j
       for (int n = 0; n < q; ++n) {
         x += f[n] * 2 * real(aj[n]);      // include the negative freq

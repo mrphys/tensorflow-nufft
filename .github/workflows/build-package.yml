@@ -16,9 +16,9 @@ jobs:
 
     name: Build package
     runs-on: ubuntu-latest
-    
+
     container:
-      image: ghcr.io/mrphys/tensorflow-manylinux:1.11.0
+      image: ghcr.io/mrphys/tensorflow-manylinux:1.13.0
 
     strategy:
       matrix:
@@ -54,7 +54,7 @@ jobs:
       - name: Build docs
         run: |
           make docs PY_VERSION=${{ matrix.py_version }}
-      
+
       - name: Upload wheel
         if: startsWith(github.ref, 'refs/tags')
         uses: actions/upload-artifact@v2
@@ -67,7 +67,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: docs
-          path: ./tools/docs/_build/html
+          path: ./docs/_build/dirhtml
 
       - name: Publish to Test PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -84,7 +84,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags')
-    
+
     steps:
 
       - name: Checkout docs branch
@@ -120,7 +120,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           name: TensorFlow NUFFT ${{ env.release }}
-          body_path: RELEASE.rst
+          body_path: RELEASE.md
           prerelease: ${{ contains(env.release, 'a') || contains(env.release, 'b') || contains(env.release, 'rc') }}
           fail_on_unmatched_files: true
 

@@ -1,4 +1,4 @@
-/* Copyright 2021 University College London. All Rights Reserved.
+/* Copyright 2021 The TensorFlow NUFFT Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -140,15 +140,15 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
 
 template<typename FloatType>
 Status setup_spreader_for_nufft(int rank, FloatType eps,
-                                const Options& options,
+                                const InternalOptions& options,
                                 SpreadParameters<FloatType> &spread_params);
 
-void set_bin_sizes(TransformType type, int rank, Options& options);
+void set_bin_sizes(TransformType type, int rank, InternalOptions& options);
 
 template<typename FloatType>
 Status set_grid_size(int ms,
                      int bin_size,
-                     const Options& options,
+                     const InternalOptions& options,
                      const SpreadParameters<FloatType>& spread_params,
                      int* grid_size);
 
@@ -157,8 +157,8 @@ __device__ int CalcGlobalIdxV2(int xidx, int yidx, int zidx, int nbinx, int nbin
 }
 
 template<typename FloatType>
-__global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_size_x, 
-    int bin_size_y, int nbinx, int nbiny, int* bin_sizes, FloatType *x, FloatType *y, 
+__global__ void CalcBinSizeNoGhost2DKernel(int M, int nf1, int nf2, int  bin_size_x,
+    int bin_size_y, int nbinx, int nbiny, int* bin_sizes, FloatType *x, FloatType *y,
     int* sortidx, int pirange) {
   int binidx, binx, biny;
   int oldidx;
@@ -211,8 +211,8 @@ __global__ void CalcBinSizeNoGhost3DKernel(int M, int nf1, int nf2, int nf3,
 }
 
 template<typename FloatType>
-__global__ void CalcInvertofGlobalSortIdx2DKernel(int M, int bin_size_x, int bin_size_y, 
-    int nbinx, int nbiny, int* bin_startpts, int* sortidx, FloatType *x, FloatType *y, 
+__global__ void CalcInvertofGlobalSortIdx2DKernel(int M, int bin_size_x, int bin_size_y,
+    int nbinx, int nbiny, int* bin_startpts, int* sortidx, FloatType *x, FloatType *y,
     int* index, int pirange, int nf1, int nf2) {
   int binx, biny;
   int binidx;
@@ -284,11 +284,11 @@ __global__ void MapBinToSubproblemKernel(
 }
 
 /* Kernel for copying fw to fk with amplication by prefac / ker */
-// Note: assume modeord = 0: CMCL - compatible mode ordering in fk (from -N / 2 up 
+// Note: assume modeord = 0: CMCL - compatible mode ordering in fk (from -N / 2 up
 // to N / 2 - 1)
 template<typename FloatType>
 __global__ void Deconvolve2DKernel(
-    int ms, int mt, int nf1, int nf2, GpuComplex<FloatType>* fw, GpuComplex<FloatType> *fk, 
+    int ms, int mt, int nf1, int nf2, GpuComplex<FloatType>* fw, GpuComplex<FloatType> *fk,
     FloatType *fwkerhalf1, FloatType *fwkerhalf2)
 {
   for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<ms * mt; i += blockDim.x * gridDim.x) {
@@ -307,7 +307,7 @@ __global__ void Deconvolve2DKernel(
 
 template<typename FloatType>
 __global__ void Deconvolve3DKernel(
-    int ms, int mt, int mu, int nf1, int nf2, int nf3, GpuComplex<FloatType>* fw, 
+    int ms, int mt, int mu, int nf1, int nf2, int nf3, GpuComplex<FloatType>* fw,
     GpuComplex<FloatType> *fk, FloatType *fwkerhalf1, FloatType *fwkerhalf2, FloatType *fwkerhalf3)
 {
   for (int i = blockDim.x * blockIdx.x + threadIdx.x; i<ms * mt * mu; i += blockDim.x*
@@ -333,7 +333,7 @@ __global__ void Deconvolve3DKernel(
 /* Kernel for copying fk to fw with same amplication */
 template<typename FloatType>
 __global__ void Amplify2DKernel(
-    int ms, int mt, int nf1, int nf2, GpuComplex<FloatType>* fw, GpuComplex<FloatType> *fk, 
+    int ms, int mt, int nf1, int nf2, GpuComplex<FloatType>* fw, GpuComplex<FloatType> *fk,
     FloatType *fwkerhalf1, FloatType *fwkerhalf2)
 {
   for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < ms * mt; i += blockDim.x * gridDim.x) {
@@ -352,10 +352,10 @@ __global__ void Amplify2DKernel(
 
 template<typename FloatType>
 __global__ void Amplify3DKernel(
-    int ms, int mt, int mu, int nf1, int nf2, int nf3, GpuComplex<FloatType>* fw, 
+    int ms, int mt, int mu, int nf1, int nf2, int nf3, GpuComplex<FloatType>* fw,
     GpuComplex<FloatType> *fk, FloatType *fwkerhalf1, FloatType *fwkerhalf2, FloatType *fwkerhalf3)
 {
-  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < ms * mt * mu; 
+  for (int i = blockDim.x * blockIdx.x + threadIdx.x; i < ms * mt * mu;
     i += blockDim.x * gridDim.x) {
     int k1 = i % ms;
     int k2 = (i / ms) % mt;
@@ -377,7 +377,7 @@ __global__ void Amplify3DKernel(
     phi(x) = exp(beta.sqrt(1 - (2x / n_s)^2)),    for |x| < kernel_width / 2
     related to an asymptotic approximation to the Kaiser--Bessel, itself an
     approximation to prolate spheroidal wavefunction (PSWF) of order 0.
-    This is the "reference implementation", used by eg common / onedim_* 
+    This is the "reference implementation", used by eg common / onedim_*
     2 / 17 / 17 */
 template<typename FloatType>
 static __forceinline__ __device__ FloatType EvaluateKernel(
@@ -391,7 +391,7 @@ static __forceinline__ __device__ FloatType EvaluateKernel(
 // Two upsampfacs implemented. Params must match ref formula. Barnett 4 / 24 / 18
 template<typename FloatType>
 static __inline__ __device__ void EvaluateKernelVectorHorner(
-    FloatType *ker, const FloatType x, const int w, 
+    FloatType *ker, const FloatType x, const int w,
     const double upsampling_factor) {
   FloatType z = 2 * x + w - 1.0;         // scale so local grid offset z in [-1, 1]
   // insert the auto - generated code which expects z, w args, writes to ker...
@@ -402,10 +402,10 @@ static __inline__ __device__ void EvaluateKernelVectorHorner(
 
 template<typename FloatType>
 static __inline__ __device__ void EvaluateKernelVector(
-    FloatType *ker, const FloatType x, const double w, const double es_c, 
+    FloatType *ker, const FloatType x, const double w, const double es_c,
     const double es_beta) {
   for (int i = 0; i < w; i++) {
-    ker[i] = EvaluateKernel<FloatType>(abs(x + i), es_c, es_beta, w);		
+    ker[i] = EvaluateKernel<FloatType>(abs(x + i), es_c, es_beta, w);
   }
 }
 
@@ -498,7 +498,7 @@ __global__ void SpreadSubproblem2DKernel(
     GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2,
     FloatType es_c, FloatType es_beta, FloatType sigma, int* binstartpts,
     int* bin_sizes, int bin_size_x, int bin_size_y, int* subprob_bins,
-    int* subprob_start_pts, int* num_subprob, int max_subprob_size, int nbinx, 
+    int* subprob_start_pts, int* num_subprob, int max_subprob_size, int nbinx,
     int nbiny, int* idxnupts, int pirange) {
   // Shared memory pointers cannot be declared with a type template because
   // it results in a "declaration is incompatible with previous declaration"
@@ -526,7 +526,7 @@ __global__ void SpreadSubproblem2DKernel(
   int N = (bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0));
   FloatType ker1[kMaxKernelWidth];
   FloatType ker2[kMaxKernelWidth];
-  
+
   for (int i = threadIdx.x; i<N; i += blockDim.x) {
     fwshared[i].x = 0.0;
     fwshared[i].y = 0.0;
@@ -605,7 +605,7 @@ __global__ void SpreadSubproblemHorner2DKernel(
   int yoffset = (bidx / nbinx) * bin_size_y;
 
   int N = (bin_size_x + 2 * ceil(ns / 2.0)) * (bin_size_y + 2 * ceil(ns / 2.0));
-  
+
   FloatType ker1[kMaxKernelWidth];
   FloatType ker2[kMaxKernelWidth];
 
@@ -674,7 +674,7 @@ __global__ void InterpNuptsDriven2DKernel(
 
     FloatType x_rescaled = RESCALE(x[idxnupts[i]], nf1, pirange);
     FloatType y_rescaled = RESCALE(y[idxnupts[i]], nf2, pirange);
-        
+
     int xstart = ceil(x_rescaled - ns / 2.0);
     int ystart = ceil(y_rescaled - ns / 2.0);
     int xend = floor(x_rescaled + ns / 2.0);
@@ -749,7 +749,7 @@ __global__ void InterpSubproblem2DKernel(
     GpuComplex<FloatType> *fw, int M, const int ns, int nf1, int nf2,
     FloatType es_c, FloatType es_beta, FloatType sigma, int* binstartpts,
     int* bin_sizes, int bin_size_x, int bin_size_y, int* subprob_bins,
-    int* subprob_start_pts, int* num_subprob, int max_subprob_size, int nbinx, 
+    int* subprob_start_pts, int* num_subprob, int max_subprob_size, int nbinx,
     int nbiny, int* idxnupts, int pirange) {
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
@@ -816,10 +816,10 @@ __global__ void InterpSubproblem2DKernel(
 
 template<typename FloatType>
 __global__ void InterpSubproblemHorner2DKernel(
-    FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M, 
-    const int ns, int nf1, int nf2, FloatType sigma, int* binstartpts, int* bin_sizes, 
-    int bin_size_x, int bin_size_y, int* subprob_bins, int* subprob_start_pts, 
-    int* num_subprob, int max_subprob_size, int nbinx, int nbiny, int* idxnupts, 
+    FloatType *x, FloatType *y, GpuComplex<FloatType> *c, GpuComplex<FloatType> *fw, int M,
+    const int ns, int nf1, int nf2, FloatType sigma, int* binstartpts, int* bin_sizes,
+    int bin_size_x, int bin_size_y, int* subprob_bins, int* subprob_start_pts,
+    int* num_subprob, int max_subprob_size, int nbinx, int nbiny, int* idxnupts,
     int pirange) {
   extern __shared__ __align__(sizeof(GpuComplex<FloatType>)) unsigned char fwshared_[];
   GpuComplex<FloatType> *fwshared = reinterpret_cast<GpuComplex<FloatType>*>(fwshared_);
@@ -874,7 +874,7 @@ __global__ void InterpSubproblemHorner2DKernel(
 
     EvaluateKernelVectorHorner(ker1, xstart + xoffset - x_rescaled, ns, sigma);
     EvaluateKernelVectorHorner(ker2, ystart + yoffset - y_rescaled, ns, sigma);
-    
+
     for (int yy = ystart; yy<=yend; yy++) {
       FloatType disy = abs(y_rescaled - (yy + yoffset));
       FloatType kervalue2 = ker2[yy - ystart];
@@ -882,7 +882,7 @@ __global__ void InterpSubproblemHorner2DKernel(
         ix = xx + ceil(ns / 2.0);
         iy = yy + ceil(ns / 2.0);
         outidx = ix + iy * (bin_size_x + ceil(ns / 2.0) * 2);
-    
+
         FloatType kervalue1 = ker1[xx - xstart];
         cnow.x += fwshared[outidx].x * kervalue1 * kervalue2;
         cnow.y += fwshared[outidx].y * kervalue1 * kervalue2;
@@ -1519,7 +1519,7 @@ Status Plan<GPUDevice, FloatType>::initialize(
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
-    const Options& options) {
+    const InternalOptions& options) {
 
   auto* ctx = this->context_;
   auto* stream = ctx->op_device_context()->stream();
@@ -1768,7 +1768,7 @@ Status Plan<GPUDevice, FloatType>::initialize(
     CufftScratchAllocator scratch_allocator(CufftScratchSize, ctx);
     this->fft_plan_ =
         stream->parent()->AsFft()->CreateBatchedPlanWithScratchAllocator(
-            stream, this->rank_, fft_dims, 
+            stream, this->rank_, fft_dims,
             input_embed, input_stride, input_distance,
             output_embed, output_stride, output_distance,
             kFftType, kInPlaceFft, batch_size, &scratch_allocator);
@@ -2712,7 +2712,7 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
 // options. Report status of setup_spreader.  Barnett 10 / 30 / 17
 template<typename FloatType>
 Status setup_spreader_for_nufft(int rank, FloatType eps,
-                                const Options& options,
+                                const InternalOptions& options,
                                 SpreadParameters<FloatType>& spread_params) {
   TF_RETURN_IF_ERROR(setup_spreader(
       rank, eps, options.upsampling_factor,
@@ -2728,7 +2728,7 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
   return Status::OK();
 }
 
-void set_bin_sizes(TransformType type, int rank, Options& options) {
+void set_bin_sizes(TransformType type, int rank, InternalOptions& options) {
   switch (rank) {
     case 2:
       options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 32 :
@@ -2770,7 +2770,7 @@ void set_bin_sizes(TransformType type, int rank, Options& options) {
 template<typename FloatType>
 Status set_grid_size(int ms,
                      int bin_size,
-                     const Options& options,
+                     const InternalOptions& options,
                      const SpreadParameters<FloatType>& spread_params,
                      int* grid_size) {
   // For spread / interp only, we do not apply oversampling.

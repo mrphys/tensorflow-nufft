@@ -1,4 +1,4 @@
-/* Copyright 2021 University College London. All Rights Reserved.
+/* Copyright 2021 The TensorFlow NUFFT Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,8 +17,6 @@ limitations under the License.
 #define EIGEN_USE_GPU
 #endif  // GOOGLE_CUDA
 
-#include "tensorflow_nufft/cc/kernels/nufft_kernels.h"
-
 #include "tensorflow/core/framework/bounds_check.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_util.h"
@@ -27,6 +25,7 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 #include "tensorflow_nufft/cc/kernels/reverse_functor.h"
 #include "tensorflow_nufft/cc/kernels/transpose_functor.h"
+#include "tensorflow_nufft/proto/nufft_options.pb.h"
 
 
 namespace tensorflow {
@@ -36,38 +35,19 @@ typedef Eigen::GpuDevice GPUDevice;
 
 namespace nufft {
 
+enum class OpType { NUFFT, INTERP, SPREAD };
+
+template<typename Device, typename FloatType>
+using Complex = typename ComplexType<Device, FloatType>::Type;
+
 template<typename FloatType>
 const DataType kRealDType = DataTypeToEnum<FloatType>::value;
 
 template<typename FloatType>
 const DataType kComplexDType = DataTypeToEnum<std::complex<FloatType>>::value;
 
-template<typename FloatType>
-struct DoNUFFT<CPUDevice, FloatType> : DoNUFFTBase<CPUDevice, FloatType> {
-  Status operator()(OpKernelContext* ctx,
-                    TransformType type,
-                    int rank,
-                    FftDirection fft_direction,
-                    int num_transforms,
-                    FloatType tol,
-                    OpType op_type,
-                    int64_t batch_rank,
-                    int64_t* source_batch_dims,
-                    int64_t* points_batch_dims,
-                    int64_t* num_modes,
-                    int64_t num_points,
-                    FloatType* points,
-                    Complex<CPUDevice, FloatType>* source,
-                    Complex<CPUDevice, FloatType>* target) {
-    return this->compute(
-        ctx, type, rank, fft_direction, num_transforms, tol, op_type,
-        batch_rank, source_batch_dims, points_batch_dims,
-        num_modes, num_points, points, source, target);
-  }
-};
 
-
-template <typename Device, typename FloatType>
+template<typename Device, typename FloatType>
 class NUFFTBaseOp : public OpKernel {
  public:
   explicit NUFFTBaseOp(OpKernelConstruction* ctx) : OpKernel(ctx) { }
@@ -132,7 +112,7 @@ class NUFFTBaseOp : public OpKernel {
         break;
       }
     }
-    
+
     // Get the ranks of the source/point elements.
     int points_elem_rank = 2;  // A points element is always 2D.
     int source_elem_rank;
@@ -299,7 +279,7 @@ class NUFFTBaseOp : public OpKernel {
     OP_REQUIRES_OK(ctx, ctx->allocate_temp(kRealDType<FloatType>,
                                            tpoints_shape,
                                            &tpoints));
-    
+
     OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
         ctx->eigen_device<Device>(),
         rpoints,
@@ -313,19 +293,19 @@ class NUFFTBaseOp : public OpKernel {
       for (int i = 0; i < reshaped_source.dims(); i++) {
         tsource_shape.set_dim(i, reshaped_source.dim_size(source_perm[i]));
       }
-      
+
       OP_REQUIRES_OK(ctx, ctx->allocate_temp(kComplexDType<FloatType>,
                                              tsource_shape,
                                              &tsource));
-      
+
       OP_REQUIRES_OK(ctx, ::tensorflow::DoTranspose<Device>(
           ctx->eigen_device<Device>(),
           reshaped_source,
           source_perm,
           &tsource));
-      
+
       psource = &tsource;
-      
+
     } else {
       psource = &reshaped_source;
     }
@@ -337,12 +317,12 @@ class NUFFTBaseOp : public OpKernel {
       for (int i = 0; i < target->dims(); i++) {
         ttarget_shape.set_dim(i, target->dim_size(target_perm[i]));
       }
-      
+
       OP_REQUIRES_OK(ctx,
                      ctx->allocate_temp(kComplexDType<FloatType>,
                                         ttarget_shape,
                                         &ttarget));
-                
+
       ptarget = &ttarget;
     } else {
       ptarget = target;
@@ -353,10 +333,10 @@ class NUFFTBaseOp : public OpKernel {
     if (rank == 2)
       std::swap(grid_shape_vec[0], grid_shape_vec[1]);
     else if (rank == 3)
-      std::swap(grid_shape_vec[0], grid_shape_vec[2]);   
+      std::swap(grid_shape_vec[0], grid_shape_vec[2]);
 
     // Perform operation.
-    OP_REQUIRES_OK(ctx, DoNUFFT<Device, FloatType>()(
+    OP_REQUIRES_OK(ctx, this->Execute(
         ctx,
         transform_type_,
         static_cast<int>(rank),
@@ -382,11 +362,193 @@ class NUFFTBaseOp : public OpKernel {
     }
   }
 
+  Status Execute(OpKernelContext* ctx,
+                 TransformType type,
+                 int rank,
+                 FftDirection fft_direction,
+                 int num_transforms,
+                 FloatType tol,
+                 OpType op_type,
+                 int64_t batch_rank,
+                 int64_t* source_batch_dims,
+                 int64_t* points_batch_dims,
+                 int64_t* num_modes,
+                 int64_t num_points,
+                 FloatType* points,
+                 Complex<Device, FloatType>* source,
+                 Complex<Device, FloatType>* target) {
+    // Number of coefficients.
+    int num_coeffs = 1;
+    for (int d = 0; d < rank; d++) {
+      num_coeffs *= num_modes[d];
+    }
+
+    // Number of calls to FINUFFT execute.
+    int num_calls = 1;
+    for (int d = 0; d < batch_rank; d++) {
+      num_calls *= points_batch_dims[d];
+    }
+
+    // Factors to transform linear indices to subindices and viceversa.
+    gtl::InlinedVector<int, 8> source_batch_factors(batch_rank);
+    for (int d = 0; d < batch_rank; d++) {
+      source_batch_factors[d] = 1;
+      for (int j = d + 1; j < batch_rank; j++) {
+        source_batch_factors[d] *= source_batch_dims[j];
+      }
+    }
+
+    gtl::InlinedVector<int, 8> points_batch_factors(batch_rank);
+    for (int d = 0; d < batch_rank; d++) {
+      points_batch_factors[d] = 1;
+      for (int j = d + 1; j < batch_rank; j++) {
+        points_batch_factors[d] *= points_batch_dims[j];
+      }
+    }
+
+    // Obtain pointers to non-uniform data c and Fourier mode
+    // coefficients f.
+    Complex<Device, FloatType>* c = nullptr;
+    Complex<Device, FloatType>* f = nullptr;
+    int source_index;
+    int target_index;
+    int* c_index;
+    int* f_index;
+    switch (type) {
+      case TransformType::TYPE_1:  // nonuniform to uniform
+        c = source;
+        f = target;
+        c_index = &source_index;
+        f_index = &target_index;
+        break;
+      case TransformType::TYPE_2:  // uniform to nonuniform
+        c = target;
+        f = source;
+        c_index = &target_index;
+        f_index = &source_index;
+        break;
+    }
+
+    // NUFFT options.
+    InternalOptions options;
+    // Read in user options.
+    options.max_batch_size = this->options_.max_batch_size();
+    switch (this->options_.fftw().planning_rigor()) {
+      case FftwPlanningRigor::AUTO: {
+        options.fftw_flags = FFTW_MEASURE;
+        break;
+      }
+      case FftwPlanningRigor::ESTIMATE: {
+        options.fftw_flags = FFTW_ESTIMATE;
+        break;
+      }
+      case FftwPlanningRigor::MEASURE: {
+        options.fftw_flags = FFTW_MEASURE;
+        break;
+      }
+      case FftwPlanningRigor::PATIENT: {
+        options.fftw_flags = FFTW_PATIENT;
+        break;
+      }
+      case FftwPlanningRigor::EXHAUSTIVE: {
+        options.fftw_flags = FFTW_EXHAUSTIVE;
+        break;
+      }
+    }
+
+    if (op_type != OpType::NUFFT) {
+      options.spread_only = true;
+      options.upsampling_factor = 2.0;
+    }
+
+    // Intra-op threading.
+    const DeviceBase::CpuWorkerThreads& worker_threads =
+        *ctx->device()->tensorflow_cpu_worker_threads();
+    options.num_threads = worker_threads.num_threads;
+
+    // Make inlined vector from pointer to number of modes. TODO: use inlined
+    // vector for all of num_modes.
+    int num_modes_int[3] = {1, 1, 1};
+    for (int i = 0; i < rank; ++i) {
+      num_modes_int[i] = static_cast<int>(num_modes[i]);
+    }
+
+    // Make the NUFFT plan.
+    auto plan = std::make_unique<Plan<Device, FloatType>>(ctx);
+    TF_RETURN_IF_ERROR(plan->initialize(
+        type, rank, num_modes_int, fft_direction,
+        num_transforms, tol, options));
+
+    // Pointers to a certain batch.
+    Complex<Device, FloatType>* c_batch = nullptr;
+    Complex<Device, FloatType>* f_batch = nullptr;
+    FloatType* points_batch = nullptr;
+
+    FloatType* points_x = nullptr;
+    FloatType* points_y = nullptr;
+    FloatType* points_z = nullptr;
+
+    gtl::InlinedVector<int, 8> source_batch_indices(batch_rank);
+
+    for (int call_index = 0; call_index < num_calls; call_index++) {
+      points_batch = points + call_index * num_points * rank;
+      switch (rank) {
+        case 1:
+          points_x = points_batch;
+          break;
+        case 2:
+          points_x = points_batch;
+          points_y = points_batch + num_points;
+          break;
+        case 3:
+          points_x = points_batch;
+          points_y = points_batch + num_points;
+          points_z = points_batch + num_points * 2;
+          break;
+      }
+
+      // Set the point coordinates.
+      TF_RETURN_IF_ERROR(plan->set_points(
+          num_points, points_x, points_y, points_z));
+
+      // Compute indices.
+      source_index = 0;
+      target_index = call_index;
+      int temp_index = call_index;
+      for (int d = 0; d < batch_rank; d++) {
+        source_batch_indices[d] = temp_index / points_batch_factors[d];
+        temp_index %= points_batch_factors[d];
+        if (source_batch_dims[d] == 1) {
+          source_batch_indices[d] = 0;
+        }
+        source_index += source_batch_indices[d] * source_batch_factors[d];
+      }
+
+      c_batch = c + *c_index * num_transforms * num_points;
+      f_batch = f + *f_index * num_transforms * num_coeffs;
+
+      // Execute the NUFFT.
+      switch (op_type) {
+        case OpType::NUFFT:
+          TF_RETURN_IF_ERROR(plan->execute(c_batch, f_batch));
+          break;
+        case OpType::INTERP:
+          TF_RETURN_IF_ERROR(plan->interp(c_batch, f_batch));
+          break;
+        case OpType::SPREAD:
+          TF_RETURN_IF_ERROR(plan->spread(c_batch, f_batch));
+          break;
+      }
+    }
+    return Status::OK();
+  }
+
  protected:
 
   TransformType transform_type_;
   FftDirection fft_direction_;
   float tol_;
+  Options options_;
   OpType op_type_;
 };
 
@@ -418,6 +580,11 @@ class NUFFT : public NUFFTBaseOp<Device, FloatType> {
     }
 
     this->op_type_ = OpType::NUFFT;
+
+    string options_serialized;
+    OP_REQUIRES_OK(ctx, ctx->GetAttr("options", &options_serialized));
+    OP_REQUIRES(ctx, this->options_.ParseFromString(options_serialized),
+                errors::InvalidArgument("Unable to parse options string."));
   }
 };
 

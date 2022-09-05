@@ -1,4 +1,0 @@
-furo
-ipython
-nbsphinx
-sphinx

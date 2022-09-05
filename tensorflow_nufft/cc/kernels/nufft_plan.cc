@@ -1,4 +1,4 @@
-/* Copyright 2021 University College London. All Rights Reserved.
+/* Copyright 2021 The TensorFlow NUFFT Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ namespace {
 // Forward declarations. Defined below.
 template<typename FloatType>
 Status set_grid_size(int ms,
-                     const Options& options,
+                     const InternalOptions& options,
                      SpreadParameters<FloatType> spread_params,
                      int* grid_size);
 
@@ -69,7 +69,7 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
 
 template<typename FloatType>
 Status setup_spreader_for_nufft(int rank, FloatType eps,
-                                const Options& options,
+                                const InternalOptions& options,
                                 SpreadParameters<FloatType> &spread_params);
 
 static int get_transform_rank(int64_t n1, int64_t n2, int64_t n3);
@@ -98,17 +98,17 @@ void bin_sort_multithread(
     int num_threads);
 
 template<typename FloatType>
-int spreadinterpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3, 
+int spreadinterpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 		             FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		             FloatType *data_nonuniform, tensorflow::nufft::SpreadParameters<FloatType> opts, int did_sort);
 
 template<typename FloatType>
-int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3, 
+int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 		      FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort);
 
 template<typename FloatType>
-int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3, 
+int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 		      FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort);
 
@@ -190,7 +190,7 @@ Status Plan<CPUDevice, FloatType>::initialize(
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
-    const Options& options) {
+    const InternalOptions& options) {
 
   if (type == TransformType::TYPE_3) {
     return errors::Unimplemented("type-3 transforms are not implemented");
@@ -260,7 +260,7 @@ Status Plan<CPUDevice, FloatType>::initialize(
     this->fseries_data_[i] = nullptr;
   }
   this->sort_indices_ = nullptr;
-  
+
   // FFTW initialization must be done single-threaded.
   #pragma omp critical
   {
@@ -282,7 +282,7 @@ Status Plan<CPUDevice, FloatType>::initialize(
     this->spread_params_.spread_direction = SpreadDirection::SPREAD;
   else // if (type == TransformType::TYPE_2)
     this->spread_params_.spread_direction = SpreadDirection::INTERP;
-  
+
   // Determine fine grid sizes.
   TF_RETURN_IF_ERROR(set_grid_size(
       this->num_modes_[0], this->options_, this->spread_params_,
@@ -301,7 +301,7 @@ Status Plan<CPUDevice, FloatType>::initialize(
   // Get Fourier coefficients of spreading kernel along each fine grid
   // dimension.
   for (int i = 0; i < this->rank_; i++) {
-    // Number of Fourier coefficients.      
+    // Number of Fourier coefficients.
     int num_coeffs = this->grid_dims_[i] / 2 + 1;
     // Allocate memory and calculate the Fourier series.
     TF_RETURN_IF_ERROR(this->context_->allocate_temp(
@@ -377,7 +377,7 @@ Plan<CPUDevice, FloatType>::~Plan() {
   {
     fftw::destroy_plan<FloatType>(this->fft_plan_);
   }
-  
+
   // Wait until all threads are done using FFTW, then clean up the FFTW state,
   // which only needs to be done once.
   #ifdef _OPENMP
@@ -453,7 +453,7 @@ template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::execute(DType* cj, DType* fk){
 
   if (this->type_ != TransformType::TYPE_3) {
-  
+
     double t_sprint = 0.0, t_fft = 0.0, t_deconv = 0.0;  // accumulated timing
 
     for (int b=0; b*this->batch_size_ < this->num_transforms_; b++) { // .....loop b over batches
@@ -463,14 +463,14 @@ Status Plan<CPUDevice, FloatType>::execute(DType* cj, DType* fk){
       int bB = b*this->batch_size_;         // index of vector, since batchsizes same
       DType* cjb = cj + bB*this->num_points_;        // point to batch of weights
       DType* fkb = fk + bB*this->mode_count_;         // point to batch of mode coeffs
-      
+
       // STEP 1: (varies by type)
       if (this->type_ == TransformType::TYPE_1) {  // type 1: spread NU pts this->points_[0], weights cj, to fw grid
         TF_RETURN_IF_ERROR(this->spread_or_interp_sorted_batch(thisBatchSize, cjb));
       } else {          //  type 2: amplify Fourier coeffs fk into 0-padded fw
         TF_RETURN_IF_ERROR(this->deconvolve_batch(thisBatchSize, fkb));
       }
-             
+
       // STEP 2: call the pre-planned FFT on this batch
       // This wastes some flops if thisBatchSize < batch_size.
       fftw::execute<FloatType>(this->fft_plan_);
@@ -486,7 +486,7 @@ Status Plan<CPUDevice, FloatType>::execute(DType* cj, DType* fk){
     // Type 3 transform.
     return errors::Unimplemented("Type-3 transforms not implemented yet.");
   }
-  
+
   return Status::OK();
 }
 
@@ -512,7 +512,7 @@ Status Plan<CPUDevice, FloatType>::spread_or_interp(DType* cj, DType* fk) {
     int bB = b*this->batch_size_;         // index of vector, since batchsizes same
     DType* cjb = cj + bB*this->num_points_;        // point to batch of weights
     DType* fkb = fk + bB*this->mode_count_;         // point to batch of mode coeffs
-    
+
     this->spread_or_interp_sorted_batch(thisBatchSize, cjb, fkb);
   }
 
@@ -579,7 +579,7 @@ namespace {
 // Fourier modes.
 template<typename FloatType>
 Status set_grid_size(int ms,
-                     const Options& options,
+                     const InternalOptions& options,
                      SpreadParameters<FloatType> spread_params,
                      int* grid_size) {
   // for spread/interp only, we do not apply oversampling (Montalt 6/8/2021).
@@ -643,7 +643,7 @@ Status setup_spreader(
           "upsampling_factor must be > 1.0, but is ", upsampling_factor);
     }
   }
-    
+
   // write out default SpreadParameters<FloatType>
   spread_params.pirange = 1;             // user also should always set this
   spread_params.check_bounds = false;
@@ -699,7 +699,7 @@ Status setup_spreader(
 
 template<typename FloatType>
 Status setup_spreader_for_nufft(int rank, FloatType eps,
-                                const Options& options,
+                                const InternalOptions& options,
                                 SpreadParameters<FloatType> &spread_params)
 // Set up the spreader parameters given eps, and pass across various nufft
 // options. Return status of setup_spreader. Uses pass-by-ref. Barnett 10/30/17
@@ -826,7 +826,7 @@ bool bin_sort_points(int64_t* sort_indices, int64_t n1, int64_t n2, int64_t n3,
   int max_threads = OMP_GET_MAX_THREADS();
   if (opts.num_threads > 0)  // user override up to max threads
     max_threads = std::min(max_threads, opts.num_threads);
-  
+
   if (opts.sort_points == SortPoints::YES ||
       (opts.sort_points == SortPoints::AUTO && should_sort)) {
     // store a good permutation ordering of all NU pts (rank=1,2 or 3)
@@ -862,7 +862,7 @@ bool bin_sort_points(int64_t* sort_indices, int64_t n1, int64_t n2, int64_t n3,
  * these bins in a Cartesian cuboid ordering (x fastest, y med, z slowest).
  * Finally the permutation is inverted, so that the good ordering is: the
  * NU pt of index ret[0], the NU pt of index ret[1],..., NU pt of index ret[num_points-1]
- * 
+ *
  * Inputs: num_points - number of input NU points.
  *         kx,ky,kz - length-num_points arrays of real coords of NU pts, in the domain
  *                    for FOLD_AND_RESCALE, which includes [0,n1], [0,n2], [0,n3]
@@ -909,7 +909,7 @@ void bin_sort_singlethread(
   offsets[0] = 0;     // do: offsets = [0 cumsum(counts(1:end-1)]
   for (int64_t i = 1; i < num_bins; i++)
     offsets[i] = offsets[i - 1] + counts[i-1];
-  
+
   std::vector<int64_t> inv(num_points);           // fill inverse map
   for (int64_t i = 0; i < num_points; i++) {
     // find the bin index (again! but better than using RAM)
@@ -959,7 +959,7 @@ void bin_sort_multithread(
   std::vector< std::vector<int64_t> > ot(num_threads, counts);
   {    // scope for ct, the 2d array of counts in bins for each thread's NU pts
     std::vector< std::vector<int64_t> > ct(num_threads, counts);   // num_threads * num_bins, init to 0
-    
+
     #pragma omp parallel num_threads(num_threads)
     {  // parallel binning to each thread's count. Block done once per thread
       int thread_index = OMP_GET_THREAD_NUM();
@@ -977,21 +977,21 @@ void bin_sort_multithread(
     for (int64_t b = 0; b < num_bins; ++b)   // (not worth omp. Either loop order is ok)
       for (int thread_index = 0; thread_index < num_threads; ++thread_index)
 	  counts[b] += ct[thread_index][b];
-    
+
     std::vector<int64_t> offsets(num_bins);   // cumulative sum of bin counts
     // do: offsets = [0 cumsum(counts(1:end-1))] ...
     offsets[0] = 0;
     for (int64_t i = 1; i < num_bins; i++)
       offsets[i] = offsets[i-1] + counts[i-1];
-    
+
     for (int64_t b = 0; b < num_bins; ++b)  // now build offsets for each thread & bin:
       ot[0][b] = offsets[b];                     // init
     for (int thread_index = 1; thread_index < num_threads; ++thread_index)   // (again not worth omp. Either loop order is ok)
       for (int64_t b = 0; b < num_bins; ++b)
 	ot[thread_index][b] = ot[thread_index - 1][b]+ct[thread_index - 1][b];        // cumsum along thread_index axis
-    
+
   }  // scope frees up ct here, before inv alloc
-  
+
   std::vector<int64_t> inv(num_points);           // fill inverse map, in parallel
   #pragma omp parallel num_threads(num_threads)
   {
@@ -1158,7 +1158,7 @@ void deconvolveshuffle3d(SpreadDirection dir,FloatType prefac,FloatType *ker1, F
 }
 
 template<typename FloatType>
-int spreadinterpSorted(int64_t* sort_indices, int64_t N1, int64_t N2, int64_t N3, 
+int spreadinterpSorted(int64_t* sort_indices, int64_t N1, int64_t N2, int64_t N3,
 		      FloatType *data_uniform, int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort)
 /* Logic to select the main spreading (dir=1) vs interpolation (dir=2) routine.
@@ -1171,14 +1171,14 @@ int spreadinterpSorted(int64_t* sort_indices, int64_t N1, int64_t N2, int64_t N3
     spreadSorted(sort_indices, N1, N2, N3, data_uniform, M, kx, ky, kz, data_nonuniform, opts, did_sort);
   else // if (opts.spread_direction == SpreadDirection::INTERP)
     interpSorted(sort_indices, N1, N2, N3, data_uniform, M, kx, ky, kz, data_nonuniform, opts, did_sort);
-  
+
   return 0;
 }
 
 
 // --------------------------------------------------------------------------
 template<typename FloatType>
-int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3, 
+int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 		      FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort)
 // Spread NU pts in sorted order to a uniform grid. See spreadinterp() for doc.
@@ -1203,7 +1203,7 @@ int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
       // *** todo, not urgent
       // ... (question is: will the index wrapping per NU pt slow it down?)
     }
-    
+
   } else {           // ------- Fancy multi-core blocked t1 spreading ----
                      // Splits sorted inds (jfm's advanced2), could double RAM.
     // choose nb (# subprobs) via used num_threads:
@@ -1224,7 +1224,7 @@ int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
     std::vector<int64_t> brk(nb+1); // NU index breakpoints defining nb subproblems
     for (int p = 0; p <= nb; ++p)
       brk[p] = (int64_t)(0.5 + M * p / (double)nb);
-    
+
     #pragma omp parallel for num_threads(nthr) schedule(dynamic,1)  // each is big
     for (int isub=0; isub<nb; isub++) {   // Main loop through the subproblems
       int64_t M0 = brk[isub+1]-brk[isub];  // # NU pts in this subproblem
@@ -1249,7 +1249,7 @@ int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 
       // allocate output data for this subgrid
       FloatType *du0=(FloatType*)malloc(sizeof(FloatType)*2*size1*size2*size3); // complex
-      
+
       // Spread to subgrid without need for bounds checking or wrapping
       if (ndims==1)
         spread_subproblem_1d(offset1,size1,du0,M0,kx0,dd0,opts);
@@ -1257,7 +1257,7 @@ int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
         spread_subproblem_2d(offset1,offset2,size1,size2,du0,M0,kx0,ky0,dd0,opts);
       else
         spread_subproblem_3d(offset1,offset2,offset3,size1,size2,size3,du0,M0,kx0,ky0,kz0,dd0,opts);
-        
+
       // do the adding of subgrid to output
       if (nthr > opts.atomic_threshold)   // see above for debug reporting
         add_wrapped_subgrid_thread_safe(offset1,offset2,offset3,size1,size2,size3,N1,N2,N3,data_uniform,du0);   // R Blackwell's atomic version
@@ -1271,7 +1271,7 @@ int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
       free(du0);
       free(kx0);
       if (N2 > 1) free(ky0);
-      if (N3 > 1) free(kz0); 
+      if (N3 > 1) free(kz0);
     }     // end main loop over subprobs
   }   // end of choice of which t1 spread type to use
 
@@ -1287,7 +1287,7 @@ int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 
 // --------------------------------------------------------------------------
 template<typename FloatType>
-int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3, 
+int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 		      FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort)
 // Interpolate to NU pts in sorted order from a uniform grid.
@@ -1311,7 +1311,7 @@ int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
     FloatType kernel_values[3 * MAX_KERNEL_WIDTH];
     FloatType *ker1 = kernel_values;
     FloatType *ker2 = kernel_values + ns;
-    FloatType *ker3 = kernel_values + 2 * ns;       
+    FloatType *ker3 = kernel_values + 2 * ns;
 
     // Loop over interpolation chunks
     #pragma omp for schedule (dynamic,1000)  // assign threads to NU targ pts:
@@ -1325,9 +1325,9 @@ int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
         if(ndims >=2)
           yjlist[ibuf] = FOLD_AND_RESCALE(ky[j],N2,opts.pirange);
         if(ndims == 3)
-          zjlist[ibuf] = FOLD_AND_RESCALE(kz[j],N3,opts.pirange);                              
+          zjlist[ibuf] = FOLD_AND_RESCALE(kz[j],N3,opts.pirange);
       }
-      
+
       // Loop over targets in chunk
       for (int ibuf=0; ibuf<bufsize; ibuf++) {
         FloatType xj = xjlist[ibuf];
@@ -1335,12 +1335,12 @@ int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
         FloatType zj = (ndims > 2) ? zjlist[ibuf] : 0;
 
         FloatType *target = outbuf+2*ibuf;
-          
+
         // coords (x,y,z), spread block corner index (i1,i2,i3) of current NU targ
         int64_t i1=(int64_t)std::ceil(xj-ns2); // leftmost grid index
         int64_t i2= (ndims > 1) ? (int64_t)std::ceil(yj-ns2) : 0; // min y grid index
         int64_t i3= (ndims > 1) ? (int64_t)std::ceil(zj-ns2) : 0; // min z grid index
-      
+
         FloatType x1=(FloatType)i1-xj;           // shift of ker center, in [-w/2,-w/2+1]
         FloatType x2= (ndims > 1) ? (FloatType)i2-yj : 0 ;
         FloatType x3= (ndims > 2)? (FloatType)i3-zj : 0;
@@ -1350,11 +1350,11 @@ int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
           set_kernel_args(kernel_args, x1, opts);
           if(ndims > 1)  set_kernel_args(kernel_args+ns, x2, opts);
           if(ndims > 2)  set_kernel_args(kernel_args+2*ns, x3, opts);
-          
+
           evaluate_kernel_vector(kernel_values, kernel_args, opts, ndims*ns);
         } else {
           eval_kernel_vec_Horner(ker1,x1,ns,opts);
-          if (ndims > 1) eval_kernel_vec_Horner(ker2,x2,ns,opts);  
+          if (ndims > 1) eval_kernel_vec_Horner(ker2,x2,ns,opts);
           if (ndims > 2) eval_kernel_vec_Horner(ker3,x3,ns,opts);
         }
 
@@ -1378,14 +1378,14 @@ int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
           target[1] *= opts.kernel_scale;
         }
       }  // end loop over targets in chunk
-        
+
       // Copy result buffer to output array
       for (int ibuf=0; ibuf<bufsize; ibuf++) {
         int64_t j = jlist[ibuf];
         data_nonuniform[2*j] = outbuf[2*ibuf];
-        data_nonuniform[2*j+1] = outbuf[2*ibuf+1];              
-      }         
-        
+        data_nonuniform[2*j+1] = outbuf[2*ibuf+1];
+      }
+
     }  // end NU targ loop
   }  // end parallel section
 
@@ -1550,7 +1550,7 @@ void interp_square(FloatType *target,FloatType *du, FloatType *ker1, FloatType *
     }
   }
   target[0] = out[0];
-  target[1] = out[1];  
+  target[1] = out[1];
 }
 
 template<typename FloatType>
@@ -1565,7 +1565,7 @@ void interp_cube(FloatType *target,FloatType *du, FloatType *ker1, FloatType *ke
 // dx,dy,dz indices into ker array, j index in complex du array.
 // Barnett 6/16/17
 {
-  FloatType out[] = {0.0, 0.0};  
+  FloatType out[] = {0.0, 0.0};
   if (i1>=0 && i1+ns<=N1 && i2>=0 && i2+ns<=N2 && i3>=0 && i3+ns<=N3) {
     // no wrapping: avoid ptrs
     for (int dz=0; dz<ns; dz++) {
@@ -1599,7 +1599,7 @@ void interp_cube(FloatType *target,FloatType *du, FloatType *ker1, FloatType *ke
       int64_t oz = N1*N2*j3[dz];               // offset due to z
       for (int dy=0; dy<ns; dy++) {
 	int64_t oy = oz + N1*j2[dy];           // offset due to y & z
-	FloatType ker23 = ker2[dy]*ker3[dz];	
+	FloatType ker23 = ker2[dy]*ker3[dz];
 	for (int dx=0; dx<ns; dx++) {
 	  FloatType k = ker1[dx]*ker23;
 	  int64_t j = oy + j1[dx];
@@ -1610,7 +1610,7 @@ void interp_cube(FloatType *target,FloatType *du, FloatType *ker1, FloatType *ke
     }
   }
   target[0] = out[0];
-  target[1] = out[1];  
+  target[1] = out[1];
 }
 
 template<typename FloatType>
@@ -1689,7 +1689,7 @@ void spread_subproblem_2d(int64_t off1,int64_t off2,int64_t size1,int64_t size2,
   // values in two directions in a single kernel evaluation call.
   FloatType kernel_values[2*MAX_KERNEL_WIDTH];
   FloatType *ker1 = kernel_values;
-  FloatType *ker2 = kernel_values + ns;  
+  FloatType *ker2 = kernel_values + ns;
   for (int64_t i=0; i<M; i++) {           // loop over NU pts
     FloatType re0 = dd[2*i];
     FloatType im0 = dd[2*i+1];
@@ -1711,7 +1711,7 @@ void spread_subproblem_2d(int64_t off1,int64_t off2,int64_t size1,int64_t size2,
     for (int i = 0; i < ns; i++) {
       ker1val[2*i] = re0*ker1[i];
       ker1val[2*i+1] = im0*ker1[i];
-    }    
+    }
     // critical inner loop:
     for (int dy=0; dy<ns; ++dy) {
       int64_t j = size1*(i2-off2+dy) + i1-off1;   // should be in subgrid
@@ -1719,7 +1719,7 @@ void spread_subproblem_2d(int64_t off1,int64_t off2,int64_t size1,int64_t size2,
       FloatType *trg = du+2*j;
       for (int dx=0; dx<2*ns; ++dx) {
 	trg[dx] += kerval*ker1val[dx];
-      }	
+      }
     }
   }
 }
@@ -1746,7 +1746,7 @@ void spread_subproblem_3d(int64_t off1,int64_t off2,int64_t off3,int64_t size1,
   FloatType kernel_values[3*MAX_KERNEL_WIDTH];
   FloatType *ker1 = kernel_values;
   FloatType *ker2 = kernel_values + ns;
-  FloatType *ker3 = kernel_values + 2*ns;  
+  FloatType *ker3 = kernel_values + 2*ns;
   for (int64_t i=0; i<M; i++) {           // loop over NU pts
     FloatType re0 = dd[2*i];
     FloatType im0 = dd[2*i+1];
@@ -1771,8 +1771,8 @@ void spread_subproblem_3d(int64_t off1,int64_t off2,int64_t off3,int64_t size1,
     FloatType ker1val[2*MAX_KERNEL_WIDTH];    // here 2* is because of complex
     for (int i = 0; i < ns; i++) {
       ker1val[2*i] = re0*ker1[i];
-      ker1val[2*i+1] = im0*ker1[i];	
-    }    
+      ker1val[2*i+1] = im0*ker1[i];
+    }
     // critical inner loop:
     for (int dz=0; dz<ns; ++dz) {
       int64_t oz = size1*size2*(i3-off3+dz);        // offset due to z
@@ -1782,7 +1782,7 @@ void spread_subproblem_3d(int64_t off1,int64_t off2,int64_t off3,int64_t size1,
 	FloatType *trg = du+2*j;
 	for (int dx=0; dx<2*ns; ++dx) {
 	  trg[dx] += kerval*ker1val[dx];
-	}	
+	}
       }
     }
   }
@@ -1901,7 +1901,7 @@ void get_subgrid(int64_t &offset1,int64_t &offset2,int64_t &offset3,int64_t &siz
               assumed to be in [0,Nj] for dimension j=1,..,ndims.
    ns - (positive integer) spreading kernel width.
    ndims - space dimension (1,2, or 3).
-   
+
  Outputs:
    offset1,2,3 - left-most coord of cuboid in each dimension (up to ndims)
    size1,2,3   - size of cuboid in each dimension.

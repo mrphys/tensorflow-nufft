@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright 2021 University College London. All Rights Reserved.
+# Copyright 2021 The TensorFlow NUFFT Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ function main() {
   cp ${PIP_FILE_PREFIX}setup.py "${TMPDIR}"
   cp ${PIP_FILE_PREFIX}MANIFEST.in "${TMPDIR}"
   cp ${PIP_FILE_PREFIX}LICENSE "${TMPDIR}"
-  cp ${PIP_FILE_PREFIX}README.rst "${TMPDIR}"
+  cp ${PIP_FILE_PREFIX}README.md "${TMPDIR}"
   cp ${PIP_FILE_PREFIX}requirements.txt "${TMPDIR}"
   rsync -avm -L --exclude='*.h' --exclude='*.cc' --exclude='*.o'              \
     --exclude='*.inc' --exclude='*.cpp' --exclude='*.a' --exclude='*.txt'     \

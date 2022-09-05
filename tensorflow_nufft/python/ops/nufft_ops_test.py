@@ -1,4 +1,4 @@
-# Copyright 2021 University College London. All Rights Reserved.
+# Copyright 2021 The TensorFlow NUFFT Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import numpy as np
 import tensorflow as tf
 
 from tensorflow_nufft.python.ops import nufft_ops
+from tensorflow_nufft.python.ops import nufft_options
 
 
 def parameterized(**params):
@@ -58,6 +59,27 @@ def parameterized(**params):
 
 class NUFFTOpsTest(tf.test.TestCase):
   """Test case for NUFFT functions."""
+  def test_nufft_with_options(self):
+    """Test NUFFT with options"""
+    source = tf.dtypes.complex(
+        tf.random.stateless_normal([8, 20, 20], seed=[0, 0]),
+        tf.random.stateless_normal([8, 20, 20], seed=[0, 0]))
+    points = tf.random.stateless_uniform(
+        [8, 400, 2], minval=-np.pi, maxval=np.pi, seed=[0, 0])
+    target1 = nufft_ops.nufft(source, points)
+
+    rtol, atol = 1e-4, 1e-4
+
+    options = nufft_options.Options()
+    options.max_batch_size = 2
+    target2 = nufft_ops.nufft(source, points, options=options)
+    self.assertAllClose(target1, target2, rtol=rtol, atol=atol)
+
+    options = nufft_options.Options()
+    options.fftw.planning_rigor = nufft_options.FftwPlanningRigor.PATIENT
+    target2 = nufft_ops.nufft(source, points, options=options)
+    self.assertAllClose(target1, target2, rtol=rtol, atol=atol)
+
 
   @parameterized(grid_shape=[[10, 16], [10, 10, 8]],
                  source_batch_shape=[[], [2, 4], [4]],

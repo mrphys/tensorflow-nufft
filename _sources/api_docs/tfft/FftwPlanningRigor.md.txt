@@ -1,0 +1,11 @@
+﻿# tfft.FftwPlanningRigor
+
+```{currentmodule} tensorflow_nufft
+```
+
+```{autoclass} FftwPlanningRigor
+---
+members:
+show-inheritance:
+---
+```

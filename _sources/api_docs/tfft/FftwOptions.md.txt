@@ -1,0 +1,11 @@
+﻿# tfft.FftwOptions
+
+```{currentmodule} tensorflow_nufft
+```
+
+```{autoclass} FftwOptions
+---
+members:
+show-inheritance:
+---
+```

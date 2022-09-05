@@ -1,0 +1,405 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+<meta content="8PySedj6KJ0kc5qC1CbO6_9blFB9Nho3SgXvbRzyVOU" name="google-site-verification" />
+
+    <title>tfft.spread &#8212; TensorFlow NUFFT Documentation</title>
+    
+    <link href="../../../_static/styles/theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+  
+    
+    <link rel="stylesheet"
+      href="../../../_static/vendor/fontawesome/5.13.0/css/all.min.css">
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+      href="../../../_static/vendor/fontawesome/5.13.0/webfonts/fa-solid-900.woff2">
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+      href="../../../_static/vendor/fontawesome/5.13.0/webfonts/fa-brands-400.woff2">
+  
+    
+      
+  
+    
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../../_static/styles/sphinx-book-theme.css?digest=5115cc725059bd94278eecd172e13a965bf8f5a9" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/mystnb.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/togglebutton.css" />
+    
+    <link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf">
+  
+    <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+    <script src="../../../_static/jquery.js"></script>
+    <script src="../../../_static/underscore.js"></script>
+    <script src="../../../_static/doctools.js"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../../../_static/togglebutton.js"></script>
+    <script src="../../../_static/scripts/sphinx-book-theme.js?digest=9c920249402e914e316237a7dbc6769907cce411"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown, .tag_hide_input div.cell_input, .tag_hide-input div.cell_input, .tag_hide_output div.cell_output, .tag_hide-output div.cell_output, .tag_hide_cell.cell, .tag_hide-cell.cell';</script>
+    <link rel="index" title="Index" href="../../../genindex/" />
+    <link rel="search" title="Search" href="../../../search/" />
+    <link rel="next" title="Example: MRI Application" href="../../../examples/mri_app/" />
+    <link rel="prev" title="tfft.nufft" href="../nufft/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="docsearch:language" content="en">
+    
+
+    <!-- Google Analytics -->
+    
+  </head>
+  <body data-spy="scroll" data-target="#bd-toc-nav" data-offset="80">
+<!-- Checkboxes to toggle the left sidebar -->
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle navigation sidebar">
+<label class="overlay overlay-navbar" for="__navigation">
+    <div class="visually-hidden">Toggle navigation sidebar</div>
+</label>
+<!-- Checkboxes to toggle the in-page toc -->
+<input type="checkbox" class="sidebar-toggle" name="__page-toc" id="__page-toc" aria-label="Toggle in-page Table of Contents">
+<label class="overlay overlay-pagetoc" for="__page-toc">
+    <div class="visually-hidden">Toggle in-page Table of Contents</div>
+</label>
+<!-- Headers at the top -->
+<div class="announcement header-item noprint"></div>
+<div class="header header-item noprint"></div>
+
+    
+    <div class="container-fluid" id="banner"></div>
+
+    
+
+    <div class="container-xl">
+      <div class="row">
+          
+<!-- Sidebar -->
+<div class="bd-sidebar noprint" id="site-navigation">
+    <div class="bd-sidebar__content">
+        <div class="bd-sidebar__top"><div class="navbar-brand-box">
+    <a class="navbar-brand text-wrap" href="../../../">
+      
+      
+      
+      <h1 class="site-logo" id="site-title">TensorFlow NUFFT Documentation</h1>
+      
+    </a>
+</div><form class="bd-search d-flex align-items-center" action="../../../search/" method="get">
+  <i class="icon fas fa-search"></i>
+  <input type="search" class="form-control" name="q" id="search-input" placeholder="Search the docs ..." aria-label="Search the docs ..." autocomplete="off" >
+</form><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item active">
+        <p class="caption" role="heading">
+ <span class="caption-text">
+  Guide
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../guide/start/">
+   Get started
+  </a>
+ </li>
+</ul>
+<p class="caption" role="heading">
+ <span class="caption-text">
+  API Documentation
+ </span>
+</p>
+<ul class="current nav bd-sidenav">
+ <li class="toctree-l1 current active has-children">
+  <a class="reference internal" href="../">
+   tfft
+  </a>
+  <input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/>
+  <label for="toctree-checkbox-1">
+   <i class="fas fa-chevron-down">
+   </i>
+  </label>
+  <ul class="current">
+   <li class="toctree-l2">
+    <a class="reference internal" href="../FftwOptions/">
+     FftwOptions
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../FftwPlanningRigor/">
+     FftwPlanningRigor
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../Options/">
+     Options
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../interp/">
+     interp
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../nudft/">
+     nudft
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../nufft/">
+     nufft
+    </a>
+   </li>
+   <li class="toctree-l2 current active">
+    <a class="current reference internal" href="#">
+     spread
+    </a>
+   </li>
+  </ul>
+ </li>
+</ul>
+<p class="caption" role="heading">
+ <span class="caption-text">
+  Examples
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../../examples/mri_app/">
+   Example: MRI Application
+  </a>
+ </li>
+</ul>
+
+    </div>
+</nav></div>
+        <div class="bd-sidebar__bottom">
+             <!-- To handle the deprecated key -->
+            
+            <div class="navbar_extra_footer">
+            Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a>
+            </div>
+            
+        </div>
+    </div>
+    <div id="rtd-footer-container"></div>
+</div>
+
+
+          
+
+
+          
+<!-- A tiny helper pixel to detect if we've scrolled -->
+<div class="sbt-scroll-pixel-helper"></div>
+<!-- Main content -->
+<div class="col py-0 content-container">
+    
+    <div class="header-article row sticky-top noprint">
+        
+
+
+
+<div class="col py-1 d-flex header-article-main">
+    <div class="header-article__left">
+        
+        <label for="__navigation"
+  class="headerbtn"
+  data-toggle="tooltip"
+data-placement="right"
+title="Toggle navigation"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-bars"></i>
+  </span>
+
+</label>
+
+        
+    </div>
+    <div class="header-article__right">
+<button onclick="toggleFullScreen()"
+  class="headerbtn"
+  data-toggle="tooltip"
+data-placement="bottom"
+title="Fullscreen mode"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+<a href="https://github.com/mrphys/tensorflow-nufft"
+   class="headerbtn"
+   data-toggle="tooltip"
+data-placement="bottom"
+title="Source repository"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+<div class="menu-dropdown menu-dropdown-download-buttons">
+  <button class="headerbtn menu-dropdown__trigger"
+      aria-label="Download this page">
+      <i class="fas fa-download"></i>
+  </button>
+  <div class="menu-dropdown__content">
+    <ul>
+      <li>
+        <a href="../../../_sources/api_docs/tfft/spread.md.txt"
+   class="headerbtn"
+   data-toggle="tooltip"
+data-placement="left"
+title="Download source file"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="headerbtn__text-container">.md</span>
+</a>
+
+      </li>
+      
+      <li>
+        
+<button onclick="printPdf(this)"
+  class="headerbtn"
+  data-toggle="tooltip"
+data-placement="left"
+title="Print to PDF"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="headerbtn__text-container">.pdf</span>
+</button>
+
+      </li>
+      
+    </ul>
+  </div>
+</div>
+
+    </div>
+</div>
+
+<!-- Table of contents -->
+<div class="col-md-3 bd-toc show noprint">
+</div>
+    </div>
+    <div class="article row">
+        <div class="col pl-md-3 pl-lg-5 content-container">
+            <!-- Table of contents that is only displayed when printing the page -->
+            <div id="jb-print-docs-body" class="onlyprint">
+                <h1>tfft.spread</h1>
+                <!-- Table of contents -->
+                <div id="print-main-content">
+                    <div id="jb-print-toc">
+                        
+                    </div>
+                </div>
+            </div>
+            <main id="main-content" role="main">
+                
+              <div>
+                
+  <section class="tex2jax_ignore mathjax_ignore" id="tfft-spread">
+<h1>tfft.spread<a class="headerlink" href="#tfft-spread" title="Permalink to this headline">¶</a></h1>
+<dl class="py function">
+<dt class="sig sig-object py" id="tensorflow_nufft.spread">
+<span class="sig-name descname"><span class="pre">spread</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">points</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid_shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tensorflow_nufft.spread" title="Permalink to this definition">¶</a></dt>
+<dd><p>Spread an arbitrary set of points into a regular grid.</p>
+<p>This function can be used to perform the spreading step of the NUFFT, without
+the FFT or the deconvolution.</p>
+<p>See also <a class="reference external" href="https://mrphys.github.io/tensorflow-nufft/api_docs/tfft/nufft"><code class="docutils literal notranslate"><span class="pre">tfft.nufft</span></code></a>, <code class="docutils literal notranslate"><span class="pre">tfft.interp</span></code>.</p>
+<dl class="myst field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>source</strong> – A <code class="docutils literal notranslate"><span class="pre">Tensor</span></code>. Must be one of the following types: <code class="docutils literal notranslate"><span class="pre">complex64</span></code>, <code class="docutils literal notranslate"><span class="pre">complex128</span></code>.
+The source point set. Must have shape <code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">M]</span></code>, where <code class="docutils literal notranslate"><span class="pre">M</span></code> is the
+number of non-uniform points and <code class="docutils literal notranslate"><span class="pre">...</span></code> is any number of batch dimensions.</p></li>
+<li><p><strong>points</strong> – A <code class="docutils literal notranslate"><span class="pre">Tensor</span></code>. Must be one of the following types: <code class="docutils literal notranslate"><span class="pre">float32</span></code>, <code class="docutils literal notranslate"><span class="pre">float64</span></code>.
+The source non-uniform point coordinates. Must have shape <code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">M,</span> <span class="pre">N]</span></code>,
+where <code class="docutils literal notranslate"><span class="pre">M</span></code> is the number of non-uniform points, <code class="docutils literal notranslate"><span class="pre">N</span></code> is the rank of the grid and
+<code class="docutils literal notranslate"><span class="pre">...</span></code> is any number of batch dimensions, which must be broadcastable with the
+batch dimensions of <code class="docutils literal notranslate"><span class="pre">source</span></code>. <code class="docutils literal notranslate"><span class="pre">N</span></code> must be 1, 2 or 3 and must be equal to the
+rank of <code class="docutils literal notranslate"><span class="pre">grid_shape</span></code>. The non-uniform coordinates must be in units of
+radians/pixel, i.e., in the range <code class="docutils literal notranslate"><span class="pre">[-pi,</span> <span class="pre">pi]</span></code>.</p></li>
+<li><p><strong>grid_shape</strong> – A <code class="docutils literal notranslate"><span class="pre">Tensor</span></code>. Must be one of the following types: <code class="docutils literal notranslate"><span class="pre">int32</span></code>, <code class="docutils literal notranslate"><span class="pre">int64</span></code>.
+The shape of the output grid.</p></li>
+<li><p><strong>tol</strong> – An optional <code class="docutils literal notranslate"><span class="pre">float</span></code>. Defaults to <code class="docutils literal notranslate"><span class="pre">1e-06</span></code>.
+The desired relative precision. Should be in the range <code class="docutils literal notranslate"><span class="pre">[1e-06,</span> <span class="pre">1e-01]</span></code>
+for <code class="docutils literal notranslate"><span class="pre">complex64</span></code> types and <code class="docutils literal notranslate"><span class="pre">[1e-14,</span> <span class="pre">1e-01]</span></code> for <code class="docutils literal notranslate"><span class="pre">complex128</span></code> types. The
+computation may take longer for smaller values of <code class="docutils literal notranslate"><span class="pre">tol</span></code>.</p></li>
+<li><p><strong>name</strong> – A name for the operation (optional).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>A <code class="docutils literal notranslate"><span class="pre">Tensor</span></code>. Has the same type as <code class="docutils literal notranslate"><span class="pre">source</span></code>.
+The target grid. Has shape <code class="docutils literal notranslate"><span class="pre">[...]</span> <span class="pre">+</span> <span class="pre">grid_shape</span></code>, where the batch shape
+<code class="docutils literal notranslate"><span class="pre">...</span></code> is the result of broadcasting the batch shapes of <code class="docutils literal notranslate"><span class="pre">source</span></code> and <code class="docutils literal notranslate"><span class="pre">points</span></code>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+              </div>
+              
+            </main>
+            <footer class="footer-article noprint">
+                
+    <!-- Previous / next buttons -->
+<div class='prev-next-area'>
+    <a class='left-prev' id="prev-link" href="../nufft/" title="previous page">
+        <i class="fas fa-angle-left"></i>
+        <div class="prev-next-info">
+            <p class="prev-next-subtitle">previous</p>
+            <p class="prev-next-title">tfft.nufft</p>
+        </div>
+    </a>
+    <a class='right-next' id="next-link" href="../../../examples/mri_app/" title="next page">
+    <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Example: MRI Application</p>
+    </div>
+    <i class="fas fa-angle-right"></i>
+    </a>
+</div>
+            </footer>
+        </div>
+    </div>
+    <div class="footer-content row">
+        <footer class="col footer"><p>
+  
+    By Javier Montalt Tordera<br/>
+  
+      &copy; Copyright 2021 The TensorFlow NUFFT Authors.<br/>
+</p>
+        </footer>
+    </div>
+    
+</div>
+
+
+      </div>
+    </div>
+  
+    <script src="../../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf"></script>
+  
+
+  </body>
+</html>

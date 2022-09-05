@@ -1,6 +1,0 @@
-﻿tfft.spread
-===========
-
-.. currentmodule:: tfft
-
-.. autofunction:: spread

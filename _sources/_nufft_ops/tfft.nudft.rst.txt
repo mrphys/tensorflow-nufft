@@ -1,6 +1,0 @@
-﻿tfft.nudft
-==========
-
-.. currentmodule:: tfft
-
-.. autofunction:: nudft

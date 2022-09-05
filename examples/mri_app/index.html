@@ -1,0 +1,621 @@
+
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+<meta content="8PySedj6KJ0kc5qC1CbO6_9blFB9Nho3SgXvbRzyVOU" name="google-site-verification" />
+
+    <title>Example: MRI Application &#8212; TensorFlow NUFFT Documentation</title>
+    
+    <link href="../../_static/styles/theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
+  
+    
+    <link rel="stylesheet"
+      href="../../_static/vendor/fontawesome/5.13.0/css/all.min.css">
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+      href="../../_static/vendor/fontawesome/5.13.0/webfonts/fa-solid-900.woff2">
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+      href="../../_static/vendor/fontawesome/5.13.0/webfonts/fa-brands-400.woff2">
+  
+    
+      
+  
+    
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" href="../../_static/styles/sphinx-book-theme.css?digest=5115cc725059bd94278eecd172e13a965bf8f5a9" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/mystnb.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/togglebutton.css" />
+    
+    <link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf">
+  
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../../_static/togglebutton.js"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?digest=9c920249402e914e316237a7dbc6769907cce411"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown, .tag_hide_input div.cell_input, .tag_hide-input div.cell_input, .tag_hide_output div.cell_output, .tag_hide-output div.cell_output, .tag_hide_cell.cell, .tag_hide-cell.cell';</script>
+    <link rel="index" title="Index" href="../../genindex/" />
+    <link rel="search" title="Search" href="../../search/" />
+    <link rel="prev" title="tfft.spread" href="../../api_docs/tfft/spread/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="docsearch:language" content="en">
+    
+
+    <!-- Google Analytics -->
+    
+  </head>
+  <body data-spy="scroll" data-target="#bd-toc-nav" data-offset="80">
+<!-- Checkboxes to toggle the left sidebar -->
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle navigation sidebar">
+<label class="overlay overlay-navbar" for="__navigation">
+    <div class="visually-hidden">Toggle navigation sidebar</div>
+</label>
+<!-- Checkboxes to toggle the in-page toc -->
+<input type="checkbox" class="sidebar-toggle" name="__page-toc" id="__page-toc" aria-label="Toggle in-page Table of Contents">
+<label class="overlay overlay-pagetoc" for="__page-toc">
+    <div class="visually-hidden">Toggle in-page Table of Contents</div>
+</label>
+<!-- Headers at the top -->
+<div class="announcement header-item noprint"></div>
+<div class="header header-item noprint"></div>
+
+    
+    <div class="container-fluid" id="banner"></div>
+
+    
+
+    <div class="container-xl">
+      <div class="row">
+          
+<!-- Sidebar -->
+<div class="bd-sidebar noprint" id="site-navigation">
+    <div class="bd-sidebar__content">
+        <div class="bd-sidebar__top"><div class="navbar-brand-box">
+    <a class="navbar-brand text-wrap" href="../../">
+      
+      
+      
+      <h1 class="site-logo" id="site-title">TensorFlow NUFFT Documentation</h1>
+      
+    </a>
+</div><form class="bd-search d-flex align-items-center" action="../../search/" method="get">
+  <i class="icon fas fa-search"></i>
+  <input type="search" class="form-control" name="q" id="search-input" placeholder="Search the docs ..." aria-label="Search the docs ..." autocomplete="off" >
+</form><nav class="bd-links" id="bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item active">
+        <p class="caption" role="heading">
+ <span class="caption-text">
+  Guide
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1">
+  <a class="reference internal" href="../../guide/start/">
+   Get started
+  </a>
+ </li>
+</ul>
+<p class="caption" role="heading">
+ <span class="caption-text">
+  API Documentation
+ </span>
+</p>
+<ul class="nav bd-sidenav">
+ <li class="toctree-l1 has-children">
+  <a class="reference internal" href="../../api_docs/tfft/">
+   tfft
+  </a>
+  <input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/>
+  <label for="toctree-checkbox-1">
+   <i class="fas fa-chevron-down">
+   </i>
+  </label>
+  <ul>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../api_docs/tfft/FftwOptions/">
+     FftwOptions
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../api_docs/tfft/FftwPlanningRigor/">
+     FftwPlanningRigor
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../api_docs/tfft/Options/">
+     Options
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../api_docs/tfft/interp/">
+     interp
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../api_docs/tfft/nudft/">
+     nudft
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../api_docs/tfft/nufft/">
+     nufft
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../../api_docs/tfft/spread/">
+     spread
+    </a>
+   </li>
+  </ul>
+ </li>
+</ul>
+<p class="caption" role="heading">
+ <span class="caption-text">
+  Examples
+ </span>
+</p>
+<ul class="current nav bd-sidenav">
+ <li class="toctree-l1 current active">
+  <a class="current reference internal" href="#">
+   Example: MRI Application
+  </a>
+ </li>
+</ul>
+
+    </div>
+</nav></div>
+        <div class="bd-sidebar__bottom">
+             <!-- To handle the deprecated key -->
+            
+            <div class="navbar_extra_footer">
+            Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a>
+            </div>
+            
+        </div>
+    </div>
+    <div id="rtd-footer-container"></div>
+</div>
+
+
+          
+
+
+          
+<!-- A tiny helper pixel to detect if we've scrolled -->
+<div class="sbt-scroll-pixel-helper"></div>
+<!-- Main content -->
+<div class="col py-0 content-container">
+    
+    <div class="header-article row sticky-top noprint">
+        
+
+
+
+<div class="col py-1 d-flex header-article-main">
+    <div class="header-article__left">
+        
+        <label for="__navigation"
+  class="headerbtn"
+  data-toggle="tooltip"
+data-placement="right"
+title="Toggle navigation"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-bars"></i>
+  </span>
+
+</label>
+
+        
+    </div>
+    <div class="header-article__right">
+<div class="menu-dropdown menu-dropdown-launch-buttons">
+  <button class="headerbtn menu-dropdown__trigger"
+      aria-label="Launch interactive content">
+      <i class="fas fa-rocket"></i>
+  </button>
+  <div class="menu-dropdown__content">
+    <ul>
+      <li>
+        <a href="https://colab.research.google.com/github/mrphys/tensorflow-nufft/blob/master/docs/examples/mri_app.ipynb"
+   class="headerbtn"
+   data-toggle="tooltip"
+data-placement="left"
+title="Launch on Colab"
+>
+  
+
+<span class="headerbtn__icon-container">
+  
+    <img src="../../_static/images/logo_colab.png">
+  </span>
+<span class="headerbtn__text-container">Colab</span>
+</a>
+
+      </li>
+      
+    </ul>
+  </div>
+</div>
+
+<button onclick="toggleFullScreen()"
+  class="headerbtn"
+  data-toggle="tooltip"
+data-placement="bottom"
+title="Fullscreen mode"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+<a href="https://github.com/mrphys/tensorflow-nufft"
+   class="headerbtn"
+   data-toggle="tooltip"
+data-placement="bottom"
+title="Source repository"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+
+</a>
+
+<div class="menu-dropdown menu-dropdown-download-buttons">
+  <button class="headerbtn menu-dropdown__trigger"
+      aria-label="Download this page">
+      <i class="fas fa-download"></i>
+  </button>
+  <div class="menu-dropdown__content">
+    <ul>
+      <li>
+        <a href="../../_sources/examples/mri_app.ipynb.txt"
+   class="headerbtn"
+   data-toggle="tooltip"
+data-placement="left"
+title="Download source file"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="headerbtn__text-container">.ipynb</span>
+</a>
+
+      </li>
+      
+      <li>
+        
+<button onclick="printPdf(this)"
+  class="headerbtn"
+  data-toggle="tooltip"
+data-placement="left"
+title="Print to PDF"
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="headerbtn__text-container">.pdf</span>
+</button>
+
+      </li>
+      
+    </ul>
+  </div>
+</div>
+<label for="__page-toc"
+  class="headerbtn headerbtn-page-toc"
+  
+>
+  
+
+<span class="headerbtn__icon-container">
+  <i class="fas fa-list"></i>
+  </span>
+
+</label>
+
+    </div>
+</div>
+
+<!-- Table of contents -->
+<div class="col-md-3 bd-toc show noprint">
+    <div class="tocsection onthispage pt-5 pb-3">
+        <i class="fas fa-list"></i> Contents
+    </div>
+    <nav id="bd-toc-nav" aria-label="Page">
+        <ul class="visible nav section-nav flex-column">
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#prepare-data">
+   Prepare data
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#forward-transform-image-to-k-space">
+   Forward transform (image to
+   <em>
+    k
+   </em>
+   -space)
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#adjoint-transform-k-space-to-image">
+   Adjoint transform (
+   <em>
+    k
+   </em>
+   -space to image)
+  </a>
+ </li>
+</ul>
+
+    </nav>
+</div>
+    </div>
+    <div class="article row">
+        <div class="col pl-md-3 pl-lg-5 content-container">
+            <!-- Table of contents that is only displayed when printing the page -->
+            <div id="jb-print-docs-body" class="onlyprint">
+                <h1>Example: MRI Application</h1>
+                <!-- Table of contents -->
+                <div id="print-main-content">
+                    <div id="jb-print-toc">
+                        
+                        <div>
+                            <h2> Contents </h2>
+                        </div>
+                        <nav aria-label="Page">
+                            <ul class="visible nav section-nav flex-column">
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#prepare-data">
+   Prepare data
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#forward-transform-image-to-k-space">
+   Forward transform (image to
+   <em>
+    k
+   </em>
+   -space)
+  </a>
+ </li>
+ <li class="toc-h2 nav-item toc-entry">
+  <a class="reference internal nav-link" href="#adjoint-transform-k-space-to-image">
+   Adjoint transform (
+   <em>
+    k
+   </em>
+   -space to image)
+  </a>
+ </li>
+</ul>
+
+                        </nav>
+                    </div>
+                </div>
+            </div>
+            <main id="main-content" role="main">
+                
+              <div>
+                
+  <section class="tex2jax_ignore mathjax_ignore" id="example-mri-application">
+<h1>Example: MRI Application<a class="headerlink" href="#example-mri-application" title="Permalink to this headline">¶</a></h1>
+<p>In this example we take an image of the Shepp-Logan phantom and we evaluate the
+forward NUFFT on a set of points defining a radial <em>k</em>-space trajectory. Then,
+we use the the adjoint NUFFT to recover the image from the radial <em>k</em>-space
+data.</p>
+<section id="prepare-data">
+<h2>Prepare data<a class="headerlink" href="#prepare-data" title="Permalink to this headline">¶</a></h2>
+<p>Let’s begin by creating an example image. We will use a Shepp-Logan phantom,
+generated using <a class="reference external" href="https://pypi.org/project/tensorflow-mri/">TensorFlow MRI</a>.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">tensorflow</span> <span class="k">as</span> <span class="nn">tf</span>
+<span class="kn">import</span> <span class="nn">tensorflow_mri</span> <span class="k">as</span> <span class="nn">tfmri</span>
+
+<span class="n">grid_shape</span> <span class="o">=</span> <span class="p">[</span><span class="mi">256</span><span class="p">,</span> <span class="mi">256</span><span class="p">]</span>
+<span class="n">image</span> <span class="o">=</span> <span class="n">tfmri</span><span class="o">.</span><span class="n">image</span><span class="o">.</span><span class="n">phantom</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="n">grid_shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">tf</span><span class="o">.</span><span class="n">complex64</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;image: </span><span class="se">\n</span><span class="s2"> - shape: </span><span class="si">{}</span><span class="se">\n</span><span class="s2"> - dtype: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">image</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">image</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>image: 
+ - shape: (256, 256)
+ - dtype: &lt;dtype: &#39;complex64&#39;&gt;
+</pre></div>
+</div>
+</div>
+</div>
+<p>Let us also create a <em>k</em>-space trajectory. In this example we will create a
+radial trajectory, also using TensorFlow MRI.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">points</span> <span class="o">=</span> <span class="n">tfmri</span><span class="o">.</span><span class="n">sampling</span><span class="o">.</span><span class="n">radial_trajectory</span><span class="p">(</span><span class="n">base_resolution</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span> <span class="n">views</span><span class="o">=</span><span class="mi">233</span><span class="p">)</span>
+<span class="n">points</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">points</span><span class="p">,</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;points: </span><span class="se">\n</span><span class="s2"> - shape: </span><span class="si">{}</span><span class="se">\n</span><span class="s2"> - dtype: </span><span class="si">{}</span><span class="se">\n</span><span class="s2"> - range: [</span><span class="si">{}</span><span class="s2">, </span><span class="si">{}</span><span class="s2">]&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+    <span class="n">points</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">points</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+    <span class="n">tf</span><span class="o">.</span><span class="n">math</span><span class="o">.</span><span class="n">reduce_min</span><span class="p">(</span><span class="n">points</span><span class="p">),</span> <span class="n">tf</span><span class="o">.</span><span class="n">math</span><span class="o">.</span><span class="n">reduce_max</span><span class="p">(</span><span class="n">points</span><span class="p">)))</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>points: 
+ - shape: (119296, 2)
+ - dtype: &lt;dtype: &#39;float32&#39;&gt;
+ - range: [-3.1415927410125732, 3.141521453857422]
+</pre></div>
+</div>
+</div>
+</div>
+<p>The trajectory should have shape <code class="docutils literal notranslate"><span class="pre">[...,</span> <span class="pre">M,</span> <span class="pre">N]</span></code>, where <code class="docutils literal notranslate"><span class="pre">M</span></code> is the number of
+points and <code class="docutils literal notranslate"><span class="pre">N</span></code> is the number of dimensions. Any additional dimensions <code class="docutils literal notranslate"><span class="pre">...</span></code> will
+be treated as batch dimensions.</p>
+<p>Batch dimensions for <code class="docutils literal notranslate"><span class="pre">image</span></code> and <code class="docutils literal notranslate"><span class="pre">traj</span></code>, if any, will be broadcasted.</p>
+<p>Spatial frequencies should be provided in radians/voxel, ie, in the range
+<code class="docutils literal notranslate"><span class="pre">[-pi,</span> <span class="pre">pi]</span></code>.</p>
+<p>Finally, we’ll also need density compensation weights for our set of nonuniform
+points. These are necessary in the adjoint transform, to compensate for the fact
+that the sampling density in a radial trajectory is not uniform. Here we use
+<code class="docutils literal notranslate"><span class="pre">tensorflow-mri</span></code> to calculate these weights.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">weights</span> <span class="o">=</span> <span class="n">tfmri</span><span class="o">.</span><span class="n">sampling</span><span class="o">.</span><span class="n">radial_density</span><span class="p">(</span><span class="n">base_resolution</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span> <span class="n">views</span><span class="o">=</span><span class="mi">233</span><span class="p">)</span>
+<span class="n">weights</span> <span class="o">=</span> <span class="n">tf</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">weights</span><span class="p">,</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;weights: </span><span class="se">\n</span><span class="s2"> - shape: </span><span class="si">{}</span><span class="se">\n</span><span class="s2"> - dtype: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">weights</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">weights</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>weights: 
+ - shape: (119296,)
+ - dtype: &lt;dtype: &#39;float32&#39;&gt;
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+<section id="forward-transform-image-to-k-space">
+<h2>Forward transform (image to <em>k</em>-space)<a class="headerlink" href="#forward-transform-image-to-k-space" title="Permalink to this headline">¶</a></h2>
+<p>Next, let’s calculate the k-space coefficients for the given image and trajectory points (image to k-space transform).</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">tensorflow_nufft</span> <span class="k">as</span> <span class="nn">tfft</span>
+
+<span class="n">kspace</span> <span class="o">=</span> <span class="n">tfft</span><span class="o">.</span><span class="n">nufft</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">points</span><span class="p">,</span>
+                    <span class="n">transform_type</span><span class="o">=</span><span class="s1">&#39;type_2&#39;</span><span class="p">,</span>
+                    <span class="n">fft_direction</span><span class="o">=</span><span class="s1">&#39;forward&#39;</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;kspace: </span><span class="se">\n</span><span class="s2"> - shape: </span><span class="si">{}</span><span class="se">\n</span><span class="s2"> - dtype: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">kspace</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">kspace</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>kspace: 
+ - shape: (119296,)
+ - dtype: &lt;dtype: &#39;complex64&#39;&gt;
+</pre></div>
+</div>
+</div>
+</div>
+<p>We are using a type-2 transform (uniform to nonuniform) and a forward FFT
+(image domain to frequency domain). These are the default values for
+<code class="docutils literal notranslate"><span class="pre">transform_type</span></code> and <code class="docutils literal notranslate"><span class="pre">fft_direction</span></code>, so providing them was not necessary in
+this case.</p>
+</section>
+<section id="adjoint-transform-k-space-to-image">
+<h2>Adjoint transform (<em>k</em>-space to image)<a class="headerlink" href="#adjoint-transform-k-space-to-image" title="Permalink to this headline">¶</a></h2>
+<p>We will now perform the adjoint transform to recover the image given the
+<em>k</em>-space data. In this case, we will use a type-1 transform (nonuniform to
+uniform) and a backward FFT (frequency domain to image domain). Also note that,
+prior to evaluating the NUFFT, we will compensate for the nonuniform sampling
+density by simply dividing the <em>k</em>-space samples by the density weights.
+Finally, for type-1 transforms we need to specify an additional <code class="docutils literal notranslate"><span class="pre">grid_shape</span></code>
+argument, which should be the size of the image. If there are any batch
+dimensions, <code class="docutils literal notranslate"><span class="pre">grid_shape</span></code> should <strong>not</strong> include them.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Apply density compensation.</span>
+<span class="n">comp_kspace</span> <span class="o">=</span> <span class="n">kspace</span> <span class="o">/</span> <span class="n">tf</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">weights</span><span class="p">,</span> <span class="n">tf</span><span class="o">.</span><span class="n">complex64</span><span class="p">)</span>
+
+<span class="n">recon</span> <span class="o">=</span> <span class="n">tfft</span><span class="o">.</span><span class="n">nufft</span><span class="p">(</span><span class="n">comp_kspace</span><span class="p">,</span> <span class="n">points</span><span class="p">,</span>
+                   <span class="n">grid_shape</span><span class="o">=</span><span class="n">grid_shape</span><span class="p">,</span>
+                   <span class="n">transform_type</span><span class="o">=</span><span class="s1">&#39;type_1&#39;</span><span class="p">,</span>
+                   <span class="n">fft_direction</span><span class="o">=</span><span class="s1">&#39;backward&#39;</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;recon: </span><span class="se">\n</span><span class="s2"> - shape: </span><span class="si">{}</span><span class="se">\n</span><span class="s2"> - dtype: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">recon</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">recon</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>recon: 
+ - shape: (256, 256)
+ - dtype: &lt;dtype: &#39;complex64&#39;&gt;
+</pre></div>
+</div>
+</div>
+</div>
+<p>Finally, let’s visualize the images.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">image</span><span class="p">),</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;gray&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Original image&quot;</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">tf</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">recon</span><span class="p">),</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;gray&#39;</span><span class="p">)</span>
+<span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Image after forward</span><span class="se">\n</span><span class="s2">and adjoint NUFFT&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output text_plain highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Text(0.5, 1.0, &#39;Image after forward\nand adjoint NUFFT&#39;)
+</pre></div>
+</div>
+<img alt="../../_images/d49da28ef9e9e22c3c9324f3a1ce66eda45003fe4e424a48d33c138286dc0913.png" src="../../_images/d49da28ef9e9e22c3c9324f3a1ce66eda45003fe4e424a48d33c138286dc0913.png" />
+</div>
+</div>
+</section>
+</section>
+
+
+              </div>
+              
+            </main>
+            <footer class="footer-article noprint">
+                
+    <!-- Previous / next buttons -->
+<div class='prev-next-area'>
+    <a class='left-prev' id="prev-link" href="../../api_docs/tfft/spread/" title="previous page">
+        <i class="fas fa-angle-left"></i>
+        <div class="prev-next-info">
+            <p class="prev-next-subtitle">previous</p>
+            <p class="prev-next-title">tfft.spread</p>
+        </div>
+    </a>
+</div>
+            </footer>
+        </div>
+    </div>
+    <div class="footer-content row">
+        <footer class="col footer"><p>
+  
+    By Javier Montalt Tordera<br/>
+  
+      &copy; Copyright 2021 The TensorFlow NUFFT Authors.<br/>
+</p>
+        </footer>
+    </div>
+    
+</div>
+
+
+      </div>
+    </div>
+  
+    <script src="../../_static/scripts/pydata-sphinx-theme.js?digest=1999514e3f237ded88cf"></script>
+  
+
+  </body>
+</html>

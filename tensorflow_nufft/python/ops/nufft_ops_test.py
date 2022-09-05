@@ -68,15 +68,17 @@ class NUFFTOpsTest(tf.test.TestCase):
         [8, 400, 2], minval=-np.pi, maxval=np.pi, seed=[0, 0])
     target1 = nufft_ops.nufft(source, points)
 
+    rtol, atol = 1e-4, 1e-4
+
     options = nufft_options.Options()
     options.max_batch_size = 2
     target2 = nufft_ops.nufft(source, points, options=options)
-    self.assertAllClose(target1, target2)
+    self.assertAllClose(target1, target2, rtol=rtol, atol=atol)
 
     options = nufft_options.Options()
     options.fftw.planning_rigor = nufft_options.FftwPlanningRigor.PATIENT
     target2 = nufft_ops.nufft(source, points, options=options)
-    self.assertAllClose(target1, target2)
+    self.assertAllClose(target1, target2, rtol=rtol, atol=atol)
 
 
   @parameterized(grid_shape=[[10, 16], [10, 10, 8]],

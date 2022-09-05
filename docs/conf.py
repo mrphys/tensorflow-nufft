@@ -63,6 +63,9 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # Do not add full qualification to objects' signatures.
 add_module_names = False
 
+# Set language.
+language = "en"
+
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -89,6 +92,7 @@ html_theme_options = {
 }
 
 # -- Options for MyST ----------------------------------------------------------
+
 # https://myst-nb.readthedocs.io/en/latest/authoring/jupyter-notebooks.html
 myst_enable_extensions = [
     "amsmath",
@@ -112,6 +116,10 @@ myst_substitutions = {
     'release': release
 }
 
+# For verification in Google Search Console.
+myst_html_meta = {
+    "google-site-verification": "8PySedj6KJ0kc5qC1CbO6_9blFB9Nho3SgXvbRzyVOU"
+}
 
 # -- Options for autosummary -------------------------------------------------
 

@@ -10,9 +10,17 @@ OPS_DIR = tensorflow_nufft/cc/ops
 PROTO_DIR = tensorflow_nufft/proto
 PYOPS_DIR = tensorflow_nufft/python/ops
 
+# Protocol buffer source files (*.proto files).
+PROTO_SOURCES = $(wildcard $(PROTO_DIR)/*.proto)
+# protoc generated files (*.pb.h and *.pb.cc files).
+PROTO_OBJECTS = $(patsubst $(PROTO_DIR)/%.proto, $(PROTO_DIR)/%.pb.cc, $(PROTO_SOURCES))
+PROTO_HEADERS = $(patsubst $(PROTO_DIR)/%.proto, $(PROTO_DIR)/%.pb.h, $(PROTO_SOURCES))
+# protoc generated files (*_pb2.py files).
+PROTO_MODULES = $(patsubst $(PROTO_DIR)/%.proto, $(PROTO_DIR)/%_pb2.py, $(PROTO_SOURCES))
+
 CUSOURCES = $(wildcard $(KERNELS_DIR)/*.cu.cc)
 CUOBJECTS = $(patsubst %.cu.cc, %.cu.o, $(CUSOURCES))
-CXXSOURCES = $(filter-out $(CUSOURCES), $(wildcard $(KERNELS_DIR)/*.cc) $(wildcard $(OPS_DIR)/*.cc) $(wildcard $(PROTO_DIR)/*.cc))
+CXXSOURCES = $(filter-out $(CUSOURCES), $(wildcard $(KERNELS_DIR)/*.cc) $(wildcard $(OPS_DIR)/*.cc))
 CXXHEADERS = $(wildcard $(KERNELS_DIR)/*.h) $(wildcard $(OPS_DIR)/*.h)
 
 TARGET_LIB = tensorflow_nufft/python/ops/_nufft_ops.so
@@ -106,7 +114,7 @@ lib: proto $(TARGET_LIB)
 $(TARGET_DLINK): $(CUOBJECTS)
 	$(NVCC) -ccbin $(CXX) -dlink $(CUFLAGS) -t 0 -o $@ $^
 
-$(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK)
+$(TARGET_LIB): $(CXXSOURCES) $(PROTO_OBJECTS) $(CUOBJECTS) $(TARGET_DLINK)
 	$(CXX) -shared $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 
@@ -115,7 +123,7 @@ $(TARGET_LIB): $(CXXSOURCES) $(CUOBJECTS) $(TARGET_DLINK)
 # ==============================================================================
 
 proto:
-	protoc -I$(PROTO_DIR) --python_out=$(PROTO_DIR) --cpp_out=$(PROTO_DIR) $(PROTO_DIR)/nufft_options.proto
+	protoc -I$(PROTO_DIR) --python_out=$(PROTO_DIR) --cpp_out=$(PROTO_DIR) $(PROTO_SOURCES)
 
 wheel:
 	./tools/build/build_pip_pkg.sh make --python $(PYTHON) artifacts
@@ -141,6 +149,7 @@ clean:
 	rm -f $(TARGET_LIB)
 	rm -f $(TARGET_DLINK)
 	rm -f $(CUOBJECTS)
+	rm -f $(PROTO_OBJECTS) $(PROTO_HEADERS) $(PROTO_MODULES)
 	rm -rf artifacts/
 
 .PHONY: all lib proto wheel test benchmark lint docs clean allclean

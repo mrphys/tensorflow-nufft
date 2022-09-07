@@ -43,6 +43,7 @@ versions of TensorFlow and TensorFlow NUFFT according to the table below.
 
 | TensorFlow NUFFT Version | TensorFlow Compatibility | Release Date |
 | ------------------------ | ------------------------ | ------------ |
+| v0.10.0                  | v2.10.x                  | Sep 7, 2022  |
 | v0.9.0                   | v2.9.x                   | Sep 5, 2022  |
 | v0.8.1                   | v2.9.x                   | Jun 23, 2022 |
 | v0.8.0                   | v2.9.x                   | May 20, 2022 |
@@ -95,7 +96,9 @@ If you find this software useful in your research, please
 
 ## Contributors
 
-Thanks to all our contributors: `jmontalt <https://github.com/jmontalt>`_,
-`chaithyagr <https://github.com/chaithyagr>`_.
+See CONTRIBUTORS for a list of people who have contributed to this project.
+Thank you!
 
-Contributions of any kind are welcome!
+All contributions are welcome. If there is an issue you would like to address
+or a feature you would like to add, you might want to begin by commenting on
+the corresponding issue (or if it doesn't exist yet, by creating a new issue).

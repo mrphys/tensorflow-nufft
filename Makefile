@@ -48,7 +48,7 @@ ifeq ($(OMP), 1)
 CFLAGS += -fopenmp
 endif
 
-CXXFLAGS = -std=c++14 $(CFLAGS) $(TF_CFLAGS)
+CXXFLAGS = -std=c++17 $(CFLAGS) $(TF_CFLAGS)
 CXXFLAGS += -I$(ROOT_DIR)
 ifeq ($(CUDA), 1)
 CXXFLAGS += -I$(CUDA_INCLUDE)
@@ -80,6 +80,7 @@ CUDAFE = --diag_suppress=174 --diag_suppress=177 --diag_suppress=611 --diag_supp
 CUFLAGS = $(NVARCH_FLAGS) -Xcompiler "$(CFLAGS)" $(TF_CFLAGS) -DNDEBUG --expt-relaxed-constexpr
 CUFLAGS += -I$(ROOT_DIR)
 CUFLAGS += -Xcudafe "$(CUDAFE)" -Wno-deprecated-gpu-targets
+CUFLAGS += --std=c++17
 
 
 # ==============================================================================

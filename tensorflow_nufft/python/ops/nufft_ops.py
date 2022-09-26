@@ -184,30 +184,32 @@ def _nufft_grad(op, grad):
 
   # Choose sign of imaginary unit.
   if fft_direction == 'forward':
-    i = tf.complex(
+    imag_unit = tf.complex(
         tf.constant(0.0, dtype=dtype.real_dtype),
         tf.constant(-1.0, dtype=dtype.real_dtype))
   elif fft_direction == 'backward':
-    i = tf.complex(
+    imag_unit = tf.complex(
         tf.constant(0.0, dtype=dtype.real_dtype),
         tf.constant(1.0, dtype=dtype.real_dtype))
 
   grad = tf.math.conj(grad)
   if transform_type == 'type_2':
-    grad_points = nufft(tf.expand_dims(source, -(rank + 1)) * grid_points,
-                        tf.expand_dims(points, -3),
-                        transform_type='type_2',
-                        fft_direction=fft_direction,
-                        tol=tol,
-                        options=options) * tf.expand_dims(grad, -2) * i
+    grad_points = nufft(
+        tf.expand_dims(source, -(rank + 1)) * grid_points,
+        tf.expand_dims(points, -3),
+        transform_type='type_2',
+        fft_direction=fft_direction,
+        tol=tol,
+        options=options) * tf.expand_dims(grad, -2) * imag_unit
 
   if transform_type == 'type_1':
-    grad_points = nufft(tf.expand_dims(grad, -(rank + 1)) * grid_points,
-                        tf.expand_dims(points, -3),
-                        transform_type='type_2',
-                        fft_direction=fft_direction,
-                        tol=tol,
-                        options=options) * tf.expand_dims(source, -2) * i
+    grad_points = nufft(
+        tf.expand_dims(grad, -(rank + 1)) * grid_points,
+        tf.expand_dims(points, -3),
+        transform_type='type_2',
+        fft_direction=fft_direction,
+        tol=tol,
+        options=options) * tf.expand_dims(source, -2) * imag_unit
 
   # Keep only real part of gradient w.r.t points and transpose the last two
   # axes.

@@ -194,18 +194,22 @@ def _nufft_grad(op, grad):
 
   grad = tf.math.conj(grad)
   if transform_type == 'type_2':
-    grad_points = nufft(tf.expand_dims(source, -(rank + 1)) * grid_points,
-                        tf.expand_dims(points, -3),
-                        transform_type='type_2',
-                        fft_direction=fft_direction,
-                        tol=tol) * tf.expand_dims(grad, -2) * imag_unit
+    grad_points = nufft(
+        tf.expand_dims(source, -(rank + 1)) * grid_points,
+        tf.expand_dims(points, -3),
+        transform_type='type_2',
+        fft_direction=fft_direction,
+        tol=tol,
+        options=options) * tf.expand_dims(grad, -2) * imag_unit
 
   if transform_type == 'type_1':
-    grad_points = nufft(tf.expand_dims(grad, -(rank + 1)) * grid_points,
-                        tf.expand_dims(points, -3),
-                        transform_type='type_2',
-                        fft_direction=fft_direction,
-                        tol=tol) * tf.expand_dims(source, -2) * imag_unit
+    grad_points = nufft(
+        tf.expand_dims(grad, -(rank + 1)) * grid_points,
+        tf.expand_dims(points, -3),
+        transform_type='type_2',
+        fft_direction=fft_direction,
+        tol=tol,
+        options=options) * tf.expand_dims(source, -2) * imag_unit
 
   # Keep only real part of gradient w.r.t points and transpose the last two
   # axes.

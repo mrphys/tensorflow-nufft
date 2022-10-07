@@ -1,6 +1,8 @@
-# Release 0.10.1
+# Release 0.11.0
 
 ## Bug Fixes and Other Changes
 
-- Fixed a bug where the `options` where not being passed to the NUFFT op when
-  computing the gradient with respect to the points.
+- Improved error reporting for invalid `grid_shape` arguments. `nufft` will
+  now raise an informative error when `grid_shape` has an invalid length or
+  when the user fails to provide it for type-1 transforms. Previously, `nufft`
+  would have behaved erratically or crashed.

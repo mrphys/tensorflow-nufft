@@ -84,6 +84,15 @@ class NUFFTBaseOp : public OpKernel {
                         "grid_shape must be 1D, but got shape: ",
                         grid_shape_tensor.shape().DebugString()));
 
+        // Check that `grid_shape` has length equal to rank.
+        OP_REQUIRES(ctx, grid_shape_tensor.dim_size(0) == rank,
+                    errors::InvalidArgument(
+                        "grid_shape must have length ", rank,
+                        " for a ", rank, "D transform ",
+                        "(as inferred from points), but got length: ",
+                        grid_shape_tensor.dim_size(0)));
+
+        // Check that `grid_shape` is of integer dtype.
         if (grid_shape_tensor.dtype() == DT_INT32) {
           OP_REQUIRES_OK(ctx, TensorShapeUtils::MakeShape(
               grid_shape_tensor.vec<int32>(), &grid_shape));

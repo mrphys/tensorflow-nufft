@@ -25,7 +25,6 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 #include "tensorflow_nufft/cc/kernels/reverse_functor.h"
 #include "tensorflow_nufft/cc/kernels/transpose_functor.h"
-#include "tensorflow_nufft/proto/nufft_options.pb.h"
 
 
 namespace tensorflow {
@@ -440,30 +439,12 @@ class NUFFTBaseOp : public OpKernel {
 
     // NUFFT options.
     InternalOptions options;
-    // Read in user options.
-    options.max_batch_size = this->options_.max_batch_size();
-    switch (this->options_.fftw().planning_rigor()) {
-      case FftwPlanningRigor::AUTO: {
-        options.fftw_flags = FFTW_MEASURE;
-        break;
-      }
-      case FftwPlanningRigor::ESTIMATE: {
-        options.fftw_flags = FFTW_ESTIMATE;
-        break;
-      }
-      case FftwPlanningRigor::MEASURE: {
-        options.fftw_flags = FFTW_MEASURE;
-        break;
-      }
-      case FftwPlanningRigor::PATIENT: {
-        options.fftw_flags = FFTW_PATIENT;
-        break;
-      }
-      case FftwPlanningRigor::EXHAUSTIVE: {
-        options.fftw_flags = FFTW_EXHAUSTIVE;
-        break;
-      }
-    }
+    options.mutable_debugging()->set_check_bounds(
+        this->options_.debugging().check_bounds());
+    options.mutable_fftw()->set_planning_rigor(
+        this->options_.fftw().planning_rigor());
+    options.set_max_batch_size(this->options_.max_batch_size());
+    options.set_point_bounds(this->options_.point_bounds());
 
     if (op_type != OpType::NUFFT) {
       options.spread_only = true;

@@ -210,10 +210,10 @@ Status Plan<CPUDevice, FloatType>::initialize(
   this->num_transforms_ = num_transforms;
   this->options_ = options;
 
-  this->num_modes_[0] = num_modes[0];
-  this->num_modes_[1] = (this->rank_ > 1) ? num_modes[1] : 1;
-  this->num_modes_[2] = (this->rank_ > 2) ? num_modes[2] : 1;
-  this->mode_count_ = this->num_modes_[0] * this->num_modes_[1] * this->num_modes_[2];
+  this->grid_dims_[0] = num_modes[0];
+  this->grid_dims_[1] = (this->rank_ > 1) ? num_modes[1] : 1;
+  this->grid_dims_[2] = (this->rank_ > 2) ? num_modes[2] : 1;
+  this->grid_size_ = this->grid_dims_[0] * this->grid_dims_[1] * this->grid_dims_[2];
 
   // Choose kernel evaluation method.
   if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::AUTO) {
@@ -227,11 +227,12 @@ Status Plan<CPUDevice, FloatType>::initialize(
   this->options_.num_threads = num_threads;   // update options_ with actual number
 
   // Select batch size.
-  if (this->options_.max_batch_size == 0) {
+  if (this->options_.max_batch_size() == 0) {
     this->num_batches_ = 1 + (num_transforms - 1) / num_threads;
     this->batch_size_ = 1 + (num_transforms - 1) / this->num_batches_;
   } else {
-    this->batch_size_ = std::min(this->options_.max_batch_size, num_transforms);
+    this->batch_size_ = std::min(
+        this->options_.max_batch_size(), num_transforms);
     this->num_batches_ = 1 + (num_transforms - 1) / this->batch_size_;
   }
 
@@ -245,7 +246,7 @@ Status Plan<CPUDevice, FloatType>::initialize(
     if (tol >= (FloatType)1E-9) {                   // the tol sigma=5/4 can reach
       if (type == TransformType::TYPE_3)
         this->options_.upsampling_factor = 1.25;  // faster b/c smaller RAM & FFT
-      else if ((rank==1 && this->mode_count_>10000000) || (rank==2 && this->mode_count_>300000) || (rank==3 && this->mode_count_>3000000))  // type 1,2 heuristic cutoffs, double, typ tol, 12-core xeon
+      else if ((rank==1 && this->grid_size_>10000000) || (rank==2 && this->grid_size_>300000) || (rank==3 && this->grid_size_>3000000))  // type 1,2 heuristic cutoffs, double, typ tol, 12-core xeon
         this->options_.upsampling_factor = 1.25;
     }
   }
@@ -285,51 +286,51 @@ Status Plan<CPUDevice, FloatType>::initialize(
 
   // Determine fine grid sizes.
   TF_RETURN_IF_ERROR(set_grid_size(
-      this->num_modes_[0], this->options_, this->spread_params_,
-      &this->grid_dims_[0]));
+      this->grid_dims_[0], this->options_, this->spread_params_,
+      &this->fine_dims_[0]));
   if (rank > 1) {
     TF_RETURN_IF_ERROR(set_grid_size(
-        this->num_modes_[1], this->options_, this->spread_params_,
-        &this->grid_dims_[1]));
+        this->grid_dims_[1], this->options_, this->spread_params_,
+        &this->fine_dims_[1]));
   }
   if (rank > 2) {
     TF_RETURN_IF_ERROR(set_grid_size(
-        this->num_modes_[2], this->options_, this->spread_params_,
-        &this->grid_dims_[2]));
+        this->grid_dims_[2], this->options_, this->spread_params_,
+        &this->fine_dims_[2]));
   }
 
   // Get Fourier coefficients of spreading kernel along each fine grid
   // dimension.
   for (int i = 0; i < this->rank_; i++) {
     // Number of Fourier coefficients.
-    int num_coeffs = this->grid_dims_[i] / 2 + 1;
+    int num_coeffs = this->fine_dims_[i] / 2 + 1;
     // Allocate memory and calculate the Fourier series.
     TF_RETURN_IF_ERROR(this->context_->allocate_temp(
         DataTypeToEnum<FloatType>::value, TensorShape({num_coeffs}),
         &this->fseries_tensor_[i]));
     this->fseries_data_[i] = reinterpret_cast<FloatType*>(
         this->fseries_tensor_[i].flat<FloatType>().data());
-    kernel_fseries_1d(this->grid_dims_[i], this->spread_params_,
+    kernel_fseries_1d(this->fine_dims_[i], this->spread_params_,
                       this->fseries_data_[i]);
   }
 
   // Total number of points in the fine grid.
-  this->grid_size_ = this->grid_dims_[0];
+  this->fine_size_ = this->fine_dims_[0];
   if (rank > 1)
-    this->grid_size_ *= this->grid_dims_[1];
+    this->fine_size_ *= this->fine_dims_[1];
   if (rank > 2)
-    this->grid_size_ *= this->grid_dims_[2];
+    this->fine_size_ *= this->fine_dims_[2];
 
-  if (this->grid_size_ * this->batch_size_ > kMaxArraySize) {
+  if (this->fine_size_ * this->batch_size_ > kMaxArraySize) {
     return errors::Internal(
         "size of internal fine grid is larger than maximum allowed: ",
-        this->grid_size_ * this->batch_size_, " > ",
+        this->fine_size_ * this->batch_size_, " > ",
         kMaxArraySize);
   }
 
   // Allocate the working fine grid through the op kernel context. We allocate a
   // flat array, since we'll only use this tensor through a raw pointer anyway.
-  TensorShape fine_grid_shape({this->grid_size_ * this->batch_size_});
+  TensorShape fine_grid_shape({this->fine_size_ * this->batch_size_});
   TF_RETURN_IF_ERROR(this->context_->allocate_temp(
       DataTypeToEnum<DType>::value, fine_grid_shape, &this->grid_tensor_));
   this->grid_data_ = reinterpret_cast<FftwType*>(
@@ -338,17 +339,27 @@ Status Plan<CPUDevice, FloatType>::initialize(
   int fft_dims[3] = {1, 1, 1};
   switch (this->rank_) {
     case 1:
-      fft_dims[0] = this->grid_dims_[0];
+      fft_dims[0] = this->fine_dims_[0];
       break;
     case 2:
-      fft_dims[1] = this->grid_dims_[0];
-      fft_dims[0] = this->grid_dims_[1];
+      fft_dims[1] = this->fine_dims_[0];
+      fft_dims[0] = this->fine_dims_[1];
       break;
     case 3:
-      fft_dims[2] = this->grid_dims_[0];
-      fft_dims[1] = this->grid_dims_[1];
-      fft_dims[0] = this->grid_dims_[2];
+      fft_dims[2] = this->fine_dims_[0];
+      fft_dims[1] = this->fine_dims_[1];
+      fft_dims[0] = this->fine_dims_[2];
       break;
+  }
+
+  // FFTW flags.
+  unsigned flags = 0;
+  switch (this->options_.fftw().planning_rigor()) {
+    case FftwPlanningRigor::AUTO:       flags = FFTW_MEASURE;     break;
+    case FftwPlanningRigor::ESTIMATE:   flags = FFTW_ESTIMATE;    break;
+    case FftwPlanningRigor::MEASURE:    flags = FFTW_MEASURE;     break;
+    case FftwPlanningRigor::PATIENT:    flags = FFTW_PATIENT;     break;
+    case FftwPlanningRigor::EXHAUSTIVE: flags = FFTW_EXHAUSTIVE;  break;
   }
 
   #pragma omp critical
@@ -358,12 +369,12 @@ Status Plan<CPUDevice, FloatType>::initialize(
         /* int howmany */ this->batch_size_,
         /* fftw_complex *in */ this->grid_data_,
         /* const int *inembed */ nullptr,
-        /* int istride */ 1, /* int idist */ this->grid_size_,
+        /* int istride */ 1, /* int idist */ this->fine_size_,
         /* fftw_complex *out */ this->grid_data_,
         /* const int *onembed */ nullptr,
-        /* int ostride */ 1, /* int odist */ this->grid_size_,
+        /* int ostride */ 1, /* int odist */ this->fine_size_,
         /* int sign */ static_cast<int>(this->fft_direction_),
-        /* unsigned flags */ this->options_.fftw_flags);
+        /* unsigned flags */ flags);
   }
 
   return Status::OK();
@@ -397,19 +408,21 @@ Plan<CPUDevice, FloatType>::~Plan() {
 
 template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::set_points(
-    int num_points, FloatType* points_x,
-    FloatType* points_y, FloatType* points_z) {
+    int num_points,
+    FloatType* points_x,
+    FloatType* points_y,
+    FloatType* points_z) {
   // The user only now chooses how many NU (x,y,z) points.
   this->num_points_ = num_points;
 
-  int64_t grid_size_0 = this->grid_dims_[0];
+  int64_t grid_size_0 = this->fine_dims_[0];
   int64_t grid_size_1 = 1;
-  if (this->rank_ > 1) grid_size_1 = this->grid_dims_[1];
+  if (this->rank_ > 1) grid_size_1 = this->fine_dims_[1];
   int64_t grid_size_2 = 1;
-  if (this->rank_ > 2) grid_size_2 = this->grid_dims_[2];
+  if (this->rank_ > 2) grid_size_2 = this->fine_dims_[2];
 
   if (this->type_ != TransformType::TYPE_3) {
-    // Type 1/2 transform.
+    // Type-1 or type-2 transform.
     // All we can do is check and maybe bin-sort the non-uniform points.
     // Plan must keep pointers to user's fixed points.
     this->points_[0] = points_x;
@@ -419,6 +432,13 @@ Status Plan<CPUDevice, FloatType>::set_points(
         grid_size_0, grid_size_1, grid_size_2,
         this->num_points_, points_x, points_y, points_z,
         this->spread_params_));
+    // Check that points are within bounds.
+    if (this->options_.debugging().check_bounds()) {
+      TF_RETURN_IF_ERROR(this->check_point_bounds());
+    }
+    if (this->options_.point_bounds() == PointBounds::INFINITE) {
+      TF_RETURN_IF_ERROR(this->wrap_points());
+    }
 
     this->sort_indices_ = (int64_t*) malloc(sizeof(int64_t) * this->num_points_);
     if (!this->sort_indices_) {
@@ -462,7 +482,7 @@ Status Plan<CPUDevice, FloatType>::execute(DType* cj, DType* fk){
       int thisBatchSize = std::min(this->num_transforms_ - b*this->batch_size_, this->batch_size_);
       int bB = b*this->batch_size_;         // index of vector, since batchsizes same
       DType* cjb = cj + bB*this->num_points_;        // point to batch of weights
-      DType* fkb = fk + bB*this->mode_count_;         // point to batch of mode coeffs
+      DType* fkb = fk + bB*this->grid_size_;         // point to batch of mode coeffs
 
       // STEP 1: (varies by type)
       if (this->type_ == TransformType::TYPE_1) {  // type 1: spread NU pts this->points_[0], weights cj, to fw grid
@@ -511,7 +531,7 @@ Status Plan<CPUDevice, FloatType>::spread_or_interp(DType* cj, DType* fk) {
     int thisBatchSize = std::min(this->num_transforms_ - b*this->batch_size_, this->batch_size_);
     int bB = b*this->batch_size_;         // index of vector, since batchsizes same
     DType* cjb = cj + bB*this->num_points_;        // point to batch of weights
-    DType* fkb = fk + bB*this->mode_count_;         // point to batch of mode coeffs
+    DType* fkb = fk + bB*this->grid_size_;         // point to batch of mode coeffs
 
     this->spread_or_interp_sorted_batch(thisBatchSize, cjb, fkb);
   }
@@ -531,15 +551,15 @@ Status Plan<CPUDevice, FloatType>::spread_or_interp_sorted_batch(
     fBatch = (DType*) this->grid_data_;
   }
 
-  int64_t grid_size_0 = this->grid_dims_[0];
+  int64_t grid_size_0 = this->fine_dims_[0];
   int64_t grid_size_1 = 1;
   int64_t grid_size_2 = 1;
-  if (this->rank_ > 1) grid_size_1 = this->grid_dims_[1];
-  if (this->rank_ > 2) grid_size_2 = this->grid_dims_[2];
+  if (this->rank_ > 1) grid_size_1 = this->fine_dims_[1];
+  if (this->rank_ > 2) grid_size_2 = this->fine_dims_[2];
 
   #pragma omp parallel for num_threads(nthr_outer)
   for (int i=0; i<batch_size; i++) {
-    DType *fwi = fBatch + i*this->grid_size_;  // start of i'th fw array in wkspace
+    DType *fwi = fBatch + i*this->fine_size_;  // start of i'th fw array in wkspace
     DType *ci = cBatch + i*this->num_points_;            // start of i'th c array in cBatch
     spreadinterpSorted(this->sort_indices_, grid_size_0, grid_size_1, grid_size_2,
                        (FloatType*)fwi, this->num_points_, this->points_[0], this->points_[1], this->points_[2],
@@ -554,23 +574,92 @@ Status Plan<CPUDevice, FloatType>::deconvolve_batch(int batch_size, DType* fkBat
   // since deconvolveshuffle?d are single-thread, omp par seems to help here...
   #pragma omp parallel for num_threads(batch_size)
   for (int batch_index = 0; batch_index < batch_size; batch_index++) {
-    FftwType *fwi = this->grid_data_ + batch_index * this->grid_size_;
-    DType *fki = fkBatch + batch_index * this->mode_count_;
+    FftwType *fwi = this->grid_data_ + batch_index * this->fine_size_;
+    DType *fki = fkBatch + batch_index * this->grid_size_;
     if (this->rank_ == 1)
       deconvolveshuffle1d(this->spread_params_.spread_direction, one, this->fseries_data_[0],
-                          this->num_modes_[0], (FloatType *)fki,
-                          this->grid_dims_[0], fwi, this->options_.mode_order);
+                          this->grid_dims_[0], (FloatType *)fki,
+                          this->fine_dims_[0], fwi, this->options_.mode_order);
     else if (this->rank_ == 2)
       deconvolveshuffle2d(this->spread_params_.spread_direction, one, this->fseries_data_[0],
-                          this->fseries_data_[1], this->num_modes_[0], this->num_modes_[1], (FloatType *)fki,
-                          this->grid_dims_[0], this->grid_dims_[1], fwi, this->options_.mode_order);
+                          this->fseries_data_[1], this->grid_dims_[0], this->grid_dims_[1], (FloatType *)fki,
+                          this->fine_dims_[0], this->fine_dims_[1], fwi, this->options_.mode_order);
     else
       deconvolveshuffle3d(this->spread_params_.spread_direction, one, this->fseries_data_[0],
-                          this->fseries_data_[1], this->fseries_data_[2], this->num_modes_[0], this->num_modes_[1], this->num_modes_[2],
-                          (FloatType *)fki, this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
+                          this->fseries_data_[1], this->fseries_data_[2], this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
+                          (FloatType *)fki, this->fine_dims_[0], this->fine_dims_[1], this->fine_dims_[2],
                           fwi, this->options_.mode_order);
   }
   return Status::OK();
+}
+
+template<typename FloatType>
+Status Plan<CPUDevice, FloatType>::check_point_bounds() {
+  FloatType lower_bound, upper_bound;
+
+  // For each dimension.
+  for (int d = 0; d < this->rank_; d++) {
+    // Select appropriate bounds depending on configuration.
+    switch (this->options_.point_bounds()) {
+      case PointBounds::STRICT: {
+        lower_bound = this->options_.point_units == PointUnits::RADIANS ?
+            (-kPi<FloatType>) :
+            (FloatType(0.0));
+        upper_bound = this->options_.point_units == PointUnits::RADIANS ?
+            (kPi<FloatType>) :
+            (static_cast<FloatType>(this->grid_dims_[d]));
+        break;
+      }
+      case PointBounds::EXTENDED: {
+        lower_bound = this->options_.point_units == PointUnits::RADIANS ?
+            (-3.0 * kPi<FloatType>) :
+            (-static_cast<FloatType>(this->grid_dims_[d]));
+        upper_bound = this->options_.point_units == PointUnits::RADIANS ?
+            (3.0 * kPi<FloatType>) :
+            (2 * static_cast<FloatType>(this->grid_dims_[d]));
+        break;
+      }
+      case PointBounds::INFINITE: {
+        return OkStatus();
+      }
+    }
+
+    // For each point, check it lies within the bounds.
+    for (int64_t i = 0; i < this->num_points_; ++i) {
+      if (this->points_[d][i] < lower_bound ||
+          this->points_[d][i] > upper_bound ||
+          !std::isfinite(this->points_[d][i])) {
+        return errors::InvalidArgument(
+            "Found points out of bounds: ",
+            "points[", i, ",", d, "] = ", this->points_[d][i],
+            " is not in [", lower_bound, ", ", upper_bound, "]");
+      }
+    }
+  }
+  return OkStatus();
+}
+
+template<typename FloatType>
+Status Plan<CPUDevice, FloatType>::wrap_points() {
+  if (this->options_.point_units != PointUnits::RADIANS) {
+    return errors::Unimplemented(
+        "wrap_points is only implemented for radians.");
+  }
+
+  // For each dimension.
+  for (int d = 0; d < this->rank_; d++) {
+    // For each point.
+    for (int64_t i = 0; i < this->num_points_; ++i) {
+      // Wrap the point to the range [-pi, pi].
+      FloatType point = this->points_[d][i];
+      point += kPi<FloatType>;
+      point = std::fmod(point, kTwoPi<FloatType>);
+      point -= kPi<FloatType>;
+      this->points_[d][i] = point;
+    }
+  }
+
+  return OkStatus();
 }
 
 namespace {
@@ -646,7 +735,6 @@ Status setup_spreader(
 
   // write out default SpreadParameters<FloatType>
   spread_params.pirange = 1;             // user also should always set this
-  spread_params.check_bounds = false;
   spread_params.sort_points = SortPoints::AUTO;
   spread_params.pad_kernel = 0;              // affects only evaluate_kernel_vector
   spread_params.kerevalmeth = kerevalmeth;
@@ -717,7 +805,6 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
   spread_params.spread_method = options.spread_method;
   spread_params.verbosity = options.verbosity;
   spread_params.pad_kernel = options.pad_kernel; // (only applies to kerevalmeth=0)
-  spread_params.check_bounds = options.check_bounds;
   spread_params.num_threads = options.num_threads;
   if (options.num_threads_for_atomic_spread >= 0) // overrides
     spread_params.atomic_threshold = options.num_threads_for_atomic_spread;
@@ -743,45 +830,7 @@ Status check_spread_inputs(int64_t n1, int64_t n2, int64_t n3, int64_t num_point
         "cuboid too small for spreading, got (", n1, ", ", n2, ", ", n3, ") ",
         "but need at least ", min_n, " in each non-trivial dimension");
   }
-  int rank = get_transform_rank(n1, n2, n3);
 
-  // Check bounds. Check that non-uniform points are valid (+-3pi if pirange, or [-grid_size,2N])
-  // exit gracefully as soon as invalid is found.
-  // Note: isfinite() breaks with -Ofast
-  if (opts.check_bounds) {
-    FloatType lower_bound, upper_bound;
-    lower_bound = opts.pirange ? -3.0 * kPi<FloatType> : -(FloatType)n1;
-    upper_bound = opts.pirange ? 3.0 * kPi<FloatType> : 2 * (FloatType)n1;
-    for (int64_t i = 0; i < num_points; ++i) {
-      if ((kx[i] < lower_bound || kx[i] > upper_bound) || !isfinite(kx[i])) {
-        return errors::InvalidArgument(
-            "points outside valid range: kx[", i, "] = ", kx[i],
-            " is not in [", lower_bound, ", ", upper_bound, "]");
-      }
-    }
-    if (rank > 1) {
-      lower_bound = opts.pirange ? -3.0 * kPi<FloatType> : -(FloatType)n2;
-      upper_bound = opts.pirange ? 3.0 * kPi<FloatType> : 2 * (FloatType)n2;
-      for (int64_t i = 0; i<num_points; ++i) {
-        if ((ky[i] < lower_bound || ky[i] > upper_bound) || !isfinite(ky[i])) {
-          return errors::InvalidArgument(
-              "points outside valid range: ky[", i, "] = ", ky[i],
-              " is not in [", lower_bound, ", ", upper_bound, "]");
-        }
-      }
-    }
-    if (rank > 2) {
-      lower_bound = opts.pirange ? -3.0 * kPi<FloatType> : -(FloatType)n3;
-      upper_bound = opts.pirange ? 3.0 * kPi<FloatType> : 2 * (FloatType)n3;
-      for (int64_t i = 0; i < num_points; ++i) {
-        if ((kz[i] < lower_bound || kz[i] > upper_bound) || !isfinite(kz[i])) {
-          return errors::InvalidArgument(
-              "points outside valid range: kz[", i, "] = ", kz[i],
-              " is not in [", lower_bound, ", ", upper_bound, "]");
-        }
-      }
-    }
-  }
   return Status::OK();
 }
 

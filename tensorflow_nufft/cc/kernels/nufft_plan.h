@@ -69,6 +69,9 @@ template<typename FloatType>
 constexpr static FloatType kPi = FloatType(3.14159265358979329);
 
 template<typename FloatType>
+constexpr static FloatType kTwoPi = FloatType(6.283185307179586);
+
+template<typename FloatType>
 constexpr static FloatType kOneOverTwoPi = FloatType(0.159154943091895336);
 
 template<typename FloatType>
@@ -149,7 +152,6 @@ struct SpreadParameters {
   int atomic_threshold;
   // TODO(jmontalt): revise the following options.
   int pirange;            // 0: NU periodic domain is [0,N), 1: domain [-pi,pi)
-  bool check_bounds;      // 0: don't check NU pts in 3-period range; 1: do
   int kerevalmeth;        // 0: direct exp(sqrt()), or 1: Horner ppval, fastest
   bool pad_kernel;            // 0: no pad w to mult of 4, 1: do pad
                           // (this helps SIMD for kerevalmeth=0, eg on i7).
@@ -221,35 +223,54 @@ class PlanBase {
   // set_points().
   virtual Status spread(DType* c, DType* f) = 0;
 
- public:  // TODO(jmontalt): make protected after refactoring FINUFFT.
-  // The type of the transform. See enum above.
-  TransformType type_;
+ protected:
   // The rank of the transform (number of dimensions). Must be 1, 2 or 3.
   int rank_;
+
+  // The type of the transform. See enum above.
+  TransformType type_;
+
   // Direction of the FFT. See enum above.
   FftDirection fft_direction_;
-  // How many transforms to compute in one go.
-  int num_transforms_;
-  // Advanced NUFFT options.
-  InternalOptions options_;
-  // The number of modes along each dimension.
-  int num_modes_[3];
-  // The total number of modes.
-  int mode_count_;
-  // The fine grid's dimension sizes. Unused dimensions are set to 1.
-  int grid_dims_[3];
-  // The total element count of the fine grid.
-  int grid_size_;
-  // Pointers to the non-uniform point coordinates. In the GPU case, these are
-  // device pointers. These pointers are not owned by the plan. Unused pointers
-  // are set to nullptr.
-  FloatType* points_[3];
+
   // The total number of points.
   int num_points_;
+
+  // Pointers to the non-uniform point coordinates. Each of these points to an
+  // array of length `num_points_`.
+  // Notes:
+  //  - In the GPU implementation, these are device pointers.
+  //  - These pointers are not owned by the plan.
+  //  - Unused pointers are set to nullptr.
+  FloatType* points_[3];
+
+  // The grid's dimension sizes or number of modes along each dimension.
+  int grid_dims_[3];
+
+  // The total element count of the grid or .
+  int grid_size_;
+
+  // The fine (oversampled) grid's dimension sizes.
+  // Unused dimensions are set to 1.
+  int fine_dims_[3];
+
+  // The total element count of the fine (oversampled) grid.
+  int fine_size_;
+
+  // Number of transforms to compute.
+  int num_transforms_;
+
+  // Number of transforms to be performed in a single batch.
+  int batch_size_;
+
   // Pointer to the op kernel context.
   OpKernelContext* context_;
+
   // Reference to the active device.
   const Device& device_;
+
+  // Advanced NUFFT options.
+  InternalOptions options_;
 };
 
 template<typename Device, typename FloatType>
@@ -331,13 +352,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // kx, ky, kz - length-M real arrays of NU point coordinates (only kx read in
   //             1D, only kx and ky read in 2D).
 
-  // These should lie in the box 0<=kx<=N1 etc (if pirange=0),
-  //             or -pi<=kx<=pi (if pirange=1). However, points up to +-1 period
-  //             outside this domain are also correctly folded back into this
-  //             domain, but pts beyond this either raise an error (if check_bounds=1)
-  //             or a crash (if check_bounds=0).
-  // opts - spread/interp options struct, documented in ../include/SpreadParameters<FLT>.h
-
   // Inputs/Outputs:
   // data_uniform - output values on grid (dir=1) OR input grid data (dir=2)
   // data_nonuniform - input strengths of the sources (dir=1)
@@ -386,10 +400,14 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // Barnett 5/21/20, simplified from Malleo 2019 (eg t3 logic won't be in here)
   Status deconvolve_batch(int batch_size, DType* fkBatch);
 
+  // Checks that the nonuniform points are within the supported bounds.
+  Status check_point_bounds();
+
+  // Wraps nonuniform points to the canonical range [-pi, pi).
+  Status wrap_points();
+
  public:  // TODO(jmontalt): make private after refactoring FINUFFT.
 
-  // Number of computations in one batch.
-  int batch_size_;
   // Number of batches in one execution (includes all the transforms in
   // num_transforms_).
   int num_batches_;

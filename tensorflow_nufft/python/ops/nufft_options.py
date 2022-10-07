@@ -92,6 +92,94 @@ class FftwPlanningRigor(enum.IntEnum):
     )
 
 
+class PointBounds(enum.IntEnum):
+  """Represents the supported bounds for the nonuniform points.
+
+  Specifies the supported bounds for the nonuniform points. More restrictive
+  bounds may result in faster execution.
+
+  ```{note}
+  The discrete Fourier transform (DFT) is periodic with respect to the points
+  $x$, i.e., $f(k, x + 2\pi) = f(k, x)$. Therefore, it can always be computed
+  by shifting the points by a multiple of $2\pi$ to the interval $[-\pi, \pi)$.
+  This option affects whether the algorithm used by `nufft` is guaranteed to
+  support this.
+  ```
+
+  - **STRICT**: points must lie in the range $[-\pi, \pi)$. This is the fastest
+    option.
+
+  - **EXTENDED**: points must lie in the range $[-3 \pi, 3 \pi)$. This option
+    offers a compromise between flexibility and performance. This is the
+    default option.
+
+  - **INFINITE**: accepts points in the range $(-\infty, +\infty)$. This option
+    offers the most flexibility, but may have slightly reduced performance.
+
+  ```{attention}
+  For options `STRICT` and `EXTENDED`, passing points outside the supported
+  bounds is undefined behaviour.
+  ```
+  """
+  STRICT = 0
+  EXTENDED = 1
+  INFINITE = 2
+
+  def to_proto(self):  # pylint: disable=missing-function-docstring
+    if self == PointBounds.STRICT:
+      return nufft_options_pb2.PointBounds.STRICT
+    if self == PointBounds.EXTENDED:
+      return nufft_options_pb2.PointBounds.EXTENDED
+    if self == PointBounds.INFINITE:
+      return nufft_options_pb2.PointBounds.INFINITE
+    raise ValueError(
+        f"Invalid value of `PointBounds`. Supported values include "
+        f"`STRICT`, `EXTENDED` and `INFINITE`. Got {self.name}."
+    )
+
+  @classmethod
+  def from_proto(cls, pb):  # pylint: disable=missing-function-docstring
+    if pb == nufft_options_pb2.PointBounds.STRICT:
+      return cls.STRICT
+    if pb == nufft_options_pb2.PointBounds.EXTENDED:
+      return cls.EXTENDED
+    if pb == nufft_options_pb2.PointBounds.INFINITE:
+      return cls.INFINITE
+    raise ValueError(
+        f"Invalid value of `PointBounds` in protocol buffer. Supported "
+        f"values include `STRICT`, `EXTENDED` and `INFINITE`. Got {pb.name}."
+    )
+
+
+class DebuggingOptions(pydantic.BaseModel):
+  """Represents options for debugging.
+
+  Example:
+    >>> options = tfft.Options()
+    >>> # Assert that input points `x` lie within the supported bounds.
+    >>> options.debugging.check_bounds = True
+    >>> tfft.nufft(k, x, options=options)
+
+  Attributes:
+    check_bounds: If `True`, `nufft` will assert that the nonuniform point
+      coordinates lie within the supported bounds (as determined by
+      `options.point_bounds`). This improves the safety of the operation,
+      but may negatively impact performance. Defaults to `False`.
+  """
+  check_bounds: bool = False
+
+  def to_proto(self):  # pylint: disable=missing-function-docstring
+    pb = nufft_options_pb2.DebuggingOptions()
+    pb.check_bounds = self.check_bounds
+    return pb
+
+  @classmethod
+  def from_proto(cls, pb):  # pylint: disable=missing-function-docstring
+    obj = cls()
+    obj.check_bounds = pb.check_bounds
+    return obj
+
+
 class FftwOptions(pydantic.BaseModel):
   """Represents options for the FFTW library.
 
@@ -103,9 +191,9 @@ class FftwOptions(pydantic.BaseModel):
   ```
 
   Example:
-  >>> options = tfft.Options()
-  >>> options.fftw.planning_rigor = tfft.FftwPlanningRigor.PATIENT
-  >>> tfft.nufft(x, k, options=options)
+    >>> options = tfft.Options()
+    >>> options.fftw.planning_rigor = tfft.FftwPlanningRigor.PATIENT
+    >>> tfft.nufft(k, x, options=options)
 
   Attributes:
     planning_rigor: Controls the rigor (and time) of the planning process.
@@ -133,12 +221,13 @@ class Options(pydantic.BaseModel):
   are not required for most use cases.
 
   Example:
-
-  >>> options = tfft.Options()
-  >>> options.max_batch_size = 4
-  >>> tfft.nufft(x, k, options=options)
+    >>> options = tfft.Options()
+    >>> options.max_batch_size = 4
+    >>> tfft.nufft(x, k, options=options)
 
   Attributes:
+    debugging: Options for debugging. See `tfft.DebuggingOptions` for more
+      information.
     fftw: Options for the FFTW library. See `tfft.FftwOptions` for more
       information.
     max_batch_size: An optional `int`. The maximum batch size to use during
@@ -146,23 +235,32 @@ class Options(pydantic.BaseModel):
       vectorization batch size to this value. Smaller values may reduce memory
       usage, but may also reduce performance. If not set, the internal batch
       size is chosen automatically.
+    point_bounds: An optional `tfft.PointBounds`. Specifies the supported
+      bounds for the nonuniform points. See `tfft.PointBounds` for more
+      information. Defaults to `tfft.PointBounds.EXTENDED`.
   """
+  debugging: DebuggingOptions = DebuggingOptions()
   fftw: FftwOptions = FftwOptions()
   max_batch_size: typing.Optional[int] = None
+  point_bounds: PointBounds = PointBounds.EXTENDED
 
   def to_proto(self):
     pb = nufft_options_pb2.Options()
+    pb.debugging.CopyFrom(self.debugging.to_proto())
     pb.fftw.CopyFrom(self.fftw.to_proto())
     if self.max_batch_size is not None:
       pb.max_batch_size = self.max_batch_size
+    pb.point_bounds = self.point_bounds.to_proto()
     return pb
 
   @classmethod
   def from_proto(cls, pb):
     obj = cls()
+    obj.debugging = DebuggingOptions.from_proto(pb.debugging)
     obj.fftw = FftwOptions.from_proto(pb.fftw)
     if pb.max_batch_size is not None:
       obj.max_batch_size = pb.max_batch_size
+    obj.point_bounds = PointBounds.from_proto(pb.point_bounds)
     return obj
 
   class Config:

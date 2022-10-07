@@ -25,12 +25,16 @@ class OptionsTest(tf.test.TestCase):
     """Test (de)serialization of Options to/from proto."""
     # Create example data.
     options = nufft_options.Options()
+    # Test default values.
+    self.assertEqual(options.point_bounds, nufft_options.PointBounds.EXTENDED)
+    self.assertEqual(options.debugging.check_bounds, False)
+    # Change some values.
     options.max_batch_size = 4
     options.fftw.planning_rigor = nufft_options.FftwPlanningRigor.PATIENT
+    options.debugging.check_bounds = True
+    options.point_bounds = nufft_options.PointBounds.INFINITE
     # Test round-trip options -> proto -> options.
     options2 = nufft_options.Options.from_proto(options.to_proto())
-    self.assertEqual(options2.max_batch_size, options.max_batch_size)
-    self.assertEqual(options2.fftw.planning_rigor, options.fftw.planning_rigor)
     self.assertEqual(options2, options)
 
   def test_invalid_value(self):

@@ -15,9 +15,11 @@ template: class.md
 nosignatures:
 ---
 
+DebuggingOptions
 FftwOptions
 FftwPlanningRigor
 Options
+PointBounds
 ```
 
 ## Functions

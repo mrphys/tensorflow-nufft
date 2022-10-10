@@ -1771,6 +1771,11 @@ Status Plan<GPUDevice, FloatType>::set_points(
   this->points_[1] = this->rank_ > 1 ? points_y : nullptr;
   this->points_[2] = this->rank_ > 2 ? points_z : nullptr;
 
+  // Check that points are within bounds.
+  if (this->options_.debugging().check_bounds()) {
+    TF_RETURN_IF_ERROR(this->check_points_within_range());
+  }
+
   // Wrap points to canonical range if point bounds are infinite.
   if (this->options_.point_bounds() == PointBounds::INFINITE) {
     TF_RETURN_IF_ERROR(this->wrap_points_to_canonical_range());

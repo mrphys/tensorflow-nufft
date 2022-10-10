@@ -315,7 +315,7 @@ Status Plan<CPUDevice, FloatType>::set_points(
 
   // Check that points are within bounds.
   if (this->options_.debugging().check_bounds()) {
-    TF_RETURN_IF_ERROR(this->check_points_within_bounds());
+    TF_RETURN_IF_ERROR(this->check_points_within_range());
   }
 
   // Wrap points if we support infinite range.
@@ -694,53 +694,6 @@ void Plan<CPUDevice, FloatType>::deconvolve_3d(
   for (int64_t k3 = k3min; k3 < 0; ++k3, pn += ms * mt) {
     this->deconvolve_2d(fk + pn, &fw[np * (nf3 + k3)], prefactor / ker3[-k3]);
   }
-}
-
-
-template<typename FloatType>
-Status Plan<CPUDevice, FloatType>::check_points_within_bounds() {
-  FloatType lower_bound, upper_bound;
-
-  // For each dimension.
-  for (int d = 0; d < this->rank_; d++) {
-    // Select appropriate bounds depending on configuration.
-    switch (this->options_.point_bounds()) {
-      case PointBounds::STRICT: {
-        lower_bound = this->options_.point_units == PointUnits::RADIANS ?
-            (-kPi<FloatType>) :
-            (FloatType(0.0));
-        upper_bound = this->options_.point_units == PointUnits::RADIANS ?
-            (kPi<FloatType>) :
-            (static_cast<FloatType>(this->grid_dims_[d]));
-        break;
-      }
-      case PointBounds::EXTENDED: {
-        lower_bound = this->options_.point_units == PointUnits::RADIANS ?
-            (-3.0 * kPi<FloatType>) :
-            (-static_cast<FloatType>(this->grid_dims_[d]));
-        upper_bound = this->options_.point_units == PointUnits::RADIANS ?
-            (3.0 * kPi<FloatType>) :
-            (2 * static_cast<FloatType>(this->grid_dims_[d]));
-        break;
-      }
-      case PointBounds::INFINITE: {
-        return OkStatus();
-      }
-    }
-
-    // For each point, check it lies within the bounds.
-    for (int64_t i = 0; i < this->num_points_; ++i) {
-      if (this->points_[d][i] < lower_bound ||
-          this->points_[d][i] > upper_bound ||
-          !std::isfinite(this->points_[d][i])) {
-        return errors::InvalidArgument(
-            "Found points out of bounds: ",
-            "points[", i, ",", d, "] = ", this->points_[d][i],
-            " is not in [", lower_bound, ", ", upper_bound, "]");
-      }
-    }
-  }
-  return OkStatus();
 }
 
 namespace {

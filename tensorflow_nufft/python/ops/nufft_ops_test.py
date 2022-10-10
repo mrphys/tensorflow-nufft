@@ -541,7 +541,7 @@ class NUFFTOpsTest(tf.test.TestCase):
 
 
   @parameterized(transform_type=['type_1', 'type_2'],
-                 device=['/cpu:0'])
+                 device=['/cpu:0', '/gpu:0'])
   def test_nufft_check_bounds(self, transform_type, device):
     """Test that NUFFT raises an error when points are out of bounds."""
     tf.random.set_seed(0)
@@ -565,13 +565,13 @@ class NUFFTOpsTest(tf.test.TestCase):
       options.point_bounds = nufft_options.PointBounds.STRICT
       options.debugging.check_bounds = True
       with self.assertRaisesRegex(
-          tf.errors.InvalidArgumentError, "out of bounds"):
+          tf.errors.InvalidArgumentError, "outside expected range"):
         targetl = nufft_ops.nufft(source, points - 2.0 * np.pi,
                                   grid_shape=grid_shape,
                                   transform_type=transform_type,
                                   options=options)
       with self.assertRaisesRegex(
-          tf.errors.InvalidArgumentError, "out of bounds"):
+          tf.errors.InvalidArgumentError, "outside expected range"):
         targetr = nufft_ops.nufft(source, points + 2.0 * np.pi,
                                   grid_shape=grid_shape,
                                   transform_type=transform_type,
@@ -581,13 +581,13 @@ class NUFFTOpsTest(tf.test.TestCase):
       options.point_bounds = nufft_options.PointBounds.EXTENDED
       options.debugging.check_bounds = True
       with self.assertRaisesRegex(
-          tf.errors.InvalidArgumentError, "out of bounds"):
+          tf.errors.InvalidArgumentError, "outside expected range"):
         targetl = nufft_ops.nufft(source, points - 10.0 * np.pi,
                                   grid_shape=grid_shape,
                                   transform_type=transform_type,
                                   options=options)
       with self.assertRaisesRegex(
-          tf.errors.InvalidArgumentError, "out of bounds"):
+          tf.errors.InvalidArgumentError, "outside expected range"):
         targetr = nufft_ops.nufft(source, points + 10.0 * np.pi,
                                   grid_shape=grid_shape,
                                   transform_type=transform_type,

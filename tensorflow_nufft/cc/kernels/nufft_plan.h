@@ -39,6 +39,7 @@ limitations under the License.
 #include <cstdint>
 
 #include <thrust/execution_policy.h>
+#include <thrust/transform_reduce.h>
 
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #if GOOGLE_CUDA
@@ -254,6 +255,8 @@ class PlanBase {
   virtual Status spread(DType* c, DType* f) = 0;
 
  protected:
+  // initialize(...)
+
   // Sets default values for unset options.
   // Sets: options_.upsampling_factor, options_.kernel_width.
   // Requires: tol_ must be set.
@@ -269,8 +272,15 @@ class PlanBase {
   // Initializes the FFT library and plan.
   virtual Status initialize_fft() = 0;
 
+  // set_points(...)
+
+  // Checks that the nonuniform points are within the supported bounds.
+  Status check_points_within_range() const;
+
   // Wraps nonuniform points to the canonical range.
   Status wrap_points_to_canonical_range();
+
+  // general
 
   // Retrieves the default Thrust execution policy.
   virtual const ExecutionPolicyType execution_policy() const = 0;
@@ -420,11 +430,9 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // Sets this->fft_plan_.
   Status initialize_fft() override;
 
-  // Checks that the nonuniform points are within the supported bounds.
-  Status check_points_within_bounds();
-
   // Retrieves the default Thrust execution policy.
   const ExecutionPolicyType execution_policy() const override {
+    // TODO: consider using a multi-threaded policy.
     return thrust::cpp::par;
   }
 
@@ -484,6 +492,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
  protected:
   // Retrieves the default Thrust execution policy.
   const ExecutionPolicyType execution_policy() const override {
+    // TODO: consider using par_nosync once Thrust gets upgraded to 1.16.
     return thrust::cuda::par.on(this->device_.stream());
   }
 
@@ -593,10 +602,27 @@ IntType next_smooth_integer(IntType n, IntType b = 1) {
 template<typename FloatType>
 struct WrapPointToCanonicalRange : public thrust::unary_function<FloatType, FloatType>
 {
-  __host__ __device__ FloatType operator()(FloatType x) const {
+  __host__ __device__
+  FloatType operator()(const FloatType& x) const {
     return std::fmod(x + kPi<FloatType>, kTwoPi<FloatType>) - kPi<FloatType>;
   }
 };
+
+template<typename FloatType>
+struct IsWithinRange : public thrust::unary_function<FloatType, bool>
+{
+  IsWithinRange(const FloatType& lower, const FloatType& upper)
+    : lower_(lower), upper_(upper) { }
+
+  __host__ __device__
+  bool operator()(const FloatType& x) const {
+    return (x > lower_) && (x < upper_);
+  }
+
+  FloatType lower_;
+  FloatType upper_;
+};
+
 }  // namespace
 
 
@@ -701,6 +727,64 @@ Status PlanBase<Device, FloatType>::initialize_fine_grid() {
         DataTypeToEnum<DType>::value, fine_shape, &this->fine_tensor_));
     this->fine_data_ = reinterpret_cast<DType*>(
         this->fine_tensor_.flat<DType>().data());
+  }
+
+  return OkStatus();
+}
+
+
+template<typename Device, typename FloatType>
+Status PlanBase<Device, FloatType>::check_points_within_range() const {
+  if (this->options_.point_bounds() == PointBounds::INFINITE) {
+    // No need to check in this case, as all values are valid.
+    return OkStatus();
+  }
+
+  FloatType lower_bound, upper_bound;
+
+  // For each dimension.
+  for (int d = 0; d < this->rank_; d++) {
+    // Select appropriate bounds depending on configuration.
+    switch (this->options_.point_bounds()) {
+      case PointBounds::STRICT: {
+        lower_bound = this->options_.point_units == PointUnits::RADIANS ?
+            (-kPi<FloatType>) :
+            (FloatType(0.0));
+        upper_bound = this->options_.point_units == PointUnits::RADIANS ?
+            (kPi<FloatType>) :
+            (static_cast<FloatType>(this->grid_dims_[d]));
+        break;
+      }
+      case PointBounds::EXTENDED: {
+        lower_bound = this->options_.point_units == PointUnits::RADIANS ?
+            (-3.0 * kPi<FloatType>) :
+            (-static_cast<FloatType>(this->grid_dims_[d]));
+        upper_bound = this->options_.point_units == PointUnits::RADIANS ?
+            (3.0 * kPi<FloatType>) :
+            (2 * static_cast<FloatType>(this->grid_dims_[d]));
+        break;
+      }
+      default: {
+        // Should never happen.
+        return errors::Internal("check_points_within_range");
+      }
+    }
+
+    bool all_points_within_range = thrust::transform_reduce(
+        this->execution_policy(),
+        this->points_[d],
+        this->points_[d] + this->num_points_,
+        IsWithinRange<FloatType>(lower_bound, upper_bound),
+        true,
+        thrust::logical_and<bool>());
+
+    if (!all_points_within_range) {
+      return errors::InvalidArgument(
+          "Found points outside expected range for dimension ", d,
+          ". Valid range is [", lower_bound, ", ", upper_bound, "]. "
+          "Check your points and/or set a less restrictive value for "
+          "options.point_bounds.");
+    }
   }
 
   return OkStatus();

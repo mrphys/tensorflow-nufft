@@ -487,8 +487,8 @@ class NUFFTOpsTest(tf.test.TestCase):
       grid_shape = [10, 10]
       if transform_type == 'type_1':
         source = tf.complex(
-            tf.random.normal(shape=(100,), dtype=tf.float32),
-            tf.random.normal(shape=(100,), dtype=tf.float32)
+            tf.random.normal(shape=(10,), dtype=tf.float32),
+            tf.random.normal(shape=(10,), dtype=tf.float32)
         )
       elif transform_type == 'type_2':
         source = tf.complex(
@@ -550,8 +550,8 @@ class NUFFTOpsTest(tf.test.TestCase):
       grid_shape = [10, 10]
       if transform_type == 'type_1':
         source = tf.complex(
-            tf.random.normal(shape=(100,), dtype=tf.float32),
-            tf.random.normal(shape=(100,), dtype=tf.float32)
+            tf.random.normal(shape=(10,), dtype=tf.float32),
+            tf.random.normal(shape=(10,), dtype=tf.float32)
         )
       elif transform_type == 'type_2':
         source = tf.complex(

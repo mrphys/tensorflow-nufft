@@ -277,8 +277,8 @@ class PlanBase {
   // Checks that the nonuniform points are within the supported bounds.
   Status check_points_within_range() const;
 
-  // Wraps nonuniform points to the canonical range.
-  Status wrap_points_to_canonical_range();
+  // Folds and rescales nonuniform points to the canonical range.
+  Status fold_and_rescale_points();
 
   // general
 
@@ -598,23 +598,16 @@ IntType next_smooth_integer(IntType n, IntType b = 1) {
   return p;
 }
 
-// Wraps the input point to the canonical range `[-pi, pi)`.
-// Note: We use a functor instead of a more convenient __host__ __device__
-// lambda expression because the latter may have reduced performance on the
-// host due to the compiler's inability to inline it. See:
-// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#host-device-lambda-notes
-template<typename FloatType>
-struct WrapPointToCanonicalRange : public thrust::unary_function<FloatType, FloatType>
-{
-  __host__ __device__
-  FloatType operator()(const FloatType& x) const {
-    return std::fmod(x + kPi<FloatType>, kTwoPi<FloatType>) - kPi<FloatType>;
-  }
-};
 
+// Functors.
+// Note: We use functors instead of more convenient __host__ __device__
+// lambda expressions because the latter may have reduced performance on the
+// host due to the compiler's inability to inline them.
+// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#host-device-lambda-notes
+
+// Checks if input is within the specified range.
 template<typename FloatType>
-struct IsWithinRange : public thrust::unary_function<FloatType, bool>
-{
+struct IsWithinRange : public thrust::unary_function<FloatType, bool> {
   IsWithinRange(const FloatType& lower, const FloatType& upper)
     : lower_(lower), upper_(upper) { }
 
@@ -625,6 +618,69 @@ struct IsWithinRange : public thrust::unary_function<FloatType, bool>
 
   FloatType lower_;
   FloatType upper_;
+};
+
+
+// Folds and rescales the input point to the canonical range `[0, n]`.
+// There are specializations depending on the input points range.
+template<typename FloatType, PointsRange>
+struct FoldAndRescale : public thrust::unary_function<FloatType, FloatType> {
+
+};
+
+
+template<typename FloatType>
+struct FoldAndRescale<FloatType, PointsRange::STRICT>
+  : public thrust::unary_function<FloatType, FloatType> {
+  FoldAndRescale(int n) : n_(n) { }
+
+  __host__ __device__
+  FloatType operator()(const FloatType& x) const {
+    return (x + kPi<FloatType>) *
+        kOneOverTwoPi<FloatType> * static_cast<FloatType>(n_);
+  }
+
+  int n_;
+};
+
+
+template<typename FloatType>
+struct FoldAndRescale<FloatType, PointsRange::EXTENDED>
+  : public thrust::unary_function<FloatType, FloatType> {
+  FoldAndRescale(int n) : n_(n) { }
+
+  __host__ __device__
+  FloatType operator()(const FloatType& x) const {
+    FloatType s;
+    if (x > kPi<FloatType>) {
+      s = x - kPi<FloatType>;
+    } else if (x < -kPi<FloatType>) {
+      s = x + FloatType(3.0) * kPi<FloatType>;
+    } else {
+      s = x + kPi<FloatType>;
+    }
+    return s * kOneOverTwoPi<FloatType> * static_cast<FloatType>(n_);
+  }
+
+  int n_;
+};
+
+
+template<typename FloatType>
+struct FoldAndRescale<FloatType, PointsRange::INFINITE>
+  : public thrust::unary_function<FloatType, FloatType> {
+  FoldAndRescale(int n) : n_(n) { }
+
+  __host__ __device__
+  FloatType operator()(const FloatType& x) const {
+    FloatType s = std::fmod(x + kPi<FloatType>, kTwoPi<FloatType>);
+    if (std::signbit(s)) {
+      s += kTwoPi<FloatType>;
+    }
+    return s * kOneOverTwoPi<FloatType> * static_cast<FloatType>(n_);
+  }
+
+  int n_;
 };
 
 }  // namespace
@@ -773,20 +829,49 @@ Status PlanBase<Device, FloatType>::check_points_within_range() const {
 
 
 template<typename Device, typename FloatType>
-Status PlanBase<Device, FloatType>::wrap_points_to_canonical_range() {
+Status PlanBase<Device, FloatType>::fold_and_rescale_points() {
   if (this->options_.points_unit != PointsUnit::RADIANS_PER_SAMPLE) {
     return errors::Unimplemented(
-        "wrap_points_to_canonical_range is only implemented for radians.");
+        "fold_and_rescale_points is only implemented for ",
+        "points_unit == RADIANS_PER_SAMPLE.");
   }
 
-  // For each dimension.
-  for (int d = 0; d < this->rank_; d++) {
-    thrust::transform(
-        this->execution_policy(),
-        this->points_[d],
-        this->points_[d] + this->num_points_,
-        this->points_[d],
-        WrapPointToCanonicalRange<FloatType>());
+  switch (this->options_.points_range()) {
+    case PointsRange::STRICT:
+      for (int d = 0; d < this->rank_; d++) {
+        thrust::transform(
+            this->execution_policy(),
+            this->points_[d],
+            this->points_[d] + this->num_points_,
+            this->points_[d],
+            FoldAndRescale<FloatType, PointsRange::STRICT>(
+                this->fine_dims_[d]));
+      }
+      break;
+    case PointsRange::EXTENDED:
+      for (int d = 0; d < this->rank_; d++) {
+        thrust::transform(
+            this->execution_policy(),
+            this->points_[d],
+            this->points_[d] + this->num_points_,
+            this->points_[d],
+            FoldAndRescale<FloatType, PointsRange::EXTENDED>(
+                this->fine_dims_[d]));
+      }
+      break;
+    case PointsRange::INFINITE:
+      for (int d = 0; d < this->rank_; d++) {
+        thrust::transform(
+            this->execution_policy(),
+            this->points_[d],
+            this->points_[d] + this->num_points_,
+            this->points_[d],
+            FoldAndRescale<FloatType, PointsRange::INFINITE>(
+                this->fine_dims_[d]));
+      }
+      break;
+    default:
+      LOG(FATAL) << "invalid points range";
   }
 
   return OkStatus();
@@ -815,6 +900,9 @@ FloatType PlanBase<Device, FloatType>::points_upper_bound(int dim) const {
       upper_bound = kPi<FloatType>;
       break;
     }
+    default: {
+      LOG(FATAL) << "invalid points unit";
+    }
   }
 
   switch (this->options_.points_range()) {
@@ -828,6 +916,9 @@ FloatType PlanBase<Device, FloatType>::points_upper_bound(int dim) const {
     case PointsRange::INFINITE: {
       upper_bound = std::numeric_limits<FloatType>::infinity();
       break;
+    }
+    default: {
+      LOG(FATAL) << "invalid points range";
     }
   }
 

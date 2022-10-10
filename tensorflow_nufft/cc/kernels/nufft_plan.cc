@@ -44,17 +44,11 @@ limitations under the License.
 namespace tensorflow {
 namespace nufft {
 
-// local NU coord fold+rescale macro: does the following affine transform to x:
-//   when p=true:   map [-3pi,-pi) and [-pi,pi) and [pi,3pi)    each to [0,N)
-//   otherwise,     map [-N,0) and [0,N) and [N,2N)             each to [0,N)
-// Thus, only one period either side of the principal domain is folded.
-// (It is *so* much faster than slow std::fmod that we stick to it.)
-// This explains FINUFFT's allowed input domain of [-3pi,3pi).
-// Speed comparisons of this macro vs a function are in devel/foldrescale*.
-// The macro wins hands-down on i7, even for modern GCC9.
-#define FOLD_AND_RESCALE(x, N, p) (p ?                                         \
-         (x + (x >= -kPi<FloatType> ? (x < kPi<FloatType> ? kPi<FloatType> : -kPi<FloatType>) : 3 * kPi<FloatType>)) * (kOneOverTwoPi<FloatType> * N) : \
-                          (x >= 0.0 ? (x < (FloatType)N ? x : x - (FloatType)N) : x + (FloatType)N))
+// This macro was used in the original FINUFFT code. Here it's just an
+// identity mapping as its result is precomputed, but we're keeping it as a
+// placeholder in case we want to compute its result it on the fly in the
+// future.
+#define FOLD_AND_RESCALE(x, N, p) (x)
 
 namespace {
 
@@ -318,10 +312,8 @@ Status Plan<CPUDevice, FloatType>::set_points(
     TF_RETURN_IF_ERROR(this->check_points_within_range());
   }
 
-  // Wrap points if we support infinite range.
-  if (this->options_.points_range() == PointsRange::INFINITE) {
-    TF_RETURN_IF_ERROR(this->wrap_points_to_canonical_range());
-  }
+  // Fold and rescale points.
+  TF_RETURN_IF_ERROR(this->fold_and_rescale_points());
 
   this->sort_indices_ = (int64_t*) malloc(sizeof(int64_t) * this->num_points_);
   if (!this->sort_indices_) {
@@ -349,11 +341,7 @@ Status Plan<CPUDevice, FloatType>::set_points(
 */
 template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::execute(DType* cj, DType* fk){
-
   if (this->type_ != TransformType::TYPE_3) {
-
-    double t_sprint = 0.0, t_fft = 0.0, t_deconv = 0.0;  // accumulated timing
-
     for (int b=0; b*this->batch_size_ < this->num_transforms_; b++) { // .....loop b over batches
 
       // current batch is either batch_size, or possibly truncated if last one
@@ -932,8 +920,9 @@ void bin_sort_singlethread(
   }
   std::vector<int64_t> offsets(num_bins);   // cumulative sum of bin counts
   offsets[0] = 0;     // do: offsets = [0 cumsum(counts(1:end-1)]
-  for (int64_t i = 1; i < num_bins; i++)
+  for (int64_t i = 1; i < num_bins; i++) {
     offsets[i] = offsets[i - 1] + counts[i-1];
+  }
 
   std::vector<int64_t> inv(num_points);           // fill inverse map
   for (int64_t i = 0; i < num_points; i++) {
@@ -947,8 +936,9 @@ void bin_sort_singlethread(
     inv[i] = offset;
   }
   // invert the map, writing to output pointer (writing pattern is random)
-  for (int64_t i = 0; i < num_points; i++)
+  for (int64_t i = 0; i < num_points; i++) {
     ret[inv[i]] = i;
+  }
 }
 
 // Mostly-OpenMP'ed version of bin_sort_singlethread.
@@ -963,6 +953,7 @@ void bin_sort_multithread(
     int64_t n1,int64_t n2,int64_t n3,int pirange,
     double bin_size_x, double bin_size_y, double bin_size_z, int debug,
     int num_threads) {
+
   bool isky = (n2 > 1), iskz = (n3 > 1);  // ky,kz avail? (cannot access if not)
   int64_t nbins1=n1 / bin_size_x + 1, nbins2, nbins3;  // see above note on why +1
   nbins2 = isky ? n2 / bin_size_y + 1 : 1;

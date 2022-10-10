@@ -100,21 +100,27 @@ class PointsRange(enum.IntEnum):
 
   ```{note}
   The discrete Fourier transform (DFT) is periodic with respect to the points
-  $x$, i.e., $f(k, x + 2\pi) = f(k, x)$. Therefore, it can always be computed
-  by shifting the points by a multiple of $2\pi$ to the interval $[-\pi, \pi)$.
-  This option affects whether the algorithm used by `nufft` is guaranteed to
-  support this.
+  $x$, i.e., $f(k, x + 2\pi) = f(k, x)$. Therefore, the DFT is defined for
+  $x \in (-\infty, \infty)$ and can always be computed by shifting `x`
+  by a multiple of $2\pi$ to the interval $[-\pi, \pi]$. However, if
+  you can promise that the input points lie within a narrower range, the
+  algorithm might be able to perform some optimizations.
   ```
 
-  - **STRICT**: points must lie in the range $[-\pi, \pi]$. This is the fastest
-    option.
+  The following options are available:
 
-  - **EXTENDED**: points must lie in the range $[-3 \pi, 3 \pi]$. This option
-    offers a compromise between flexibility and performance. This is the
-    default option.
+  - **STRICT**: the algorithm is only guaranteed to support values in the range
+    $[-\pi, \pi]$. This option offers the most opportunities for performance
+    optimization.
 
-  - **INFINITE**: accepts points in the range $(-\infty, +\infty)$. This option
-    offers the most flexibility, but may have slightly reduced performance.
+  - **EXTENDED**: the algorithm is guaranteed to support values in the range
+    $[-3 \pi, 3 \pi]$. This option offers a compromise between flexibility and
+    performance. Even if your points are in $[-\pi, \pi]$, this option might
+    offer robustness against rounding error. This is the default option.
+
+  - **INFINITE**: the algorithm is guaranteed to support values in the range
+    $(-\infty, +\infty)$. This option offers the most flexibility, but cannot
+    optimize performance.
 
   ```{attention}
   For options `STRICT` and `EXTENDED`, passing points outside the supported
@@ -161,10 +167,10 @@ class DebuggingOptions(pydantic.BaseModel):
     >>> tfft.nufft(k, x, options=options)
 
   Attributes:
-    check_points_range: If `True`, `nufft` will assert that the nonuniform point
-      coordinates lie within the supported range (as determined by
+    check_points_range: If `True`, `nufft` will assert that the nonuniform
+      point coordinates lie within the supported range (as determined by
       `options.points_range`). This improves the safety of the operation,
-      but may negatively impact performance. Defaults to `False`.
+      but may have a small impact on performance. Defaults to `False`.
   """
   check_points_range: bool = False
 

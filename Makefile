@@ -110,10 +110,10 @@ all: lib wheel
 lib: proto $(TARGET_LIB)
 
 %.cu.o: %.cu.cc
-	$(NVCC) -ccbin $(CXX) -dc -x cu $(CUFLAGS) -t 0 -o $@ -c $<
+	$(NVCC) --compiler-bindir $(CXX) --device-c -x cu $(CUFLAGS) --threads 0 --output-file $@ --compile $<
 
 $(TARGET_DLINK): $(CUOBJECTS)
-	$(NVCC) -ccbin $(CXX) -dlink $(CUFLAGS) -t 0 -o $@ $^
+	$(NVCC) --compiler-bindir $(CXX) --device-link $(CUFLAGS) --threads 0 --output-file $@ $^
 
 $(TARGET_LIB): $(CXXSOURCES) $(PROTO_OBJECTS) $(CUOBJECTS) $(TARGET_DLINK)
 	$(CXX) -shared $(CXXFLAGS) -o $@ $^ $(LDFLAGS)

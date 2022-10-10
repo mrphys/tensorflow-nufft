@@ -38,6 +38,8 @@ limitations under the License.
 
 #include <cstdint>
 
+#include <thrust/execution_policy.h>
+
 #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #if GOOGLE_CUDA
 #include "third_party/gpus/cuda/include/cuComplex.h"
@@ -175,11 +177,35 @@ struct SpreadParameters {
   #endif  // GOOGLE_CUDA
 };
 
+namespace {
+// Represents the Thrust execution policy type, which is currently specialized
+// for CPU and GPU.
+// Note: It might be possible to avoid the need for this struct by using
+// the base type `thrust::execution_policy`, but it is not clear to me how to
+// do this since `thrust::execution_policy` is itself a template which depends
+// on the derived execution policy.
+template<typename Device>
+class ExecutionPolicy;
+
+template<>
+struct ExecutionPolicy<CPUDevice> {
+  using Type = thrust::system::cpp::detail::par_t;
+};
+
+#if GOOGLE_CUDA
+template<>
+struct ExecutionPolicy<GPUDevice> {
+  using Type = thrust::system::cuda::detail::par_t::stream_attachment_type;
+};
+#endif  // GOOGLE_CUDA
+}  // namespace
+
 template<typename Device, typename FloatType>
 class PlanBase {
  public:
   // The main data type this plan operates with; either complex float or double.
   using DType = typename ComplexType<Device, FloatType>::Type;
+  using ExecutionPolicyType = typename ExecutionPolicy<Device>::Type;
 
   explicit PlanBase(OpKernelContext* context)
       : context_(context),
@@ -205,6 +231,10 @@ class PlanBase {
   // points. Maybe rescales the non-uniform points to the range used by the
   // spreader. Determines the spreader parameters that depend on the non-uniform
   // points. Must be called after `initialize`.
+  //
+  // Note: the plan does not take ownership of pointers `points_x`, `points_y`,
+  // `points_z`. However, the plan may change the values in `points`. The
+  // caller must ensure that the memory is valid until the plan is destroyed.
   virtual Status set_points(int num_points,
                             FloatType* points_x,
                             FloatType* points_y,
@@ -224,6 +254,28 @@ class PlanBase {
   virtual Status spread(DType* c, DType* f) = 0;
 
  protected:
+  // Sets default values for unset options.
+  // Sets: options_.upsampling_factor, options_.kernel_width.
+  // Requires: tol_ must be set.
+  // this->options_ is valid after calling this function.
+  Status set_default_options();
+
+  // Initializes the fine grid dimension sizes and allocates the array.
+  // Sets: fine_dims_, fine_size_, fine_tensor_, fine_data_ and
+  //   options_.upsampling_factor.
+  // Requires: rank_, tol_, grid_dims_, grid_size_ and batch_size_.
+  Status initialize_fine_grid();
+
+  // Initializes the FFT library and plan.
+  virtual Status initialize_fft() = 0;
+
+  // Wraps nonuniform points to the canonical range.
+  Status wrap_points_to_canonical_range();
+
+  // Retrieves the default Thrust execution policy.
+  virtual const ExecutionPolicyType execution_policy() const = 0;
+
+ protected:
   // The rank of the transform (number of dimensions). Must be 1, 2 or 3.
   int rank_;
 
@@ -233,16 +285,14 @@ class PlanBase {
   // Direction of the FFT. See enum above.
   FftDirection fft_direction_;
 
-  // The total number of points.
-  int num_points_;
+  // Relative user tol.
+  FloatType tol_;
 
-  // Pointers to the non-uniform point coordinates. Each of these points to an
-  // array of length `num_points_`.
-  // Notes:
-  //  - In the GPU implementation, these are device pointers.
-  //  - These pointers are not owned by the plan.
-  //  - Unused pointers are set to nullptr.
-  FloatType* points_[3];
+  // Number of transforms to compute.
+  int num_transforms_;
+
+  // Number of transforms to be performed in a single batch.
+  int batch_size_;
 
   // The grid's dimension sizes or number of modes along each dimension.
   int grid_dims_[3];
@@ -257,11 +307,23 @@ class PlanBase {
   // The total element count of the fine (oversampled) grid.
   int fine_size_;
 
-  // Number of transforms to compute.
-  int num_transforms_;
+  // Batch of fine grids for FFT. This is usually the
+  // largest array allocated by NUFFT.
+  Tensor fine_tensor_;
 
-  // Number of transforms to be performed in a single batch.
-  int batch_size_;
+  // A convenience pointer to the fine grid array for FFT calls.
+  DType* fine_data_;
+
+  // The total number of points.
+  int num_points_;
+
+  // Pointers to the non-uniform point coordinates. Each of these points to an
+  // array of length `num_points_`.
+  // Notes:
+  //  - In the GPU implementation, these are device pointers.
+  //  - These pointers are not owned by the plan.
+  //  - Unused pointers are set to nullptr.
+  FloatType* points_[3];
 
   // Pointer to the op kernel context.
   OpKernelContext* context_;
@@ -279,10 +341,8 @@ class Plan;
 template<typename FloatType>
 class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
  public:
-  // The main data type this plan operates with; either complex float or double.
   using DType = typename ComplexType<CPUDevice, FloatType>::Type;
-  // The corresponding FFTW type.
-  using FftwType = typename fftw::ComplexType<FloatType>::Type;
+  using ExecutionPolicyType = typename ExecutionPolicy<CPUDevice>::Type;
 
   explicit Plan(OpKernelContext* context)
       : PlanBase<CPUDevice, FloatType>(context) { }
@@ -310,60 +370,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
  protected:
 
-  // If opts.spread_direction=1, evaluate, in the 1D case,
-
-  //                       N1-1
-  // data_nonuniform[j] =  SUM phi(kx[j] - n) data_uniform[n],   for j=0...M-1
-  //                       n=0
-
-  // If opts.spread_direction=2, evaluate its transpose, in the 1D case,
-
-  //                   M-1
-  // data_uniform[n] =  SUM phi(kx[j] - n) data_nonuniform[j],   for n=0...N1-1
-  //                   j=0
-
-  // In each case phi is the spreading kernel, which has support
-  // [-opts.kernel_width/2,opts.kernel_width/2]. In 2D or 3D, the generalization with
-  // product of 1D kernels is performed.
-  // For 1D set N2=N3=1; for 2D set N3=1; for 3D set N1,N2,N3>1.
-
-  // Notes:
-  // No particular normalization of the spreading kernel is assumed.
-  // Uniform (U) points are centered at coords
-  // [0,1,...,N1-1] in 1D, analogously in 2D and 3D. They are stored in x
-  // fastest, y medium, z slowest ordering, up to however many
-  // dimensions are relevant; note that this is Fortran-style ordering for an
-  // array f(x,y,z), but C style for f[z][y][x]. This is to match the Fortran
-  // interface of the original CMCL libraries.
-  // Non-uniform (NU) points kx,ky,kz are real, and may lie in the central three
-  // periods in each coordinate (these are folded into the central period).
-  // If pirange=0, the periodic domain for kx is [0,N1], ky [0,N2], kz [0,N3].
-  // If pirange=1, the periodic domain is instead [-pi,pi] for each coord.
-  // The SpreadParameters<FLT> struct must have been set up already by calling setup_kernel.
-  // It is assumed that 2*opts.kernel_width < min(N1,N2,N3), so that the kernel
-  // only ever wraps once when falls below 0 or off the top of a uniform grid
-  // dimension.
-
-  // Inputs:
-  // N1,N2,N3 - grid sizes in x (fastest), y (medium), z (slowest) respectively.
-  //           If N2==1, 1D spreading is done. If N3==1, 2D spreading.
-  //     Otherwise, 3D.
-  // M - number of NU pts.
-  // kx, ky, kz - length-M real arrays of NU point coordinates (only kx read in
-  //             1D, only kx and ky read in 2D).
-
-  // Inputs/Outputs:
-  // data_uniform - output values on grid (dir=1) OR input grid data (dir=2)
-  // data_nonuniform - input strengths of the sources (dir=1)
-  //                   OR output values at targets (dir=2)
-  // Returned value:
-  // 0 indicates success; other values have meanings in ../docs/error.rst, with
-  // following modifications:
-  //   3 : one or more non-trivial box dimensions is less than 2.kernel_width.
-  //   4 : nonuniform points outside [-Nm,2*Nm] or [-3pi,3pi] in at least one
-  //       dimension m=1,2,3.
-  //   5 : failed allocate sort indices
-
   // Magland Dec 2016. Barnett openmp version, many speedups 1/16/17-2/16/17
   // error codes 3/13/17. pirange 3/28/17. Rewritten 6/15/17. parallel sort 2/9/18
   // No separate subprob indices in t-1 2/11/18.
@@ -375,13 +381,13 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   Status spread_or_interp(DType* c, DType* f);
 
   // Spreads (or interpolates) a batch of batch_size strength vectors in cBatch
-  // to (or from) the batch of fine working grids this->grid_data_, using the same set of
+  // to (or from) the batch of fine working grids this->fine_data_, using the same set of
   // (index-sorted) NU points this->points_[0],Y,Z for each vector in the batch.
   // The direction (spread vs interpolate) is set by this->spread_params_.spread_direction.
   // Returns 0 (no error reporting for now).
   // Notes:
   // 1) cBatch is already assumed to have the correct offset, ie here we
-  //    read from the start of cBatch (unlike Malleo). grid_data_ also has zero offset
+  //    read from the start of cBatch (unlike Malleo). fine_data_ also has zero offset
   // 2) this routine is a batched version of spreadinterpSorted in spreadinterp.cpp
   // Barnett 5/19/20, based on Malleo 2019.
   // 3) the 3rd parameter is used when doing interp/spread only. When received,
@@ -390,34 +396,43 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   Status spread_or_interp_sorted_batch(
       int batch_size, DType* cBatch, DType* fBatch=nullptr);
 
-  // Type 1: deconvolves (amplifies) from each interior fw array in this->grid_data_
+  // Type 1: deconvolves (amplifies) from each interior fw array in this->fine_data_
   // into each output array fk in fkBatch.
   // Type 2: deconvolves from user-supplied input fk to 0-padded interior fw,
-  // again looping over fk in fkBatch and fw in this->grid_data_.
+  // again looping over fk in fkBatch and fw in this->fine_data_.
   // The direction (spread vs interpolate) is set by this->spread_params_.spread_direction.
   // This is mostly a loop calling deconvolveshuffle?d for the needed rank batch_size
   // times.
   // Barnett 5/21/20, simplified from Malleo 2019 (eg t3 logic won't be in here)
   Status deconvolve_batch(int batch_size, DType* fkBatch);
 
-  // Checks that the nonuniform points are within the supported bounds.
-  Status check_point_bounds();
+  // 1D, 2D and 3D deconvolution / amplification.
+  // These functions also shift frequencies according to the configured mode
+  // order.
+  void deconvolve_1d(
+      DType* fk, DType* fw, FloatType prefactor = FloatType(1.0));
+  void deconvolve_2d(
+      DType* fk, DType* fw, FloatType prefactor = FloatType(1.0));
+  void deconvolve_3d(
+      DType* fk, DType* fw, FloatType prefactor = FloatType(1.0));
 
-  // Wraps nonuniform points to the canonical range [-pi, pi).
-  Status wrap_points();
+  // Initializes the FFT library and plan.
+  // Sets this->fft_plan_.
+  Status initialize_fft() override;
+
+  // Checks that the nonuniform points are within the supported bounds.
+  Status check_points_within_bounds();
+
+  // Retrieves the default Thrust execution policy.
+  const ExecutionPolicyType execution_policy() const override {
+    return thrust::cpp::par;
+  }
 
  public:  // TODO(jmontalt): make private after refactoring FINUFFT.
 
   // Number of batches in one execution (includes all the transforms in
   // num_transforms_).
   int num_batches_;
-  // Batch of fine grids for FFTW to plan and execute. This is usually the
-  // largest array allocated by NUFFT.
-  Tensor grid_tensor_;
-  // A convenience pointer to the fine grid array for FFTW calls.
-  FftwType* grid_data_;
-  // Relative user tol.
-  FloatType tol_;
   // The FFTW plan for FFTs.
   typename fftw::PlanType<FloatType>::Type fft_plan_;
   // The parameters for the spreading algorithm/s.
@@ -440,6 +455,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
  public:
   // The main data type this plan operates with; either complex float or double.
   using DType = typename ComplexType<GPUDevice, FloatType>::Type;
+  using ExecutionPolicyType = typename ExecutionPolicy<GPUDevice>::Type;
 
   explicit Plan(OpKernelContext* context)
       : PlanBase<GPUDevice, FloatType>(context) { }
@@ -466,7 +482,16 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   Status spread(DType* d_c, DType* d_fk) override;
 
  protected:
+  // Retrieves the default Thrust execution policy.
+  const ExecutionPolicyType execution_policy() const override {
+    return thrust::cuda::par.on(this->device_.stream());
+  }
+
+ protected:
   static int64_t CufftScratchSize;
+
+  // Initializes the FFT library and plan.
+  Status initialize_fft() override;
 
  private:
   Status init_spreader();
@@ -482,9 +507,9 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   Status deconvolve_batch(int batch_size);
   // Batch of fine grids for cuFFT to plan and execute. This is usually the
   // largest array allocated by NUFFT.
-  Tensor grid_tensor_;
+  Tensor fine_tensor_;
   // A convenience pointer to the fine grid array.
-  DType* grid_data_;
+  DType* fine_data_;
   // Tensors in device memory. Used for deconvolution. Empty in spread/interp
   // mode. Only the first `rank` tensors are allocated.
   Tensor fseries_tensor_[3];
@@ -530,6 +555,177 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   int* subprob_start_pts_;
 };
 #endif  // GOOGLE_CUDA
+
+
+namespace {
+// Returns an even integer not less than n, with prime factors no larger than 5
+// (ie, "smooth").
+// If optional arg b is specified, the returned number must also be a multiple
+// of b (b must be a number whose prime factors are no larger than 5).
+template<typename IntType>
+IntType next_smooth_integer(IntType n, IntType b = 1) {
+  // If n smaller than two, return 2.
+  if (n <= 2) return 2;
+  // If n is odd, make even by adding 1.
+  if (n % 2 == 1) n += 1;
+  // Initialize loop. At each iteration, we add 2 to p, and then check if p is
+  // smooth, by removing from p all factors of 2, 3 and 5, and storing the
+  // result in d. At the end of the loop, d = 1 iff p is smooth.
+  IntType p = n - 2;  // Subtract 2 to cancel out +2 in the loop.
+  IntType d = 2;  // A dummy initialization value (must be > 1).
+  while ((d > 1) || (p % b != 0)) {
+    // Add 2 to stay even (odd numbers are never smooth).
+    p += 2;
+    // Remove all factors of 2, 3 and 5 from p, saving the result in d.
+    d = p;
+    while (d % 2 == 0) d /= 2;
+    while (d % 3 == 0) d /= 3;
+    while (d % 5 == 0) d /= 5;
+  }
+  return p;
+}
+
+// Wraps the input point to the canonical range `[-pi, pi)`.
+// Note: We use a functor instead of a more convenient __host__ __device__
+// lambda expression because the latter may have reduced performance on the
+// host due to the compiler's inability to inline it. See:
+// https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#host-device-lambda-notes
+template<typename FloatType>
+struct WrapPointToCanonicalRange : public thrust::unary_function<FloatType, FloatType>
+{
+  __host__ __device__ FloatType operator()(FloatType x) const {
+    return std::fmod(x + kPi<FloatType>, kTwoPi<FloatType>) - kPi<FloatType>;
+  }
+};
+}  // namespace
+
+
+template<typename Device, typename FloatType>
+Status PlanBase<Device, FloatType>::set_default_options() {
+  // Upsampling factor.
+  double upsampling_factor = this->options_.upsampling_factor;
+  if (upsampling_factor == 0.0) {
+    // In general, the upsampling factor is 2.0.
+    upsampling_factor = 2.0;
+    // In certain circumstances, an upsampling factor of 1.25 is enough.
+    if (this->tol_ >= FloatType(1e-9)) {
+      if ((this->rank_ == 1 && this->grid_size_ > 10000000) ||
+          (this->rank_ == 2 && this->grid_size_ > 300000) ||
+          (this->rank_ == 3 && this->grid_size_ > 3000000))
+        upsampling_factor = 1.25;
+    }
+  } else {
+    // User-specified value. Do input checking.
+    if (upsampling_factor <= 1.0) {
+      return errors::InvalidArgument(
+          "upsampling_factor must be > 1.0, but got: ", upsampling_factor);
+    }
+  }
+  this->options_.upsampling_factor = upsampling_factor;
+
+  // Kernel width.
+  int kernel_width = 0;
+  if (upsampling_factor == 2.0) {
+    // Special case for sigma == 2.0.
+    kernel_width = std::ceil(-log10(this->tol_ / FloatType(10.0)));
+  } else {
+    // General case.
+    kernel_width = std::ceil(
+        -log(this->tol_) /
+        (kPi<FloatType> * std::sqrt(1.0 - 1.0 / upsampling_factor)));
+  }
+  // Kernel width must be at least 2.
+  kernel_width = std::max(kernel_width, 2);
+  // Kernel width must no be larger than limit.
+  kernel_width = std::min(kernel_width, kMaxKernelWidth);
+  this->options_.kernel_width = kernel_width;
+
+  return OkStatus();
+}
+
+
+template<typename Device, typename FloatType>
+Status PlanBase<Device, FloatType>::initialize_fine_grid() {
+  // Initialize fine grid dimensions to 1.
+  for (int d = 0; d < this->rank_; d++) {
+    this->fine_dims_[d] = 1;
+  }
+  this->fine_size_ = 1;
+
+  // Determine the fine grid dimensions.
+  for (int d = 0; d < this->rank_; d++) {
+    if (this->options_.spread_only) {
+      // Spread-only operation: no oversampling.
+      this->fine_dims_[d] = this->grid_dims_[d];
+    } else {
+      // Apply oversampling.
+      this->fine_dims_[d] = static_cast<int>(
+          this->grid_dims_[d] * this->options_.upsampling_factor);
+    }
+
+    // Make sure fine grid is at least as large as the kernel.
+    if (this->fine_dims_[d] < 2 * this->options_.kernel_width)
+      this->fine_dims_[d] = 2 * this->options_.kernel_width;
+
+    // Find the next smooth integer.
+    this->fine_dims_[d] = next_smooth_integer(this->fine_dims_[d]);
+
+    // For spread-only operation, make sure that the grid size is valid.
+    if (this->options_.spread_only &&
+        this->fine_dims_[d] != this->grid_dims_[d]) {
+      return errors::InvalidArgument(
+          "Invalid grid dimension size: ", this->grid_dims_[d],
+          ". Grid dimension must be even, larger than the kernel (",
+          2 * this->options_.kernel_width,
+          ") and have no prime factors larger than 5.");
+    }
+
+    // Update the total grid size.
+    this->fine_size_ *= this->fine_dims_[d];
+  }
+
+  // Check that the total grid size is not too big.
+  if (this->fine_size_ * this->batch_size_ > kMaxArraySize) {
+    return errors::InvalidArgument(
+        "Fine grid is too big: size ", this->fine_size_ * this->batch_size_,
+        " > ", kMaxArraySize);
+  }
+
+  // Allocate the working fine grid using the op kernel context.
+  // We allocate a flat array, since we'll only use this tensor through
+  // a raw pointer anyway.
+  // This array is only needed if we're not doing a spread-only operation.
+  if (!this->options_.spread_only) {
+    TensorShape fine_shape({this->fine_size_ * this->batch_size_});
+    TF_RETURN_IF_ERROR(this->context_->allocate_temp(
+        DataTypeToEnum<DType>::value, fine_shape, &this->fine_tensor_));
+    this->fine_data_ = reinterpret_cast<DType*>(
+        this->fine_tensor_.flat<DType>().data());
+  }
+
+  return OkStatus();
+}
+
+
+template<typename Device, typename FloatType>
+Status PlanBase<Device, FloatType>::wrap_points_to_canonical_range() {
+  if (this->options_.point_units != PointUnits::RADIANS) {
+    return errors::Unimplemented(
+        "wrap_points_to_canonical_range is only implemented for radians.");
+  }
+
+  // For each dimension.
+  for (int d = 0; d < this->rank_; d++) {
+    thrust::transform(
+        this->execution_policy(),
+        this->points_[d],
+        this->points_[d] + this->num_points_,
+        this->points_[d],
+        WrapPointToCanonicalRange<FloatType>());
+  }
+
+  return OkStatus();
+}
 
 }  // namespace nufft
 }  // namespace tensorflow

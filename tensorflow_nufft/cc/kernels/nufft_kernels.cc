@@ -530,7 +530,7 @@ class NUFFTBaseOp : public OpKernel {
           break;
       }
     }
-    return Status::OK();
+    return OkStatus();
   }
 
  protected:

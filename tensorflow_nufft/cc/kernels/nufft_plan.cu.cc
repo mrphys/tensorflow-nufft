@@ -1689,9 +1689,9 @@ Status Plan<GPUDevice, FloatType>::initialize(
     TF_RETURN_IF_ERROR(this->context_->allocate_temp(
         DataTypeToEnum<std::complex<FloatType>>::value,
         TensorShape({this->fine_size_ * this->batch_size_}),
-        &this->grid_tensor_));
-    this->grid_data_ = reinterpret_cast<DType*>(
-        this->grid_tensor_.flat<std::complex<FloatType>>().data());
+        &this->fine_tensor_));
+    this->fine_data_ = reinterpret_cast<DType*>(
+        this->fine_tensor_.flat<std::complex<FloatType>>().data());
 
     // For each dimension, calculate Fourier coefficients of the kernel for
     // deconvolution. The computation is performed on the CPU before
@@ -1727,54 +1727,14 @@ Status Plan<GPUDevice, FloatType>::initialize(
           reinterpret_cast<void*>(kernel_fseries_host_data[i]),
           num_bytes);
     }
-
-    // Make the cuFFT plan.
-    uint64_t fft_dims[3];
-    uint64_t *input_embed = fft_dims;
-    uint64_t *output_embed = fft_dims;
-    uint64_t input_distance = 0;
-    uint64_t output_distance = 0;
-    uint64_t input_stride = 1;
-    uint64_t output_stride = 1;
-    int batch_size = this->batch_size_;
-    switch (this->rank_) {
-      case 2: {
-        fft_dims[0] = this->fine_dims_[1];
-        fft_dims[1] = this->fine_dims_[0];
-        input_distance = input_embed[0] * input_embed[1];
-        output_distance = input_distance;
-        break;
-      }
-      case 3: {
-        fft_dims[0] = this->fine_dims_[2];
-        fft_dims[1] = this->fine_dims_[1];
-        fft_dims[2] = this->fine_dims_[0];
-        input_distance = input_embed[0] * input_embed[1] * input_embed[2];
-        output_distance = input_distance;
-        break;
-      }
-      default:
-        return errors::Unimplemented("Invalid rank: ", this->rank_);
-    }
-
-    constexpr bool kInPlaceFft = true;
-    constexpr bool kIsDoublePrec = std::is_same<FloatType, double>::value;
-
-    const auto kFftType = this->fft_direction_ == FftDirection::FORWARD
-        ? (kIsDoublePrec ? se::fft::Type::kZ2ZForward
-                         : se::fft::Type::kC2CForward)
-        : (kIsDoublePrec ? se::fft::Type::kZ2ZInverse
-                         : se::fft::Type::kC2CInverse);
-
-    CufftScratchAllocator scratch_allocator(CufftScratchSize, ctx);
-    this->fft_plan_ =
-        stream->parent()->AsFft()->CreateBatchedPlanWithScratchAllocator(
-            stream, this->rank_, fft_dims,
-            input_embed, input_stride, input_distance,
-            output_embed, output_stride, output_distance,
-            kFftType, kInPlaceFft, batch_size, &scratch_allocator);
   }
-  return Status::OK();
+
+  // Initialize cuFFT.
+  if (!this->options_.spread_only) {
+    TF_RETURN_IF_ERROR(this->initialize_fft());
+  }
+
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -1805,12 +1765,18 @@ Status Plan<GPUDevice, FloatType>::set_points(
     FloatType* points_x,
     FloatType* points_y,
     FloatType* points_z) {
-
+  // Store the input pointers and number of points.
   this->num_points_ = num_points;
   this->points_[0] = points_x;
   this->points_[1] = this->rank_ > 1 ? points_y : nullptr;
   this->points_[2] = this->rank_ > 2 ? points_z : nullptr;
 
+  // Wrap points to canonical range if point bounds are infinite.
+  if (this->options_.point_bounds() == PointBounds::INFINITE) {
+    TF_RETURN_IF_ERROR(this->wrap_points_to_canonical_range());
+  }
+
+  // Memory allocations which depend on the number of points.
   if (this->idx_nupts_ != nullptr)
     this->device_.deallocate(this->idx_nupts_);
   if (this->sort_idx_ != nullptr)
@@ -1840,7 +1806,7 @@ Status Plan<GPUDevice, FloatType>::set_points(
 
   TF_RETURN_IF_ERROR(this->init_spreader());
 
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -1879,8 +1845,8 @@ Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
 
     // Step 2: FFT (type 1 and/or 2).
     auto src = AsDeviceMemory<std::complex<FloatType>>(
-        this->grid_tensor_.flat<std::complex<FloatType>>().data(),
-        this->grid_tensor_.shape().num_elements());
+        this->fine_tensor_.flat<std::complex<FloatType>>().data(),
+        this->fine_tensor_.shape().num_elements());
     if (!stream->ThenFft(this->fft_plan_.get(), src, &src).ok())
       return errors::Internal("fft failed");
 
@@ -1896,7 +1862,7 @@ Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
           return errors::Unimplemented("type 3 transform is not implemented");
     }
   }
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -1913,7 +1879,7 @@ Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
     d_fkstart = d_fk + i * this->batch_size_ * this->grid_size_;
 
     this->c_ = d_cstart;
-    this->grid_data_ = d_fkstart;
+    this->fine_data_ = d_fkstart;
 
     TF_RETURN_IF_ERROR(this->interp_batch(batch_size));
   }
@@ -1924,7 +1890,7 @@ Status Plan<GPUDevice, FloatType>::interp(DType* d_c, DType* d_fk) {
                     dev_ptr, thrust::placeholders::_1 * static_cast<FloatType>(
                         this->spread_params_.kernel_scale));
 
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -1942,7 +1908,7 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
     d_fkstart  = d_fk + i * this->batch_size_ * this->grid_size_;
 
     this->c_  = d_cstart;
-    this->grid_data_ = d_fkstart;
+    this->fine_data_ = d_fkstart;
 
     TF_RETURN_IF_ERROR(this->spread_batch(batch_size));
   }
@@ -1953,7 +1919,61 @@ Status Plan<GPUDevice, FloatType>::spread(DType* d_c, DType* d_fk) {
                     dev_ptr, thrust::placeholders::_1 * static_cast<FloatType>(
                         this->spread_params_.kernel_scale));
 
-  return Status::OK();
+  return OkStatus();
+}
+
+template<typename FloatType>
+Status Plan<GPUDevice, FloatType>::initialize_fft() {
+  auto* ctx = this->context_;
+  auto* stream = ctx->op_device_context()->stream();
+
+  // Make the cuFFT plan.
+  uint64_t fft_dims[3];
+  uint64_t *input_embed = fft_dims;
+  uint64_t *output_embed = fft_dims;
+  uint64_t input_distance = 0;
+  uint64_t output_distance = 0;
+  uint64_t input_stride = 1;
+  uint64_t output_stride = 1;
+  int batch_size = this->batch_size_;
+  switch (this->rank_) {
+    case 2: {
+      fft_dims[0] = this->fine_dims_[1];
+      fft_dims[1] = this->fine_dims_[0];
+      input_distance = input_embed[0] * input_embed[1];
+      output_distance = input_distance;
+      break;
+    }
+    case 3: {
+      fft_dims[0] = this->fine_dims_[2];
+      fft_dims[1] = this->fine_dims_[1];
+      fft_dims[2] = this->fine_dims_[0];
+      input_distance = input_embed[0] * input_embed[1] * input_embed[2];
+      output_distance = input_distance;
+      break;
+    }
+    default:
+      return errors::Unimplemented("Invalid rank: ", this->rank_);
+  }
+
+  constexpr bool kInPlaceFft = true;
+  constexpr bool kIsDoublePrec = std::is_same<FloatType, double>::value;
+
+  const auto kFftType = this->fft_direction_ == FftDirection::FORWARD
+      ? (kIsDoublePrec ? se::fft::Type::kZ2ZForward
+                       : se::fft::Type::kC2CForward)
+      : (kIsDoublePrec ? se::fft::Type::kZ2ZInverse
+                       : se::fft::Type::kC2CInverse);
+
+  CufftScratchAllocator scratch_allocator(CufftScratchSize, ctx);
+  this->fft_plan_ =
+      stream->parent()->AsFft()->CreateBatchedPlanWithScratchAllocator(
+          stream, this->rank_, fft_dims,
+          input_embed, input_stride, input_distance,
+          output_embed, output_stride, output_distance,
+          kFftType, kInPlaceFft, batch_size, &scratch_allocator);
+
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -1961,7 +1981,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch(int batch_size) {
   // Set fine grid to zero.
   size_t grid_bytes = sizeof(DType) * this->fine_size_ *
                       this->batch_size_;
-  this->device_.memset(this->grid_data_, 0, grid_bytes);
+  this->device_.memset(this->fine_data_, 0, grid_bytes);
 
   switch (this->options_.spread_method) {
     case SpreadMethod::NUPTS_DRIVEN:
@@ -1974,7 +1994,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch(int batch_size) {
     case SpreadMethod::BLOCK_GATHER:
       return errors::Unimplemented("spread method not implemented");
   }
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -1990,7 +2010,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch(int batch_size) {
     case SpreadMethod::BLOCK_GATHER:
       return errors::Unimplemented("interp method not implemented");
   }
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -2005,7 +2025,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int batch_size) {
   FloatType sigma = this->spread_params_.upsampling_factor;
 
   GpuComplex<FloatType>* d_c = this->c_;
-  GpuComplex<FloatType>* d_fw = this->grid_data_;
+  GpuComplex<FloatType>* d_fw = this->fine_data_;
 
   threads_per_block.x = 16;
   threads_per_block.y = 1;
@@ -2078,7 +2098,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_nupts_driven(int batch_size) {
       return errors::Unimplemented("Invalid rank: ", this->rank_);
   }
 
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -2089,7 +2109,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int batch_size) {
   int max_subprob_size = this->options_.gpu_max_subproblem_size;
 
   GpuComplex<FloatType>* d_c = this->c_;
-  GpuComplex<FloatType>* d_fw = this->grid_data_;
+  GpuComplex<FloatType>* d_fw = this->fine_data_;
   int pirange = this->spread_params_.pirange;
 
   FloatType sigma = this->options_.upsampling_factor;
@@ -2190,7 +2210,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch_subproblem(int batch_size) {
     default:
       return errors::Unimplemented("Invalid rank: ", this->rank_);
   }
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -2205,7 +2225,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int batch_size) {
   int pirange = this->spread_params_.pirange;
 
   GpuComplex<FloatType>* d_c = this->c_;
-  GpuComplex<FloatType>* d_fw = this->grid_data_;
+  GpuComplex<FloatType>* d_fw = this->fine_data_;
 
   switch (this->rank_) {
     case 2:
@@ -2281,7 +2301,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_nupts_driven(int batch_size) {
     default:
       return errors::Unimplemented("Invalid rank: ", this->rank_);
   }
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -2292,7 +2312,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int batch_size) {
     int max_subprob_size = this->options_.gpu_max_subproblem_size;
 
   GpuComplex<FloatType>* d_c = this->c_;
-  GpuComplex<FloatType>* d_fw = this->grid_data_;
+  GpuComplex<FloatType>* d_fw = this->fine_data_;
 
   int subprob_count = this->subprob_count_;
   int pirange = this->spread_params_.pirange;
@@ -2378,7 +2398,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch_subproblem(int batch_size) {
       break;
   }
 
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -2395,7 +2415,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
               Deconvolve2DKernel<FloatType>, num_blocks, threads_per_block, 0,
               this->device_.stream(), this->grid_dims_[0], this->grid_dims_[1],
               this->fine_dims_[0], this->fine_dims_[1],
-              this->grid_data_ + t * this->fine_size_,
+              this->fine_data_ + t * this->fine_size_,
               this->f_ + t * this->grid_size_, this->fseries_data_[0],
               this->fseries_data_[1]));
         }
@@ -2406,7 +2426,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
               Deconvolve3DKernel<FloatType>, num_blocks, threads_per_block, 0,
               this->device_.stream(), this->grid_dims_[0], this->grid_dims_[1],
               this->grid_dims_[2], this->fine_dims_[0], this->fine_dims_[1],
-              this->fine_dims_[2], this->grid_data_ + t * this->fine_size_,
+              this->fine_dims_[2], this->fine_data_ + t * this->fine_size_,
               this->f_ + t * this->grid_size_, this->fseries_data_[0],
               this->fseries_data_[1], this->fseries_data_[2]));
         }
@@ -2416,7 +2436,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
     // Set fine grid to zero.
     size_t grid_bytes = sizeof(GpuComplex<FloatType>) * this->fine_size_ *
                         this->batch_size_;
-    this->device_.memset(this->grid_data_, 0, grid_bytes);
+    this->device_.memset(this->fine_data_, 0, grid_bytes);
     switch (this->rank_) {
       case 2:
         for (int t = 0; t < batch_size; t++) {
@@ -2424,7 +2444,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
               Amplify2DKernel<FloatType>, num_blocks, threads_per_block, 0,
               this->device_.stream(), this->grid_dims_[0], this->grid_dims_[1],
               this->fine_dims_[0], this->fine_dims_[1],
-              this->grid_data_ + t * this->fine_size_,
+              this->fine_data_ + t * this->fine_size_,
               this->f_ + t * this->grid_size_, this->fseries_data_[0],
               this->fseries_data_[1]));
         }
@@ -2435,14 +2455,14 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
               Amplify3DKernel<FloatType>, num_blocks, threads_per_block, 0,
               this->device_.stream(), this->grid_dims_[0], this->grid_dims_[1],
               this->grid_dims_[2], this->fine_dims_[0], this->fine_dims_[1],
-              this->fine_dims_[2], this->grid_data_ + t * this->fine_size_,
+              this->fine_dims_[2], this->fine_data_ + t * this->fine_size_,
               this->f_ + t * this->grid_size_, this->fseries_data_[0],
               this->fseries_data_[1], this->fseries_data_[2]));
         }
         break;
     }
   }
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -2458,7 +2478,7 @@ Status Plan<GPUDevice, FloatType>::init_spreader() {
     case SpreadMethod::BLOCK_GATHER:
       return errors::Unimplemented("Invalid spread method");
   }
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -2535,7 +2555,7 @@ Status Plan<GPUDevice, FloatType>::init_spreader_nupts_driven() {
         this->num_points_, this->idx_nupts_));
   }
 
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -2639,7 +2659,7 @@ Status Plan<GPUDevice, FloatType>::init_spreader_subproblem() {
       this->device_.stream(), this->subprob_bins_, this->subprob_start_pts_,
       this->num_subprob_, this->bin_count_));
 
-  return Status::OK();
+  return OkStatus();
 }
 
 namespace {
@@ -2706,7 +2726,7 @@ Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
   if (spread_params.spread_only)
     spread_params.kernel_scale = calculate_scale_factor(rank, spread_params);
 
-  return Status::OK();
+  return OkStatus();
 }
 
 // Set up the spreader parameters given eps, and pass across various nufft
@@ -2726,7 +2746,7 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
   spread_params.pirange = 1;
   spread_params.num_threads = options.num_threads;
 
-  return Status::OK();
+  return OkStatus();
 }
 
 void set_bin_sizes(TransformType type, int rank, InternalOptions& options) {
@@ -2805,7 +2825,7 @@ Status set_grid_size(int ms,
         ") and have no prime factors larger than 5.");
   }
 
-  return Status::OK();
+  return OkStatus();
 }
 
 }  // namespace

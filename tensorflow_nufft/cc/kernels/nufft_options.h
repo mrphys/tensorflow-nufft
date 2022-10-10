@@ -123,6 +123,9 @@ class InternalOptions : public Options {
   // the GPU kernels.
   double upsampling_factor = 0.0;
 
+  // The kernel width.
+  int kernel_width = 0.0;
+
   // The spreader threading strategy. See enum above. Only relevant if the
   // number of threads is larger than 1. Applies only to the CPU kernel.
   SpreadThreading spread_threading = SpreadThreading::AUTO;

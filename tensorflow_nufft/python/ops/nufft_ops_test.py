@@ -477,6 +477,123 @@ class NUFFTOpsTest(tf.test.TestCase):
       target = nufft_ops.nufft(source, points, transform_type='type_2')
 
 
+  @parameterized(transform_type=['type_1', 'type_2'],
+                 device=['/cpu:0', '/gpu:0'])
+  def test_nufft_point_bounds(self, transform_type, device):
+    """Test that supported point bound promises are kept."""
+    tf.random.set_seed(0)
+
+    with tf.device(device):
+      grid_shape = [10, 10]
+      if transform_type == 'type_1':
+        source = tf.complex(
+            tf.random.normal(shape=(100,), dtype=tf.float32),
+            tf.random.normal(shape=(100,), dtype=tf.float32)
+        )
+      elif transform_type == 'type_2':
+        source = tf.complex(
+            tf.random.normal(shape=(10, 10), dtype=tf.float32),
+            tf.random.normal(shape=(10, 10), dtype=tf.float32)
+        )
+      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)
+
+      tol = 1e-4
+      options = nufft_options.Options()
+
+      # To be used as reference.
+      target = nufft_ops.nufft(source, points,
+                               grid_shape=grid_shape,
+                               transform_type=transform_type)
+
+      # Test that STRICT bounds work.
+      options.point_bounds = nufft_options.PointBounds.STRICT
+      targetl = nufft_ops.nufft(source, points,
+                                grid_shape=grid_shape,
+                                transform_type=transform_type,
+                                options=options)
+      self.assertAllClose(targetl, target, rtol=tol, atol=tol)
+
+      # Test that EXTENDED bounds work.
+      options.point_bounds = nufft_options.PointBounds.EXTENDED
+      targetl = nufft_ops.nufft(source, points - 2 * np.pi,
+                                grid_shape=grid_shape,
+                                transform_type=transform_type,
+                                options=options)
+      targetr = nufft_ops.nufft(source, points + 2 * np.pi,
+                                grid_shape=grid_shape,
+                                transform_type=transform_type,
+                                options=options)
+      self.assertAllClose(targetl, target, rtol=tol, atol=tol)
+      self.assertAllClose(targetr, target, rtol=tol, atol=tol)
+
+      # Test that INFINITE bounds work.
+      options.point_bounds = nufft_options.PointBounds.INFINITE
+      targetl = nufft_ops.nufft(source, points - 10 * np.pi,
+                                grid_shape=grid_shape,
+                                transform_type=transform_type,
+                                options=options)
+      targetr = nufft_ops.nufft(source, points + 10 * np.pi,
+                                grid_shape=grid_shape,
+                                transform_type=transform_type,
+                                options=options)
+      self.assertAllClose(targetl, target, rtol=tol, atol=tol)
+      self.assertAllClose(targetr, target, rtol=tol, atol=tol)
+
+
+  @parameterized(transform_type=['type_1', 'type_2'],
+                 device=['/cpu:0'])
+  def test_nufft_check_bounds(self, transform_type, device):
+    """Test that NUFFT raises an error when points are out of bounds."""
+    tf.random.set_seed(0)
+
+    with tf.device(device):
+      grid_shape = [10, 10]
+      if transform_type == 'type_1':
+        source = tf.complex(
+            tf.random.normal(shape=(100,), dtype=tf.float32),
+            tf.random.normal(shape=(100,), dtype=tf.float32)
+        )
+      elif transform_type == 'type_2':
+        source = tf.complex(
+            tf.random.normal(shape=(10, 10), dtype=tf.float32),
+            tf.random.normal(shape=(10, 10), dtype=tf.float32)
+        )
+      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)
+      options = nufft_options.Options()
+
+      # Test that check bounds works for STRICT.
+      options.point_bounds = nufft_options.PointBounds.STRICT
+      options.debugging.check_bounds = True
+      with self.assertRaisesRegex(
+          tf.errors.InvalidArgumentError, "out of bounds"):
+        targetl = nufft_ops.nufft(source, points - 2.0 * np.pi,
+                                  grid_shape=grid_shape,
+                                  transform_type=transform_type,
+                                  options=options)
+      with self.assertRaisesRegex(
+          tf.errors.InvalidArgumentError, "out of bounds"):
+        targetr = nufft_ops.nufft(source, points + 2.0 * np.pi,
+                                  grid_shape=grid_shape,
+                                  transform_type=transform_type,
+                                  options=options)
+
+      # Test that check bounds works for EXTENDED.
+      options.point_bounds = nufft_options.PointBounds.EXTENDED
+      options.debugging.check_bounds = True
+      with self.assertRaisesRegex(
+          tf.errors.InvalidArgumentError, "out of bounds"):
+        targetl = nufft_ops.nufft(source, points - 10.0 * np.pi,
+                                  grid_shape=grid_shape,
+                                  transform_type=transform_type,
+                                  options=options)
+      with self.assertRaisesRegex(
+          tf.errors.InvalidArgumentError, "out of bounds"):
+        targetr = nufft_ops.nufft(source, points + 10.0 * np.pi,
+                                  grid_shape=grid_shape,
+                                  transform_type=transform_type,
+                                  options=options)
+
+
   def test_parallel_iteration(self):
     """Test NUFFT with parallel iterations."""
     rank = 2

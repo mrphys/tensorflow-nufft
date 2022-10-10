@@ -282,6 +282,10 @@ class PlanBase {
 
   // general
 
+  // Returns the lower/upper bound of the nonuniform point coordinates.
+  FloatType points_lower_bound(int dim) const;
+  FloatType points_upper_bound(int dim) const;
+
   // Retrieves the default Thrust execution policy.
   virtual const ExecutionPolicyType execution_policy() const = 0;
 
@@ -735,40 +739,17 @@ Status PlanBase<Device, FloatType>::initialize_fine_grid() {
 
 template<typename Device, typename FloatType>
 Status PlanBase<Device, FloatType>::check_points_within_range() const {
-  if (this->options_.point_bounds() == PointBounds::INFINITE) {
+  if (this->options_.points_range() == PointsRange::INFINITE) {
     // No need to check in this case, as all values are valid.
     return OkStatus();
   }
 
-  FloatType lower_bound, upper_bound;
-
   // For each dimension.
+  FloatType lower_bound, upper_bound;
   for (int d = 0; d < this->rank_; d++) {
-    // Select appropriate bounds depending on configuration.
-    switch (this->options_.point_bounds()) {
-      case PointBounds::STRICT: {
-        lower_bound = this->options_.point_units == PointUnits::RADIANS ?
-            (-kPi<FloatType>) :
-            (FloatType(0.0));
-        upper_bound = this->options_.point_units == PointUnits::RADIANS ?
-            (kPi<FloatType>) :
-            (static_cast<FloatType>(this->grid_dims_[d]));
-        break;
-      }
-      case PointBounds::EXTENDED: {
-        lower_bound = this->options_.point_units == PointUnits::RADIANS ?
-            (-3.0 * kPi<FloatType>) :
-            (-static_cast<FloatType>(this->grid_dims_[d]));
-        upper_bound = this->options_.point_units == PointUnits::RADIANS ?
-            (3.0 * kPi<FloatType>) :
-            (2 * static_cast<FloatType>(this->grid_dims_[d]));
-        break;
-      }
-      default: {
-        // Should never happen.
-        return errors::Internal("check_points_within_range");
-      }
-    }
+    // Determine appropriate bounds depending on configuration.
+    lower_bound = this->points_lower_bound(d);
+    upper_bound = this->points_upper_bound(d);
 
     bool all_points_within_range = thrust::transform_reduce(
         this->execution_policy(),
@@ -783,7 +764,7 @@ Status PlanBase<Device, FloatType>::check_points_within_range() const {
           "Found points outside expected range for dimension ", d,
           ". Valid range is [", lower_bound, ", ", upper_bound, "]. "
           "Check your points and/or set a less restrictive value for "
-          "options.point_bounds.");
+          "options.points_range.");
     }
   }
 
@@ -793,7 +774,7 @@ Status PlanBase<Device, FloatType>::check_points_within_range() const {
 
 template<typename Device, typename FloatType>
 Status PlanBase<Device, FloatType>::wrap_points_to_canonical_range() {
-  if (this->options_.point_units != PointUnits::RADIANS) {
+  if (this->options_.points_unit != PointsUnit::RADIANS_PER_SAMPLE) {
     return errors::Unimplemented(
         "wrap_points_to_canonical_range is only implemented for radians.");
   }
@@ -810,6 +791,49 @@ Status PlanBase<Device, FloatType>::wrap_points_to_canonical_range() {
 
   return OkStatus();
 }
+
+
+template<typename Device, typename FloatType>
+FloatType PlanBase<Device, FloatType>::points_lower_bound(int dim) const {
+  return -this->points_upper_bound(dim);
+}
+
+
+template<typename Device, typename FloatType>
+FloatType PlanBase<Device, FloatType>::points_upper_bound(int dim) const {
+  FloatType upper_bound;
+  switch (this->options_.points_unit) {
+    case PointsUnit::CYCLES: {
+      upper_bound = static_cast<FloatType>((this->grid_dims_[dim] + 1) / 2);
+      break;
+    }
+    case PointsUnit::CYCLES_PER_SAMPLE: {
+      upper_bound = FloatType(0.5);
+      break;
+    }
+    case PointsUnit::RADIANS_PER_SAMPLE: {
+      upper_bound = kPi<FloatType>;
+      break;
+    }
+  }
+
+  switch (this->options_.points_range()) {
+    case PointsRange::STRICT: {
+      break;
+    }
+    case PointsRange::EXTENDED: {
+      upper_bound *= FloatType(3.0);
+      break;
+    }
+    case PointsRange::INFINITE: {
+      upper_bound = std::numeric_limits<FloatType>::infinity();
+      break;
+    }
+  }
+
+  return upper_bound;
+}
+
 
 }  // namespace nufft
 }  // namespace tensorflow

@@ -479,7 +479,7 @@ class NUFFTOpsTest(tf.test.TestCase):
 
   @parameterized(transform_type=['type_1', 'type_2'],
                  device=['/cpu:0', '/gpu:0'])
-  def test_nufft_point_bounds(self, transform_type, device):
+  def test_nufft_points_range(self, transform_type, device):
     """Test that supported point bound promises are kept."""
     tf.random.set_seed(0)
 
@@ -506,7 +506,7 @@ class NUFFTOpsTest(tf.test.TestCase):
                                transform_type=transform_type)
 
       # Test that STRICT bounds work.
-      options.point_bounds = nufft_options.PointBounds.STRICT
+      options.points_range = nufft_options.PointsRange.STRICT
       targetl = nufft_ops.nufft(source, points,
                                 grid_shape=grid_shape,
                                 transform_type=transform_type,
@@ -514,7 +514,7 @@ class NUFFTOpsTest(tf.test.TestCase):
       self.assertAllClose(targetl, target, rtol=tol, atol=tol)
 
       # Test that EXTENDED bounds work.
-      options.point_bounds = nufft_options.PointBounds.EXTENDED
+      options.points_range = nufft_options.PointsRange.EXTENDED
       targetl = nufft_ops.nufft(source, points - 2 * np.pi,
                                 grid_shape=grid_shape,
                                 transform_type=transform_type,
@@ -527,7 +527,7 @@ class NUFFTOpsTest(tf.test.TestCase):
       self.assertAllClose(targetr, target, rtol=tol, atol=tol)
 
       # Test that INFINITE bounds work.
-      options.point_bounds = nufft_options.PointBounds.INFINITE
+      options.points_range = nufft_options.PointsRange.INFINITE
       targetl = nufft_ops.nufft(source, points - 10 * np.pi,
                                 grid_shape=grid_shape,
                                 transform_type=transform_type,
@@ -562,7 +562,7 @@ class NUFFTOpsTest(tf.test.TestCase):
       options = nufft_options.Options()
 
       # Test that check bounds works for STRICT.
-      options.point_bounds = nufft_options.PointBounds.STRICT
+      options.points_range = nufft_options.PointsRange.STRICT
       options.debugging.check_bounds = True
       with self.assertRaisesRegex(
           tf.errors.InvalidArgumentError, "outside expected range"):
@@ -578,7 +578,7 @@ class NUFFTOpsTest(tf.test.TestCase):
                                   options=options)
 
       # Test that check bounds works for EXTENDED.
-      options.point_bounds = nufft_options.PointBounds.EXTENDED
+      options.points_range = nufft_options.PointsRange.EXTENDED
       options.debugging.check_bounds = True
       with self.assertRaisesRegex(
           tf.errors.InvalidArgumentError, "outside expected range"):

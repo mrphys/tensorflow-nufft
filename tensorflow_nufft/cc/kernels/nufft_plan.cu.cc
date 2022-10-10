@@ -1777,7 +1777,7 @@ Status Plan<GPUDevice, FloatType>::set_points(
   }
 
   // Wrap points to canonical range if point bounds are infinite.
-  if (this->options_.point_bounds() == PointBounds::INFINITE) {
+  if (this->options_.points_range() == PointsRange::INFINITE) {
     TF_RETURN_IF_ERROR(this->wrap_points_to_canonical_range());
   }
 

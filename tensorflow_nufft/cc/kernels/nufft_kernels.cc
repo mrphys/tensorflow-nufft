@@ -444,7 +444,7 @@ class NUFFTBaseOp : public OpKernel {
     options.mutable_fftw()->set_planning_rigor(
         this->options_.fftw().planning_rigor());
     options.set_max_batch_size(this->options_.max_batch_size());
-    options.set_point_bounds(this->options_.point_bounds());
+    options.set_points_range(this->options_.points_range());
 
     if (op_type != OpType::NUFFT) {
       options.spread_only = true;

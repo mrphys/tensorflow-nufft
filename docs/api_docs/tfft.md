@@ -19,7 +19,7 @@ DebuggingOptions
 FftwOptions
 FftwPlanningRigor
 Options
-PointBounds
+PointsRange
 ```
 
 ## Functions

@@ -26,13 +26,13 @@ class OptionsTest(tf.test.TestCase):
     # Create example data.
     options = nufft_options.Options()
     # Test default values.
-    self.assertEqual(options.point_bounds, nufft_options.PointBounds.EXTENDED)
+    self.assertEqual(options.points_range, nufft_options.PointsRange.EXTENDED)
     self.assertEqual(options.debugging.check_bounds, False)
     # Change some values.
     options.max_batch_size = 4
     options.fftw.planning_rigor = nufft_options.FftwPlanningRigor.PATIENT
     options.debugging.check_bounds = True
-    options.point_bounds = nufft_options.PointBounds.INFINITE
+    options.points_range = nufft_options.PointsRange.INFINITE
     # Test round-trip options -> proto -> options.
     options2 = nufft_options.Options.from_proto(options.to_proto())
     self.assertEqual(options2, options)

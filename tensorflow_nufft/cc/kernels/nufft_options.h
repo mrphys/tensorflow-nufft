@@ -76,10 +76,11 @@ enum class SpreadMethod {
   BLOCK_GATHER = 3
 };
 
-
-enum class PointUnits {
-  UNITS = 0,   // points in [0, N]
-  RADIANS = 1  // points in [-pi, pi]
+// Specifies the measurement unit for the non-uniform points.
+enum class PointsUnit {
+  CYCLES = 0,               // points in [-N/2, N/2] - unimplemented
+  CYCLES_PER_SAMPLE = 1,    // points in [-0.5, 0.5] - unimplemented
+  RADIANS_PER_SAMPLE = 2    // points in [-pi, pi]
 };
 
 // InternalOptions for the NUFFT operations. This class is used for both the
@@ -143,8 +144,8 @@ class InternalOptions : public Options {
   // The CUDA interpolation/spreading method.
   SpreadMethod spread_method = SpreadMethod::AUTO;
 
-  // The units for the nonuniform coordinates. See enum above.
-  PointUnits point_units = PointUnits::RADIANS;
+  // The input unit for the nonuniform points. See enum above.
+  PointsUnit points_unit = PointsUnit::RADIANS_PER_SAMPLE;
 
   #if GOOGLE_CUDA
 

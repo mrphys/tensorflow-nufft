@@ -10,7 +10,7 @@ enum FftwPlanningRigor {
   EXHAUSTIVE = 4;
 }
 
-enum PointBounds {
+enum PointsRange {
   STRICT = 0;
   EXTENDED = 1;
   INFINITE = 2;
@@ -28,5 +28,5 @@ message Options {
   DebuggingOptions debugging = 1;
   FftwOptions fftw = 2;
   int32 max_batch_size = 3;
-  PointBounds point_bounds = 4;
+  PointsRange points_range = 4;
 }

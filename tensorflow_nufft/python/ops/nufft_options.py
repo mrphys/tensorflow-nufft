@@ -92,7 +92,7 @@ class FftwPlanningRigor(enum.IntEnum):
     )
 
 
-class PointBounds(enum.IntEnum):
+class PointsRange(enum.IntEnum):
   """Represents the supported bounds for the nonuniform points.
 
   Specifies the supported bounds for the nonuniform points. More restrictive
@@ -126,27 +126,27 @@ class PointBounds(enum.IntEnum):
   INFINITE = 2
 
   def to_proto(self):  # pylint: disable=missing-function-docstring
-    if self == PointBounds.STRICT:
-      return nufft_options_pb2.PointBounds.STRICT
-    if self == PointBounds.EXTENDED:
-      return nufft_options_pb2.PointBounds.EXTENDED
-    if self == PointBounds.INFINITE:
-      return nufft_options_pb2.PointBounds.INFINITE
+    if self == PointsRange.STRICT:
+      return nufft_options_pb2.PointsRange.STRICT
+    if self == PointsRange.EXTENDED:
+      return nufft_options_pb2.PointsRange.EXTENDED
+    if self == PointsRange.INFINITE:
+      return nufft_options_pb2.PointsRange.INFINITE
     raise ValueError(
-        f"Invalid value of `PointBounds`. Supported values include "
+        f"Invalid value of `PointsRange`. Supported values include "
         f"`STRICT`, `EXTENDED` and `INFINITE`. Got {self.name}."
     )
 
   @classmethod
   def from_proto(cls, pb):  # pylint: disable=missing-function-docstring
-    if pb == nufft_options_pb2.PointBounds.STRICT:
+    if pb == nufft_options_pb2.PointsRange.STRICT:
       return cls.STRICT
-    if pb == nufft_options_pb2.PointBounds.EXTENDED:
+    if pb == nufft_options_pb2.PointsRange.EXTENDED:
       return cls.EXTENDED
-    if pb == nufft_options_pb2.PointBounds.INFINITE:
+    if pb == nufft_options_pb2.PointsRange.INFINITE:
       return cls.INFINITE
     raise ValueError(
-        f"Invalid value of `PointBounds` in protocol buffer. Supported "
+        f"Invalid value of `PointsRange` in protocol buffer. Supported "
         f"values include `STRICT`, `EXTENDED` and `INFINITE`. Got {pb.name}."
     )
 
@@ -163,7 +163,7 @@ class DebuggingOptions(pydantic.BaseModel):
   Attributes:
     check_bounds: If `True`, `nufft` will assert that the nonuniform point
       coordinates lie within the supported bounds (as determined by
-      `options.point_bounds`). This improves the safety of the operation,
+      `options.points_range`). This improves the safety of the operation,
       but may negatively impact performance. Defaults to `False`.
   """
   check_bounds: bool = False
@@ -235,14 +235,14 @@ class Options(pydantic.BaseModel):
       vectorization batch size to this value. Smaller values may reduce memory
       usage, but may also reduce performance. If not set, the internal batch
       size is chosen automatically.
-    point_bounds: An optional `tfft.PointBounds`. Specifies the supported
-      bounds for the nonuniform points. See `tfft.PointBounds` for more
-      information. Defaults to `tfft.PointBounds.EXTENDED`.
+    points_range: An optional `tfft.PointsRange`. Specifies the supported
+      bounds for the nonuniform points. See `tfft.PointsRange` for more
+      information. Defaults to `tfft.PointsRange.EXTENDED`.
   """
   debugging: DebuggingOptions = DebuggingOptions()
   fftw: FftwOptions = FftwOptions()
   max_batch_size: typing.Optional[int] = None
-  point_bounds: PointBounds = PointBounds.EXTENDED
+  points_range: PointsRange = PointsRange.EXTENDED
 
   def to_proto(self):
     pb = nufft_options_pb2.Options()
@@ -250,7 +250,7 @@ class Options(pydantic.BaseModel):
     pb.fftw.CopyFrom(self.fftw.to_proto())
     if self.max_batch_size is not None:
       pb.max_batch_size = self.max_batch_size
-    pb.point_bounds = self.point_bounds.to_proto()
+    pb.points_range = self.points_range.to_proto()
     return pb
 
   @classmethod
@@ -260,7 +260,7 @@ class Options(pydantic.BaseModel):
     obj.fftw = FftwOptions.from_proto(pb.fftw)
     if pb.max_batch_size is not None:
       obj.max_batch_size = pb.max_batch_size
-    obj.point_bounds = PointBounds.from_proto(pb.point_bounds)
+    obj.points_range = PointsRange.from_proto(pb.points_range)
     return obj
 
   class Config:

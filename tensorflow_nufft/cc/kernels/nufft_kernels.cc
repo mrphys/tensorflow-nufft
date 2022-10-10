@@ -439,8 +439,8 @@ class NUFFTBaseOp : public OpKernel {
 
     // NUFFT options.
     InternalOptions options;
-    options.mutable_debugging()->set_check_bounds(
-        this->options_.debugging().check_bounds());
+    options.mutable_debugging()->set_check_points_range(
+        this->options_.debugging().check_points_range());
     options.mutable_fftw()->set_planning_rigor(
         this->options_.fftw().planning_rigor());
     options.set_max_batch_size(this->options_.max_batch_size());

@@ -1772,7 +1772,7 @@ Status Plan<GPUDevice, FloatType>::set_points(
   this->points_[2] = this->rank_ > 2 ? points_z : nullptr;
 
   // Check that points are within bounds.
-  if (this->options_.debugging().check_bounds()) {
+  if (this->options_.debugging().check_points_range()) {
     TF_RETURN_IF_ERROR(this->check_points_within_range());
   }
 

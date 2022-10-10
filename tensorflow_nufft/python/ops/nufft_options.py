@@ -93,10 +93,10 @@ class FftwPlanningRigor(enum.IntEnum):
 
 
 class PointsRange(enum.IntEnum):
-  """Represents the supported bounds for the nonuniform points.
+  """Represents the supported range for the nonuniform points.
 
-  Specifies the supported bounds for the nonuniform points. More restrictive
-  bounds may result in faster execution.
+  Specifies the supported range for the nonuniform points. More restrictive
+  options may result in faster execution.
 
   ```{note}
   The discrete Fourier transform (DFT) is periodic with respect to the points
@@ -106,10 +106,10 @@ class PointsRange(enum.IntEnum):
   support this.
   ```
 
-  - **STRICT**: points must lie in the range $[-\pi, \pi)$. This is the fastest
+  - **STRICT**: points must lie in the range $[-\pi, \pi]$. This is the fastest
     option.
 
-  - **EXTENDED**: points must lie in the range $[-3 \pi, 3 \pi)$. This option
+  - **EXTENDED**: points must lie in the range $[-3 \pi, 3 \pi]$. This option
     offers a compromise between flexibility and performance. This is the
     default option.
 
@@ -118,7 +118,7 @@ class PointsRange(enum.IntEnum):
 
   ```{attention}
   For options `STRICT` and `EXTENDED`, passing points outside the supported
-  bounds is undefined behaviour.
+  range is undefined behaviour.
   ```
   """
   STRICT = 0
@@ -156,27 +156,27 @@ class DebuggingOptions(pydantic.BaseModel):
 
   Example:
     >>> options = tfft.Options()
-    >>> # Assert that input points `x` lie within the supported bounds.
-    >>> options.debugging.check_bounds = True
+    >>> # Assert that input points `x` lie within the supported range.
+    >>> options.debugging.check_points_range = True
     >>> tfft.nufft(k, x, options=options)
 
   Attributes:
-    check_bounds: If `True`, `nufft` will assert that the nonuniform point
-      coordinates lie within the supported bounds (as determined by
+    check_points_range: If `True`, `nufft` will assert that the nonuniform point
+      coordinates lie within the supported range (as determined by
       `options.points_range`). This improves the safety of the operation,
       but may negatively impact performance. Defaults to `False`.
   """
-  check_bounds: bool = False
+  check_points_range: bool = False
 
   def to_proto(self):  # pylint: disable=missing-function-docstring
     pb = nufft_options_pb2.DebuggingOptions()
-    pb.check_bounds = self.check_bounds
+    pb.check_points_range = self.check_points_range
     return pb
 
   @classmethod
   def from_proto(cls, pb):  # pylint: disable=missing-function-docstring
     obj = cls()
-    obj.check_bounds = pb.check_bounds
+    obj.check_points_range = pb.check_points_range
     return obj
 
 

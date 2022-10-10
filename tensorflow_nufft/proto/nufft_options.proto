@@ -21,7 +21,7 @@ message FftwOptions {
 }
 
 message DebuggingOptions {
-  bool check_bounds = 1;
+  bool check_points_range = 1;
 }
 
 message Options {

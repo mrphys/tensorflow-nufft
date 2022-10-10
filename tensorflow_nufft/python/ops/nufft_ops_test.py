@@ -542,7 +542,7 @@ class NUFFTOpsTest(tf.test.TestCase):
 
   @parameterized(transform_type=['type_1', 'type_2'],
                  device=['/cpu:0', '/gpu:0'])
-  def test_nufft_check_bounds(self, transform_type, device):
+  def test_nufft_check_points_range(self, transform_type, device):
     """Test that NUFFT raises an error when points are out of bounds."""
     tf.random.set_seed(0)
 
@@ -563,7 +563,7 @@ class NUFFTOpsTest(tf.test.TestCase):
 
       # Test that check bounds works for STRICT.
       options.points_range = nufft_options.PointsRange.STRICT
-      options.debugging.check_bounds = True
+      options.debugging.check_points_range = True
       with self.assertRaisesRegex(
           tf.errors.InvalidArgumentError, "outside expected range"):
         targetl = nufft_ops.nufft(source, points - 2.0 * np.pi,
@@ -579,7 +579,7 @@ class NUFFTOpsTest(tf.test.TestCase):
 
       # Test that check bounds works for EXTENDED.
       options.points_range = nufft_options.PointsRange.EXTENDED
-      options.debugging.check_bounds = True
+      options.debugging.check_points_range = True
       with self.assertRaisesRegex(
           tf.errors.InvalidArgumentError, "outside expected range"):
         targetl = nufft_ops.nufft(source, points - 10.0 * np.pi,

@@ -101,8 +101,8 @@ class PointsRange(enum.IntEnum):
   ```{note}
   The discrete Fourier transform (DFT) is periodic with respect to the points
   $k$, i.e., $f(x, k + 2\pi) = f(x, k)$. Therefore, the DFT is defined for
-  $k \in (-\infty, \infty)$ and can always be computed by shifting $k$
-  by a multiple of $2\pi$ to the interval $[-\pi, \pi]$. However, if
+  $k \in (-\infty, +\infty)$ and can always be computed by shifting $k$
+  by a multiple of $2\pi$ to the interval $[-\pi, +\pi]$. However, if
   you can promise that the input points lie within a narrower range, the
   algorithm might be able to perform some optimizations.
   ```
@@ -110,12 +110,12 @@ class PointsRange(enum.IntEnum):
   The following options are available:
 
   - **STRICT**: the algorithm is only guaranteed to support values in the range
-    $[-\pi, \pi]$. This option offers the most opportunities for performance
+    $[-\pi, +\pi]$. This option offers the most opportunities for performance
     optimization.
 
   - **EXTENDED**: the algorithm is guaranteed to support values in the range
-    $[-3 \pi, 3 \pi]$. This option offers a compromise between flexibility and
-    performance. Even if your points are in $[-\pi, \pi]$, this option might
+    $[-3 \pi, +3 \pi]$. This option offers a compromise between flexibility and
+    performance. Even if your points are in $[-\pi, +\pi]$, this option might
     offer robustness against rounding error. This is the default option.
 
   - **INFINITE**: the algorithm is guaranteed to support values in the range

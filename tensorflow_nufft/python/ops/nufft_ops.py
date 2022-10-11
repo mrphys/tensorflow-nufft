@@ -31,7 +31,7 @@ interp = _nufft_ops.interp
 spread = _nufft_ops.spread
 
 
-def nufft(source,  # pylint: disable=missing-function-docstring
+def nufft(source,  # pylint: disable=missing-raises-doc
           points,
           grid_shape=None,
           transform_type='type_2',
@@ -112,12 +112,12 @@ def nufft(source,  # pylint: disable=missing-function-docstring
   if grid_shape is None:
     if transform_type == 'type_1':
       raise ValueError("grid_shape must be provided for type-1 transforms")
-    elif transform_type == 'type_2':
-      # We only need `grid_shape` to pass TF framework checks (i.e. int32
-      # tensor). For type-2 transforms the value of this is irrelevant as it
-      # is ignored by the C++ op. For type-1 transform the C++ op already
-      # implements the relevant checks.
-      grid_shape = tf.constant([], dtype=tf.int32)
+    # transform_type == 'type_2':
+    # We only need `grid_shape` to pass TF framework checks (i.e. int32
+    # tensor). For type-2 transforms the value of this is irrelevant as it
+    # is ignored by the C++ op. For type-1 transform the C++ op already
+    # implements the relevant checks.
+    grid_shape = tf.constant([], dtype=tf.int32)
 
   options = options or nufft_options.Options()
   return _nufft_ops.nufft(source, points, grid_shape,

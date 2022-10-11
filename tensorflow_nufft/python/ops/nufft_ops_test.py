@@ -430,7 +430,8 @@ class NUFFTOpsTest(tf.test.TestCase):
 
 
   @parameterized(rank=[1, 2, 3], device=['/cpu:0', '/gpu:0'])
-  def test_nufft_type_1_invalid_grid_shape_raises(self, rank, device):
+  def test_nufft_type_1_invalid_grid_shape_raises(self, rank, device):  # pylint: disable=missing-param-doc
+    """Test that type-1 transform raises error when given invalid grid shape."""
     # TODO(#14): Remove once 1D NUFFT has been implemented.
     if rank == 1 and device == '/gpu:0':
       self.skipTest("1D NUFFT not implemented on GPU")
@@ -440,47 +441,49 @@ class NUFFTOpsTest(tf.test.TestCase):
           tf.random.normal(shape=(10,), dtype=tf.float32),
           tf.random.normal(shape=(10,), dtype=tf.float32)
       )
-      points = tf.random.uniform((10, rank), minval=-np.pi, maxval=np.pi)
+      points = tf.random.uniform((10, rank), minval=-np.pi, maxval=np.pi)  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
 
       with self.assertRaisesRegex(
           tf.errors.InvalidArgumentError,
           f"grid_shape must have length {rank}"):
-        target = nufft_ops.nufft(source, points, grid_shape=[10] * (rank + 1),
-                                 transform_type='type_1')
+        nufft_ops.nufft(source, points, grid_shape=[10] * (rank + 1),
+                        transform_type='type_1')
 
 
   @parameterized(device=['/cpu:0', '/gpu:0'])
-  def test_nufft_type_1_no_grid_shape_raises(self, device):
+  def test_nufft_type_1_no_grid_shape_raises(self, device):  # pylint: disable=missing-param-doc
+    """Test that type-1 transform raises error when no grid shape is given."""
     with tf.device(device):
       source = tf.complex(
           tf.random.normal(shape=(10,), dtype=tf.float32),
           tf.random.normal(shape=(10,), dtype=tf.float32)
       )
-      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)
+      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
 
       with self.assertRaisesRegex(
           ValueError,
           "grid_shape must be provided for type-1 transforms"):
-        target = nufft_ops.nufft(source, points, transform_type='type_1')
+        nufft_ops.nufft(source, points, transform_type='type_1')
 
 
   @parameterized(device=['/cpu:0', '/gpu:0'])
-  def test_nufft_type_2_no_grid_shape_does_not_raise(self, device):
+  def test_nufft_type_2_no_grid_shape_does_not_raise(self, device):  # pylint: disable=missing-param-doc
+    """Tests that type-2 transform doesn't raise when no grid shape is given."""
     with tf.device(device):
       source = tf.complex(
           tf.random.normal(shape=(10, 10), dtype=tf.float32),
           tf.random.normal(shape=(10, 10), dtype=tf.float32)
       )
-      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)
+      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
 
       # This is valid and should not raise.
-      target = nufft_ops.nufft(source, points, transform_type='type_2')
+      nufft_ops.nufft(source, points, transform_type='type_2')
 
 
   @parameterized(device=['/cpu:0', '/gpu:0'])
-  def test_nufft_type_1_incompatible_source_points_dimensions_raises(
+  def test_nufft_type_1_incompatible_source_points_dimensions_raises(  # pylint: disable=missing-param-doc
       self, device):
-    """Test that supported point bound promises are kept."""
+    """Test that supported points range promises are kept."""
     tf.random.set_seed(0)
 
     with tf.device(device):
@@ -488,19 +491,19 @@ class NUFFTOpsTest(tf.test.TestCase):
           tf.random.normal(shape=(100,), dtype=tf.float32),
           tf.random.normal(shape=(100,), dtype=tf.float32)
       )
-      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)
+      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
 
       with self.assertRaisesRegex(
           tf.errors.InvalidArgumentError,
           "must have equal samples dimensions"):
-        target = nufft_ops.nufft(source, points,
-                                 grid_shape=(4, 4),
-                                 transform_type='type_1')
+        nufft_ops.nufft(source, points,
+                        grid_shape=(4, 4),
+                        transform_type='type_1')
 
 
   @parameterized(transform_type=['type_1', 'type_2'],
                  device=['/cpu:0', '/gpu:0'])
-  def test_nufft_points_range(self, transform_type, device):
+  def test_nufft_points_range(self, transform_type, device):  # pylint: disable=missing-param-doc
     """Test that supported point bound promises are kept."""
     tf.random.set_seed(0)
 
@@ -516,7 +519,7 @@ class NUFFTOpsTest(tf.test.TestCase):
             tf.random.normal(shape=(10, 10), dtype=tf.float32),
             tf.random.normal(shape=(10, 10), dtype=tf.float32)
         )
-      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)
+      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
 
       tol = 1e-4
       options = nufft_options.Options()
@@ -563,7 +566,7 @@ class NUFFTOpsTest(tf.test.TestCase):
 
   @parameterized(transform_type=['type_1', 'type_2'],
                  device=['/cpu:0', '/gpu:0'])
-  def test_nufft_check_points_range(self, transform_type, device):
+  def test_nufft_check_points_range(self, transform_type, device):  # pylint: disable=missing-param-doc
     """Test that NUFFT raises an error when points are out of bounds."""
     tf.random.set_seed(0)
 
@@ -579,7 +582,7 @@ class NUFFTOpsTest(tf.test.TestCase):
             tf.random.normal(shape=(10, 10), dtype=tf.float32),
             tf.random.normal(shape=(10, 10), dtype=tf.float32)
         )
-      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)
+      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)  # pylint: disable=unexpected-keyword-arg,no-value-for-parameter
       options = nufft_options.Options()
 
       # Test that check bounds works for STRICT.
@@ -587,32 +590,32 @@ class NUFFTOpsTest(tf.test.TestCase):
       options.debugging.check_points_range = True
       with self.assertRaisesRegex(
           tf.errors.InvalidArgumentError, "outside expected range"):
-        targetl = nufft_ops.nufft(source, points - 2.0 * np.pi,
-                                  grid_shape=grid_shape,
-                                  transform_type=transform_type,
-                                  options=options)
+        nufft_ops.nufft(source, points - 2.0 * np.pi,
+                        grid_shape=grid_shape,
+                        transform_type=transform_type,
+                        options=options)
       with self.assertRaisesRegex(
           tf.errors.InvalidArgumentError, "outside expected range"):
-        targetr = nufft_ops.nufft(source, points + 2.0 * np.pi,
-                                  grid_shape=grid_shape,
-                                  transform_type=transform_type,
-                                  options=options)
+        nufft_ops.nufft(source, points + 2.0 * np.pi,
+                        grid_shape=grid_shape,
+                        transform_type=transform_type,
+                        options=options)
 
       # Test that check bounds works for EXTENDED.
       options.points_range = nufft_options.PointsRange.EXTENDED
       options.debugging.check_points_range = True
       with self.assertRaisesRegex(
           tf.errors.InvalidArgumentError, "outside expected range"):
-        targetl = nufft_ops.nufft(source, points - 10.0 * np.pi,
-                                  grid_shape=grid_shape,
-                                  transform_type=transform_type,
-                                  options=options)
+        nufft_ops.nufft(source, points - 10.0 * np.pi,
+                        grid_shape=grid_shape,
+                        transform_type=transform_type,
+                        options=options)
       with self.assertRaisesRegex(
           tf.errors.InvalidArgumentError, "outside expected range"):
-        targetr = nufft_ops.nufft(source, points + 10.0 * np.pi,
-                                  grid_shape=grid_shape,
-                                  transform_type=transform_type,
-                                  options=options)
+        nufft_ops.nufft(source, points + 10.0 * np.pi,
+                        grid_shape=grid_shape,
+                        transform_type=transform_type,
+                        options=options)
 
 
   def test_parallel_iteration(self):

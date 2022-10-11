@@ -23,7 +23,7 @@ from tensorflow_nufft.proto import nufft_options_pb2
 
 
 class FftwPlanningRigor(enum.IntEnum):
-  """Represents the planning rigor for the FFTW library.
+  r"""Represents the planning rigor for the FFTW library.
 
   Controls the rigor (and time) of the FFTW planning process. More rigorous
   planning takes longer the first time `nufft` is called, but may result in
@@ -93,15 +93,15 @@ class FftwPlanningRigor(enum.IntEnum):
 
 
 class PointsRange(enum.IntEnum):
-  """Represents the supported range for the nonuniform points.
+  r"""Represents the supported range for the nonuniform points.
 
   Specifies the supported range for the nonuniform points. More restrictive
   options may result in faster execution.
 
   ```{note}
   The discrete Fourier transform (DFT) is periodic with respect to the points
-  $x$, i.e., $f(k, x + 2\pi) = f(k, x)$. Therefore, the DFT is defined for
-  $x \in (-\infty, \infty)$ and can always be computed by shifting `x`
+  $k$, i.e., $f(x, k + 2\pi) = f(x, k)$. Therefore, the DFT is defined for
+  $k \in (-\infty, \infty)$ and can always be computed by shifting $k$
   by a multiple of $2\pi$ to the interval $[-\pi, \pi]$. However, if
   you can promise that the input points lie within a narrower range, the
   algorithm might be able to perform some optimizations.
@@ -158,13 +158,13 @@ class PointsRange(enum.IntEnum):
 
 
 class DebuggingOptions(pydantic.BaseModel):
-  """Represents options for debugging.
+  r"""Represents options for debugging.
 
   Example:
     >>> options = tfft.Options()
     >>> # Assert that input points `x` lie within the supported range.
     >>> options.debugging.check_points_range = True
-    >>> tfft.nufft(k, x, options=options)
+    >>> tfft.nufft(x, k, options=options)
 
   Attributes:
     check_points_range: If `True`, `nufft` will assert that the nonuniform
@@ -199,7 +199,7 @@ class FftwOptions(pydantic.BaseModel):
   Example:
     >>> options = tfft.Options()
     >>> options.fftw.planning_rigor = tfft.FftwPlanningRigor.PATIENT
-    >>> tfft.nufft(k, x, options=options)
+    >>> tfft.nufft(x, k, options=options)
 
   Attributes:
     planning_rigor: Controls the rigor (and time) of the planning process.

@@ -674,7 +674,7 @@ struct FoldAndRescale<FloatType, PointsRange::INFINITE>
   __host__ __device__
   FloatType operator()(const FloatType& x) const {
     FloatType s = std::fmod(x + kPi<FloatType>, kTwoPi<FloatType>);
-    if (std::signbit(s)) {
+    if (s < FloatType(0.0)) {
       s += kTwoPi<FloatType>;
     }
     return s * kOneOverTwoPi<FloatType> * static_cast<FloatType>(n_);

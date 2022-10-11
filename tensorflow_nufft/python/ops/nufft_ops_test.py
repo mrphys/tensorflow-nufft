@@ -477,6 +477,27 @@ class NUFFTOpsTest(tf.test.TestCase):
       target = nufft_ops.nufft(source, points, transform_type='type_2')
 
 
+  @parameterized(device=['/cpu:0', '/gpu:0'])
+  def test_nufft_type_1_incompatible_source_points_dimensions_raises(
+      self, device):
+    """Test that supported point bound promises are kept."""
+    tf.random.set_seed(0)
+
+    with tf.device(device):
+      source = tf.complex(
+          tf.random.normal(shape=(100,), dtype=tf.float32),
+          tf.random.normal(shape=(100,), dtype=tf.float32)
+      )
+      points = tf.random.uniform((10, 2), minval=-np.pi, maxval=np.pi)
+
+      with self.assertRaisesRegex(
+          tf.errors.InvalidArgumentError,
+          "must have equal samples dimensions"):
+        target = nufft_ops.nufft(source, points,
+                                 grid_shape=(4, 4),
+                                 transform_type='type_1')
+
+
   @parameterized(transform_type=['type_1', 'type_2'],
                  device=['/cpu:0', '/gpu:0'])
   def test_nufft_points_range(self, transform_type, device):

@@ -104,6 +104,14 @@ class NUFFTBaseOp : public OpKernel {
           LOG(FATAL) << "shape must have type int32 or int64";
         }
 
+        // Check that `source` has the same number of points as `points`.
+        OP_REQUIRES(ctx, source.dim_size(source.dims() - 1) == num_points,
+                    errors::InvalidArgument(
+                        "source and points must have equal samples ",
+                        "dimensions for type-1 transforms, but got ",
+                        "source.shape[-1] = ",
+                        source.dim_size(source.dims() - 1),
+                        " and points.shape[-2] = ", num_points));
         break;
       }
       case TransformType::TYPE_2: {   // uniform to nonuniform

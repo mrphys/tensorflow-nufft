@@ -44,7 +44,7 @@
     <link rel="index" title="Index" href="../../../genindex/" />
     <link rel="search" title="Search" href="../../../search/" />
     <link rel="next" title="tfft.FftwPlanningRigor" href="../FftwPlanningRigor/" />
-    <link rel="prev" title="tfft" href="../" />
+    <link rel="prev" title="tfft.DebuggingOptions" href="../DebuggingOptions/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="docsearch:language" content="en">
     
@@ -119,6 +119,11 @@
    </i>
   </label>
   <ul class="current">
+   <li class="toctree-l2">
+    <a class="reference internal" href="../DebuggingOptions/">
+     DebuggingOptions
+    </a>
+   </li>
    <li class="toctree-l2 current active">
     <a class="current reference internal" href="#">
      FftwOptions
@@ -132,6 +137,11 @@
    <li class="toctree-l2">
     <a class="reference internal" href="../Options/">
      Options
+    </a>
+   </li>
+   <li class="toctree-l2">
+    <a class="reference internal" href="../PointsRange/">
+     PointsRange
     </a>
    </li>
    <li class="toctree-l2">
@@ -328,7 +338,7 @@ title="Print to PDF"
 <p>You can set the FFTW options of the <code class="docutils literal notranslate"><span class="pre">nufft</span></code> through the <code class="docutils literal notranslate"><span class="pre">fftw</span></code> property of
 <a class="reference external" href="https://mrphys.github.io/tensorflow-nufft/api_docs/tfft/Options"><code class="docutils literal notranslate"><span class="pre">tfft.Options</span></code></a>.</p>
 </div>
-<p>Example:</p>
+<p class="rubric">Example</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">options</span> <span class="o">=</span> <span class="n">tfft</span><span class="o">.</span><span class="n">Options</span><span class="p">()</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">options</span><span class="o">.</span><span class="n">fftw</span><span class="o">.</span><span class="n">planning_rigor</span> <span class="o">=</span> <span class="n">tfft</span><span class="o">.</span><span class="n">FftwPlanningRigor</span><span class="o">.</span><span class="n">PATIENT</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">tfft</span><span class="o">.</span><span class="n">nufft</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
@@ -358,11 +368,11 @@ See <a class="reference external" href="https://mrphys.github.io/tensorflow-nuff
                 
     <!-- Previous / next buttons -->
 <div class='prev-next-area'>
-    <a class='left-prev' id="prev-link" href="../" title="previous page">
+    <a class='left-prev' id="prev-link" href="../DebuggingOptions/" title="previous page">
         <i class="fas fa-angle-left"></i>
         <div class="prev-next-info">
             <p class="prev-next-subtitle">previous</p>
-            <p class="prev-next-title">tfft</p>
+            <p class="prev-next-title">tfft.DebuggingOptions</p>
         </div>
     </a>
     <a class='right-next' id="next-link" href="../FftwPlanningRigor/" title="next page">

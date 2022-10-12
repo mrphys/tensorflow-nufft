@@ -1,0 +1,11 @@
+﻿# tfft.PointsRange
+
+```{currentmodule} tensorflow_nufft
+```
+
+```{autoclass} PointsRange
+---
+members:
+show-inheritance:
+---
+```

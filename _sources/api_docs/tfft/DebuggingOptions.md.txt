@@ -1,0 +1,11 @@
+﻿# tfft.DebuggingOptions
+
+```{currentmodule} tensorflow_nufft
+```
+
+```{autoclass} DebuggingOptions
+---
+members:
+show-inheritance:
+---
+```

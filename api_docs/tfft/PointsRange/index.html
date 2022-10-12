@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 <meta content="8PySedj6KJ0kc5qC1CbO6_9blFB9Nho3SgXvbRzyVOU" name="google-site-verification" />
 
-    <title>tfft.Options &#8212; TensorFlow NUFFT Documentation</title>
+    <title>tfft.PointsRange &#8212; TensorFlow NUFFT Documentation</title>
     
     <link href="../../../_static/styles/theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
 <link href="../../../_static/styles/pydata-sphinx-theme.css?digest=1999514e3f237ded88cf" rel="stylesheet">
@@ -41,10 +41,12 @@
     <script src="../../../_static/togglebutton.js"></script>
     <script src="../../../_static/scripts/sphinx-book-theme.js?digest=9c920249402e914e316237a7dbc6769907cce411"></script>
     <script>var togglebuttonSelector = '.toggle, .admonition.dropdown, .tag_hide_input div.cell_input, .tag_hide-input div.cell_input, .tag_hide_output div.cell_output, .tag_hide-output div.cell_output, .tag_hide_cell.cell, .tag_hide-cell.cell';</script>
+    <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <link rel="index" title="Index" href="../../../genindex/" />
     <link rel="search" title="Search" href="../../../search/" />
-    <link rel="next" title="tfft.PointsRange" href="../PointsRange/" />
-    <link rel="prev" title="tfft.FftwPlanningRigor" href="../FftwPlanningRigor/" />
+    <link rel="next" title="tfft.interp" href="../interp/" />
+    <link rel="prev" title="tfft.Options" href="../Options/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="docsearch:language" content="en">
     
@@ -134,13 +136,13 @@
      FftwPlanningRigor
     </a>
    </li>
-   <li class="toctree-l2 current active">
-    <a class="current reference internal" href="#">
+   <li class="toctree-l2">
+    <a class="reference internal" href="../Options/">
      Options
     </a>
    </li>
-   <li class="toctree-l2">
-    <a class="reference internal" href="../PointsRange/">
+   <li class="toctree-l2 current active">
+    <a class="current reference internal" href="#">
      PointsRange
     </a>
    </li>
@@ -264,7 +266,7 @@ title="Source repository"
   <div class="menu-dropdown__content">
     <ul>
       <li>
-        <a href="../../../_sources/api_docs/tfft/Options.md.txt"
+        <a href="../../../_sources/api_docs/tfft/PointsRange.md.txt"
    class="headerbtn"
    data-toggle="tooltip"
 data-placement="left"
@@ -313,7 +315,7 @@ title="Print to PDF"
         <div class="col pl-md-3 pl-lg-5 content-container">
             <!-- Table of contents that is only displayed when printing the page -->
             <div id="jb-print-docs-body" class="onlyprint">
-                <h1>tfft.Options</h1>
+                <h1>tfft.PointsRange</h1>
                 <!-- Table of contents -->
                 <div id="print-main-content">
                     <div id="jb-print-toc">
@@ -325,74 +327,42 @@ title="Print to PDF"
                 
               <div>
                 
-  <section class="tex2jax_ignore mathjax_ignore" id="tfft-options">
-<h1>tfft.Options<a class="headerlink" href="#tfft-options" title="Permalink to this headline">¶</a></h1>
+  <section class="tex2jax_ignore mathjax_ignore" id="tfft-pointsrange">
+<h1>tfft.PointsRange<a class="headerlink" href="#tfft-pointsrange" title="Permalink to this headline">¶</a></h1>
 <dl class="py class">
-<dt class="sig sig-object py" id="tensorflow_nufft.Options">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">Options</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">debugging:</span> <span class="pre">tensorflow_nufft.python.ops.nufft_options.DebuggingOptions</span> <span class="pre">=</span> <span class="pre">DebuggingOptions(check_points_range=False)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fftw:</span> <span class="pre">tensorflow_nufft.python.ops.nufft_options.FftwOptions</span> <span class="pre">=</span> <span class="pre">FftwOptions(planning_rigor=&lt;FftwPlanningRigor.AUTO:</span> <span class="pre">0&gt;)</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_batch_size:</span> <span class="pre">typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">points_range:</span> <span class="pre">tensorflow_nufft.python.ops.nufft_options.PointsRange</span> <span class="pre">=</span> <span class="pre">PointsRange.EXTENDED</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tensorflow_nufft.Options" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pydantic.main.BaseModel</span></code></p>
-<p>Represents options for the <code class="docutils literal notranslate"><span class="pre">nufft</span></code> operator.</p>
-<p>This object can be used to control the behavior of the <code class="docutils literal notranslate"><span class="pre">nufft</span></code> operator.
-These are advanced options which may be useful for performance tuning, but
-are not required for most use cases.</p>
-<p class="rubric">Example</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">options</span> <span class="o">=</span> <span class="n">tfft</span><span class="o">.</span><span class="n">Options</span><span class="p">()</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">options</span><span class="o">.</span><span class="n">max_batch_size</span> <span class="o">=</span> <span class="mi">4</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">tfft</span><span class="o">.</span><span class="n">nufft</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
-</pre></div>
+<dt class="sig sig-object py" id="tensorflow_nufft.PointsRange">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">PointsRange</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#tensorflow_nufft.PointsRange" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">enum.IntEnum</span></code></p>
+<p>Represents the supported range for the nonuniform points.</p>
+<p>Specifies the supported range for the nonuniform points. More restrictive
+options may result in faster execution.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The discrete Fourier transform (DFT) is periodic with respect to the points
+<span class="math notranslate nohighlight">\(k\)</span>, i.e., <span class="math notranslate nohighlight">\(f(x, k + 2\pi) = f(x, k)\)</span>. Therefore, the DFT is defined for
+<span class="math notranslate nohighlight">\(k \in (-\infty, +\infty)\)</span> and can always be computed by shifting <span class="math notranslate nohighlight">\(k\)</span>
+by a multiple of <span class="math notranslate nohighlight">\(2\pi\)</span> to the interval <span class="math notranslate nohighlight">\([-\pi, +\pi]\)</span>. However, if
+you can promise that the input points lie within a narrower range, the
+algorithm might be able to perform some optimizations.</p>
 </div>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="tensorflow_nufft.Options.debugging">
-<span class="sig-name descname"><span class="pre">debugging</span></span><a class="headerlink" href="#tensorflow_nufft.Options.debugging" title="Permalink to this definition">¶</a></dt>
-<dd><p>Options for debugging. See <a class="reference external" href="https://mrphys.github.io/tensorflow-nufft/api_docs/tfft/DebuggingOptions"><code class="docutils literal notranslate"><span class="pre">tfft.DebuggingOptions</span></code></a> for more
-information.</p>
-<dl class="myst field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p><a class="reference internal" href="../DebuggingOptions/#tensorflow_nufft.DebuggingOptions" title="tensorflow_nufft.python.ops.nufft_options.DebuggingOptions">tensorflow_nufft.python.ops.nufft_options.DebuggingOptions</a></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="tensorflow_nufft.Options.fftw">
-<span class="sig-name descname"><span class="pre">fftw</span></span><a class="headerlink" href="#tensorflow_nufft.Options.fftw" title="Permalink to this definition">¶</a></dt>
-<dd><p>Options for the FFTW library. See <a class="reference external" href="https://mrphys.github.io/tensorflow-nufft/api_docs/tfft/FftwOptions"><code class="docutils literal notranslate"><span class="pre">tfft.FftwOptions</span></code></a> for more
-information.</p>
-<dl class="myst field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p><a class="reference internal" href="../FftwOptions/#tensorflow_nufft.FftwOptions" title="tensorflow_nufft.python.ops.nufft_options.FftwOptions">tensorflow_nufft.python.ops.nufft_options.FftwOptions</a></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="tensorflow_nufft.Options.max_batch_size">
-<span class="sig-name descname"><span class="pre">max_batch_size</span></span><a class="headerlink" href="#tensorflow_nufft.Options.max_batch_size" title="Permalink to this definition">¶</a></dt>
-<dd><p>An optional <code class="docutils literal notranslate"><span class="pre">int</span></code>. The maximum batch size to use during
-the vectorized NUFFT computation. If set, limits the internal
-vectorization batch size to this value. Smaller values may reduce memory
-usage, but may also reduce performance. If not set, the internal batch
-size is chosen automatically.</p>
-<dl class="myst field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p>Optional[int]</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="tensorflow_nufft.Options.points_range">
-<span class="sig-name descname"><span class="pre">points_range</span></span><a class="headerlink" href="#tensorflow_nufft.Options.points_range" title="Permalink to this definition">¶</a></dt>
-<dd><p>An optional <a class="reference external" href="https://mrphys.github.io/tensorflow-nufft/api_docs/tfft/PointsRange"><code class="docutils literal notranslate"><span class="pre">tfft.PointsRange</span></code></a>. Specifies the supported
-bounds for the nonuniform points. See <a class="reference external" href="https://mrphys.github.io/tensorflow-nufft/api_docs/tfft/PointsRange"><code class="docutils literal notranslate"><span class="pre">tfft.PointsRange</span></code></a> for more
-information. Defaults to <a class="reference external" href="https://mrphys.github.io/tensorflow-nufft/api_docs/tfft/PointsRange/EXTENDED"><code class="docutils literal notranslate"><span class="pre">tfft.PointsRange.EXTENDED</span></code></a>.</p>
-<dl class="myst field-list simple">
-<dt class="field-odd">Type</dt>
-<dd class="field-odd"><p><a class="reference internal" href="../PointsRange/#tensorflow_nufft.PointsRange" title="tensorflow_nufft.python.ops.nufft_options.PointsRange">tensorflow_nufft.python.ops.nufft_options.PointsRange</a></p>
-</dd>
-</dl>
-</dd></dl>
-
+<p>The following options are available:</p>
+<ul class="simple">
+<li><p><strong>STRICT</strong>: the algorithm is only guaranteed to support values in the range
+<span class="math notranslate nohighlight">\([-\pi, +\pi]\)</span>. This option offers the most opportunities for performance
+optimization.</p></li>
+<li><p><strong>EXTENDED</strong>: the algorithm is guaranteed to support values in the range
+<span class="math notranslate nohighlight">\([-3 \pi, +3 \pi]\)</span>. This option offers a compromise between flexibility and
+performance. Even if your points are in <span class="math notranslate nohighlight">\([-\pi, +\pi]\)</span>, this option might
+offer robustness against rounding error. This is the default option.</p></li>
+<li><p><strong>INFINITE</strong>: the algorithm is guaranteed to support values in the range
+<span class="math notranslate nohighlight">\((-\infty, +\infty)\)</span>. This option offers the most flexibility, but cannot
+optimize performance.</p></li>
+</ul>
+<div class="admonition attention">
+<p class="admonition-title">Attention</p>
+<p>For options <code class="docutils literal notranslate"><span class="pre">STRICT</span></code> and <code class="docutils literal notranslate"><span class="pre">EXTENDED</span></code>, passing points outside the supported
+range is undefined behaviour.</p>
+</div>
 </dd></dl>
 
 </section>
@@ -405,17 +375,17 @@ information. Defaults to <a class="reference external" href="https://mrphys.gith
                 
     <!-- Previous / next buttons -->
 <div class='prev-next-area'>
-    <a class='left-prev' id="prev-link" href="../FftwPlanningRigor/" title="previous page">
+    <a class='left-prev' id="prev-link" href="../Options/" title="previous page">
         <i class="fas fa-angle-left"></i>
         <div class="prev-next-info">
             <p class="prev-next-subtitle">previous</p>
-            <p class="prev-next-title">tfft.FftwPlanningRigor</p>
+            <p class="prev-next-title">tfft.Options</p>
         </div>
     </a>
-    <a class='right-next' id="next-link" href="../PointsRange/" title="next page">
+    <a class='right-next' id="next-link" href="../interp/" title="next page">
     <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">tfft.PointsRange</p>
+        <p class="prev-next-title">tfft.interp</p>
     </div>
     <i class="fas fa-angle-right"></i>
     </a>

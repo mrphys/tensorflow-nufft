@@ -25,7 +25,6 @@ limitations under the License.
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 #include "tensorflow_nufft/cc/kernels/reverse_functor.h"
 #include "tensorflow_nufft/cc/kernels/transpose_functor.h"
-#include "tensorflow_nufft/proto/nufft_options.pb.h"
 
 
 namespace tensorflow {
@@ -84,6 +83,15 @@ class NUFFTBaseOp : public OpKernel {
                         "grid_shape must be 1D, but got shape: ",
                         grid_shape_tensor.shape().DebugString()));
 
+        // Check that `grid_shape` has length equal to rank.
+        OP_REQUIRES(ctx, grid_shape_tensor.dim_size(0) == rank,
+                    errors::InvalidArgument(
+                        "grid_shape must have length ", rank,
+                        " for a ", rank, "D transform ",
+                        "(as inferred from points), but got length: ",
+                        grid_shape_tensor.dim_size(0)));
+
+        // Check that `grid_shape` is of integer dtype.
         if (grid_shape_tensor.dtype() == DT_INT32) {
           OP_REQUIRES_OK(ctx, TensorShapeUtils::MakeShape(
               grid_shape_tensor.vec<int32>(), &grid_shape));
@@ -96,6 +104,14 @@ class NUFFTBaseOp : public OpKernel {
           LOG(FATAL) << "shape must have type int32 or int64";
         }
 
+        // Check that `source` has the same number of points as `points`.
+        OP_REQUIRES(ctx, source.dim_size(source.dims() - 1) == num_points,
+                    errors::InvalidArgument(
+                        "source and points must have equal samples ",
+                        "dimensions for type-1 transforms, but got ",
+                        "source.shape[-1] = ",
+                        source.dim_size(source.dims() - 1),
+                        " and points.shape[-2] = ", num_points));
         break;
       }
       case TransformType::TYPE_2: {   // uniform to nonuniform
@@ -431,30 +447,12 @@ class NUFFTBaseOp : public OpKernel {
 
     // NUFFT options.
     InternalOptions options;
-    // Read in user options.
-    options.max_batch_size = this->options_.max_batch_size();
-    switch (this->options_.fftw().planning_rigor()) {
-      case FftwPlanningRigor::AUTO: {
-        options.fftw_flags = FFTW_MEASURE;
-        break;
-      }
-      case FftwPlanningRigor::ESTIMATE: {
-        options.fftw_flags = FFTW_ESTIMATE;
-        break;
-      }
-      case FftwPlanningRigor::MEASURE: {
-        options.fftw_flags = FFTW_MEASURE;
-        break;
-      }
-      case FftwPlanningRigor::PATIENT: {
-        options.fftw_flags = FFTW_PATIENT;
-        break;
-      }
-      case FftwPlanningRigor::EXHAUSTIVE: {
-        options.fftw_flags = FFTW_EXHAUSTIVE;
-        break;
-      }
-    }
+    options.mutable_debugging()->set_check_points_range(
+        this->options_.debugging().check_points_range());
+    options.mutable_fftw()->set_planning_rigor(
+        this->options_.fftw().planning_rigor());
+    options.set_max_batch_size(this->options_.max_batch_size());
+    options.set_points_range(this->options_.points_range());
 
     if (op_type != OpType::NUFFT) {
       options.spread_only = true;
@@ -540,7 +538,7 @@ class NUFFTBaseOp : public OpKernel {
           break;
       }
     }
-    return Status::OK();
+    return OkStatus();
   }
 
  protected:

@@ -85,7 +85,7 @@ Status DoReverseImpl(const Device& device, const Tensor& input,
 #define HANDLE_REVERSE(NDIMS)                                               \
   case NDIMS:                                                               \
     HandleReverseCase<Device, T, NDIMS>(device, input, axes_dense, output); \
-    return Status::OK();
+    return OkStatus();
 
     switch (input_dims) {
       HANDLE_REVERSE(0);
@@ -101,7 +101,7 @@ Status DoReverseImpl(const Device& device, const Tensor& input,
 #undef HANDLE_REVERSE
   }
 
-  return Status::OK();
+  return OkStatus();
 }
 
 }  // namespace internal

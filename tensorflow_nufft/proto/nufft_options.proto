@@ -10,12 +10,23 @@ enum FftwPlanningRigor {
   EXHAUSTIVE = 4;
 }
 
+enum PointsRange {
+  STRICT = 0;
+  EXTENDED = 1;
+  INFINITE = 2;
+}
+
 message FftwOptions {
   FftwPlanningRigor planning_rigor = 1;
 }
 
-message Options {
-  int32 max_batch_size = 1;
+message DebuggingOptions {
+  bool check_points_range = 1;
+}
 
+message Options {
+  DebuggingOptions debugging = 1;
   FftwOptions fftw = 2;
+  int32 max_batch_size = 3;
+  PointsRange points_range = 4;
 }

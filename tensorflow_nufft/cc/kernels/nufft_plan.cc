@@ -28,6 +28,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+#include <thrust/execution_policy.h>
+#include <thrust/transform.h>
+
 #include "tensorflow_nufft/cc/kernels/fftw_api.h"
 #include "tensorflow_nufft/cc/kernels/nufft_plan.h"
 #include "tensorflow_nufft/cc/kernels/nufft_util.h"
@@ -41,34 +44,22 @@ limitations under the License.
 namespace tensorflow {
 namespace nufft {
 
-// local NU coord fold+rescale macro: does the following affine transform to x:
-//   when p=true:   map [-3pi,-pi) and [-pi,pi) and [pi,3pi)    each to [0,N)
-//   otherwise,     map [-N,0) and [0,N) and [N,2N)             each to [0,N)
-// Thus, only one period either side of the principal domain is folded.
-// (It is *so* much faster than slow std::fmod that we stick to it.)
-// This explains FINUFFT's allowed input domain of [-3pi,3pi).
-// Speed comparisons of this macro vs a function are in devel/foldrescale*.
-// The macro wins hands-down on i7, even for modern GCC9.
-#define FOLD_AND_RESCALE(x, N, p) (p ?                                         \
-         (x + (x >= -kPi<FloatType> ? (x < kPi<FloatType> ? kPi<FloatType> : -kPi<FloatType>) : 3 * kPi<FloatType>)) * (kOneOverTwoPi<FloatType> * N) : \
-                          (x >= 0.0 ? (x < (FloatType)N ? x : x - (FloatType)N) : x + (FloatType)N))
+// This macro was used in the original FINUFFT code. Here it's just an
+// identity mapping as its result is precomputed, but we're keeping it as a
+// placeholder in case we want to compute its result it on the fly in the
+// future.
+#define FOLD_AND_RESCALE(x, N, p) (x)
 
 namespace {
 
-// Forward declarations. Defined below.
 template<typename FloatType>
-Status set_grid_size(int ms,
-                     const InternalOptions& options,
-                     SpreadParameters<FloatType> spread_params,
-                     int* grid_size);
-
-template<typename FloatType>
-Status setup_spreader(int rank, FloatType eps, double upsampling_factor,
+Status setup_spreader(int rank,
                       int kerevalmeth, bool show_warnings,
+                      const InternalOptions& options,
                       SpreadParameters<FloatType> &spread_params);
 
 template<typename FloatType>
-Status setup_spreader_for_nufft(int rank, FloatType eps,
+Status setup_spreader_for_nufft(int rank,
                                 const InternalOptions& options,
                                 SpreadParameters<FloatType> &spread_params);
 
@@ -111,25 +102,6 @@ template<typename FloatType>
 int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 		      FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort);
-
-template<typename FloatType>
-void deconvolveshuffle1d(
-    SpreadDirection dir, FloatType prefac, FloatType* ker, int64_t ms,
-		FloatType *fk, int64_t nf1, typename fftw::ComplexType<FloatType>::Type* fw,
-    ModeOrder mode_order);
-
-template<typename FloatType>
-void deconvolveshuffle2d(
-    SpreadDirection dir, FloatType prefac, FloatType *ker1, FloatType *ker2,
-    int64_t ms, int64_t mt, FloatType *fk, int64_t nf1, int64_t nf2,
-    typename fftw::ComplexType<FloatType>::Type* fw, ModeOrder mode_order);
-
-template<typename FloatType>
-void deconvolveshuffle3d(
-    SpreadDirection dir, FloatType prefac, FloatType *ker1, FloatType *ker2,
-    FloatType *ker3, int64_t ms, int64_t mt, int64_t mu,
-    FloatType *fk, int64_t nf1, int64_t nf2, int64_t nf3,
-    typename fftw::ComplexType<FloatType>::Type* fw, ModeOrder mode_order);
 
 template<typename FloatType>
 static inline void set_kernel_args(FloatType *args, FloatType x, const SpreadParameters<FloatType>& opts);
@@ -183,6 +155,34 @@ void get_subgrid(int64_t &offset1,int64_t &offset2,int64_t &offset3,int64_t &siz
 }  // namespace
 
 template<typename FloatType>
+Plan<CPUDevice, FloatType>::~Plan() {
+
+  if (!this->options_.spread_only) {
+    // Destroy the FFTW plan. This must be done single-threaded.
+    #pragma omp critical
+    {
+      fftw::destroy_plan<FloatType>(this->fft_plan_);
+    }
+
+    // Wait until all threads are done using FFTW, then clean up the FFTW state,
+    // which only needs to be done once.
+    #ifdef _OPENMP
+    #pragma omp barrier
+    #pragma omp critical
+    {
+      static bool is_fftw_finalized = false;
+      if (!is_fftw_finalized) {
+        fftw::cleanup_threads<FloatType>();
+        is_fftw_finalized = true;
+      }
+    }
+    #endif
+  }
+
+  free(this->sort_indices_);
+}
+
+template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::initialize(
     TransformType type,
     int rank,
@@ -191,7 +191,6 @@ Status Plan<CPUDevice, FloatType>::initialize(
     int num_transforms,
     FloatType tol,
     const InternalOptions& options) {
-
   if (type == TransformType::TYPE_3) {
     return errors::Unimplemented("type-3 transforms are not implemented");
   }
@@ -206,14 +205,14 @@ Status Plan<CPUDevice, FloatType>::initialize(
   this->rank_ = rank;
   this->type_ = type;
   this->fft_direction_ = fft_direction;
-  this->tol_ = tol;
+  this->tol_ = std::max(tol, kEpsilon<FloatType>);
   this->num_transforms_ = num_transforms;
   this->options_ = options;
 
-  this->num_modes_[0] = num_modes[0];
-  this->num_modes_[1] = (this->rank_ > 1) ? num_modes[1] : 1;
-  this->num_modes_[2] = (this->rank_ > 2) ? num_modes[2] : 1;
-  this->mode_count_ = this->num_modes_[0] * this->num_modes_[1] * this->num_modes_[2];
+  this->grid_dims_[0] = num_modes[0];
+  this->grid_dims_[1] = (this->rank_ > 1) ? num_modes[1] : 1;
+  this->grid_dims_[2] = (this->rank_ > 2) ? num_modes[2] : 1;
+  this->grid_size_ = this->grid_dims_[0] * this->grid_dims_[1] * this->grid_dims_[2];
 
   // Choose kernel evaluation method.
   if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::AUTO) {
@@ -223,36 +222,33 @@ Status Plan<CPUDevice, FloatType>::initialize(
   // Choose overall number of threads.
   int num_threads = OMP_GET_MAX_THREADS();
   if (this->options_.num_threads > 0)
-    num_threads = this->options_.num_threads; // user override
-  this->options_.num_threads = num_threads;   // update options_ with actual number
+    num_threads = this->options_.num_threads;
+  this->options_.num_threads = num_threads;
 
   // Select batch size.
-  if (this->options_.max_batch_size == 0) {
+  if (this->options_.max_batch_size() == 0) {
     this->num_batches_ = 1 + (num_transforms - 1) / num_threads;
     this->batch_size_ = 1 + (num_transforms - 1) / this->num_batches_;
   } else {
-    this->batch_size_ = std::min(this->options_.max_batch_size, num_transforms);
+    this->batch_size_ = std::min(
+        this->options_.max_batch_size(), num_transforms);
     this->num_batches_ = 1 + (num_transforms - 1) / this->batch_size_;
   }
 
+  // Set default options.
+  TF_RETURN_IF_ERROR(this->set_default_options());
+
+  // Initialize the fine grid and related quantities.
+  TF_RETURN_IF_ERROR(this->initialize_fine_grid());
+
   // Choose default spreader threading configuration.
+  // TODO: move to set_default_options.
   if (this->options_.spread_threading == SpreadThreading::AUTO)
     this->options_.spread_threading = SpreadThreading::PARALLEL_SINGLE_THREADED;
 
-  // Heuristic to choose default upsampling factor.
-  if (this->options_.upsampling_factor == 0.0) {  // indicates auto-choose
-    this->options_.upsampling_factor = 2.0;       // default, and need for tol small
-    if (tol >= (FloatType)1E-9) {                   // the tol sigma=5/4 can reach
-      if (type == TransformType::TYPE_3)
-        this->options_.upsampling_factor = 1.25;  // faster b/c smaller RAM & FFT
-      else if ((rank==1 && this->mode_count_>10000000) || (rank==2 && this->mode_count_>300000) || (rank==3 && this->mode_count_>3000000))  // type 1,2 heuristic cutoffs, double, typ tol, 12-core xeon
-        this->options_.upsampling_factor = 1.25;
-    }
-  }
-
   // Populate the spreader options.
   TF_RETURN_IF_ERROR(setup_spreader_for_nufft(
-      rank, tol, this->options_, this->spread_params_));
+      rank, this->options_, this->spread_params_));
 
   // Initialize pointers to null.
   for (int i = 0; i < 3; i++) {
@@ -261,180 +257,74 @@ Status Plan<CPUDevice, FloatType>::initialize(
   }
   this->sort_indices_ = nullptr;
 
-  // FFTW initialization must be done single-threaded.
-  #pragma omp critical
-  {
-    static bool is_fftw_initialized = false;
-
-    if (!is_fftw_initialized) {
-      // Set up global FFTW state. Should be done only once.
-      #ifdef _OPENMP
-      // Initialize FFTW threads.
-      fftw::init_threads<FloatType>();
-      // Let FFTW use all threads.
-      fftw::plan_with_nthreads<FloatType>(num_threads);
-      #endif
-      is_fftw_initialized = true;
-    }
-  }
-
   if (type == TransformType::TYPE_1)
     this->spread_params_.spread_direction = SpreadDirection::SPREAD;
   else // if (type == TransformType::TYPE_2)
     this->spread_params_.spread_direction = SpreadDirection::INTERP;
 
-  // Determine fine grid sizes.
-  TF_RETURN_IF_ERROR(set_grid_size(
-      this->num_modes_[0], this->options_, this->spread_params_,
-      &this->grid_dims_[0]));
-  if (rank > 1) {
-    TF_RETURN_IF_ERROR(set_grid_size(
-        this->num_modes_[1], this->options_, this->spread_params_,
-        &this->grid_dims_[1]));
-  }
-  if (rank > 2) {
-    TF_RETURN_IF_ERROR(set_grid_size(
-        this->num_modes_[2], this->options_, this->spread_params_,
-        &this->grid_dims_[2]));
-  }
-
   // Get Fourier coefficients of spreading kernel along each fine grid
   // dimension.
   for (int i = 0; i < this->rank_; i++) {
     // Number of Fourier coefficients.
-    int num_coeffs = this->grid_dims_[i] / 2 + 1;
+    int num_coeffs = this->fine_dims_[i] / 2 + 1;
     // Allocate memory and calculate the Fourier series.
     TF_RETURN_IF_ERROR(this->context_->allocate_temp(
         DataTypeToEnum<FloatType>::value, TensorShape({num_coeffs}),
         &this->fseries_tensor_[i]));
     this->fseries_data_[i] = reinterpret_cast<FloatType*>(
         this->fseries_tensor_[i].flat<FloatType>().data());
-    kernel_fseries_1d(this->grid_dims_[i], this->spread_params_,
+    kernel_fseries_1d(this->fine_dims_[i], this->spread_params_,
                       this->fseries_data_[i]);
   }
 
-  // Total number of points in the fine grid.
-  this->grid_size_ = this->grid_dims_[0];
-  if (rank > 1)
-    this->grid_size_ *= this->grid_dims_[1];
-  if (rank > 2)
-    this->grid_size_ *= this->grid_dims_[2];
-
-  if (this->grid_size_ * this->batch_size_ > kMaxArraySize) {
-    return errors::Internal(
-        "size of internal fine grid is larger than maximum allowed: ",
-        this->grid_size_ * this->batch_size_, " > ",
-        kMaxArraySize);
+  if (!this->options_.spread_only) {
+    TF_RETURN_IF_ERROR(this->initialize_fft());
   }
 
-  // Allocate the working fine grid through the op kernel context. We allocate a
-  // flat array, since we'll only use this tensor through a raw pointer anyway.
-  TensorShape fine_grid_shape({this->grid_size_ * this->batch_size_});
-  TF_RETURN_IF_ERROR(this->context_->allocate_temp(
-      DataTypeToEnum<DType>::value, fine_grid_shape, &this->grid_tensor_));
-  this->grid_data_ = reinterpret_cast<FftwType*>(
-      this->grid_tensor_.flat<DType>().data());
-
-  int fft_dims[3] = {1, 1, 1};
-  switch (this->rank_) {
-    case 1:
-      fft_dims[0] = this->grid_dims_[0];
-      break;
-    case 2:
-      fft_dims[1] = this->grid_dims_[0];
-      fft_dims[0] = this->grid_dims_[1];
-      break;
-    case 3:
-      fft_dims[2] = this->grid_dims_[0];
-      fft_dims[1] = this->grid_dims_[1];
-      fft_dims[0] = this->grid_dims_[2];
-      break;
-  }
-
-  #pragma omp critical
-  {
-    this->fft_plan_ = fftw::plan_many_dft<FloatType>(
-        /* int rank */ rank, /* const int *n */ fft_dims,
-        /* int howmany */ this->batch_size_,
-        /* fftw_complex *in */ this->grid_data_,
-        /* const int *inembed */ nullptr,
-        /* int istride */ 1, /* int idist */ this->grid_size_,
-        /* fftw_complex *out */ this->grid_data_,
-        /* const int *onembed */ nullptr,
-        /* int ostride */ 1, /* int odist */ this->grid_size_,
-        /* int sign */ static_cast<int>(this->fft_direction_),
-        /* unsigned flags */ this->options_.fftw_flags);
-  }
-
-  return Status::OK();
-}
-
-template<typename FloatType>
-Plan<CPUDevice, FloatType>::~Plan() {
-
-  // Destroy the FFTW plan. This must be done single-threaded.
-  #pragma omp critical
-  {
-    fftw::destroy_plan<FloatType>(this->fft_plan_);
-  }
-
-  // Wait until all threads are done using FFTW, then clean up the FFTW state,
-  // which only needs to be done once.
-  #ifdef _OPENMP
-  #pragma omp barrier
-  #pragma omp critical
-  {
-    static bool is_fftw_finalized = false;
-    if (!is_fftw_finalized) {
-      fftw::cleanup_threads<FloatType>();
-      is_fftw_finalized = true;
-    }
-  }
-  #endif
-
-  free(this->sort_indices_);
+  return OkStatus();
 }
 
 template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::set_points(
-    int num_points, FloatType* points_x,
-    FloatType* points_y, FloatType* points_z) {
+    int num_points,
+    FloatType* points_x,
+    FloatType* points_y,
+    FloatType* points_z) {
   // The user only now chooses how many NU (x,y,z) points.
   this->num_points_ = num_points;
+  this->points_[0] = points_x;
+  this->points_[1] = this->rank_ > 1 ? points_y : nullptr;
+  this->points_[2] = this->rank_ > 2 ? points_z : nullptr;
 
-  int64_t grid_size_0 = this->grid_dims_[0];
+  int64_t grid_size_0 = this->fine_dims_[0];
   int64_t grid_size_1 = 1;
-  if (this->rank_ > 1) grid_size_1 = this->grid_dims_[1];
+  if (this->rank_ > 1) grid_size_1 = this->fine_dims_[1];
   int64_t grid_size_2 = 1;
-  if (this->rank_ > 2) grid_size_2 = this->grid_dims_[2];
+  if (this->rank_ > 2) grid_size_2 = this->fine_dims_[2];
 
-  if (this->type_ != TransformType::TYPE_3) {
-    // Type 1/2 transform.
-    // All we can do is check and maybe bin-sort the non-uniform points.
-    // Plan must keep pointers to user's fixed points.
-    this->points_[0] = points_x;
-    this->points_[1] = points_y;
-    this->points_[2] = points_z;
-    TF_RETURN_IF_ERROR(check_spread_inputs(
-        grid_size_0, grid_size_1, grid_size_2,
-        this->num_points_, points_x, points_y, points_z,
-        this->spread_params_));
+  TF_RETURN_IF_ERROR(check_spread_inputs(
+      grid_size_0, grid_size_1, grid_size_2,
+      this->num_points_, points_x, points_y, points_z,
+      this->spread_params_));
 
-    this->sort_indices_ = (int64_t*) malloc(sizeof(int64_t) * this->num_points_);
-    if (!this->sort_indices_) {
-      fprintf(stderr,"[%s] failed to allocate sort_indices_!\n",__func__);
-      // return ERR_SPREAD_ALLOC;
-    }
-    this->did_sort_ = bin_sort_points(
-        this->sort_indices_, grid_size_0, grid_size_1, grid_size_2,
-        this->num_points_, points_x, points_y, points_z, this->spread_params_);
-
-  } else {
-    // Type 3 transform.
-    return errors::Unimplemented("Type-3 transforms not implemented yet.");
+  // Check that points are within bounds.
+  if (this->options_.debugging().check_points_range()) {
+    TF_RETURN_IF_ERROR(this->check_points_within_range());
   }
 
-  return Status::OK();
+  // Fold and rescale points.
+  TF_RETURN_IF_ERROR(this->fold_and_rescale_points());
+
+  this->sort_indices_ = (int64_t*) malloc(sizeof(int64_t) * this->num_points_);
+  if (!this->sort_indices_) {
+    fprintf(stderr,"[%s] failed to allocate sort_indices_!\n",__func__);
+    // return ERR_SPREAD_ALLOC;
+  }
+  this->did_sort_ = bin_sort_points(
+      this->sort_indices_, grid_size_0, grid_size_1, grid_size_2,
+      this->num_points_, points_x, points_y, points_z, this->spread_params_);
+
+  return OkStatus();
 }
 
 /* See ../docs/cguru.doc for current documentation.
@@ -451,35 +341,31 @@ Status Plan<CPUDevice, FloatType>::set_points(
 */
 template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::execute(DType* cj, DType* fk){
-
   if (this->type_ != TransformType::TYPE_3) {
-
-    double t_sprint = 0.0, t_fft = 0.0, t_deconv = 0.0;  // accumulated timing
-
     for (int b=0; b*this->batch_size_ < this->num_transforms_; b++) { // .....loop b over batches
 
       // current batch is either batch_size, or possibly truncated if last one
-      int thisBatchSize = std::min(this->num_transforms_ - b*this->batch_size_, this->batch_size_);
+      int batch_size = std::min(this->num_transforms_ - b*this->batch_size_, this->batch_size_);
       int bB = b*this->batch_size_;         // index of vector, since batchsizes same
       DType* cjb = cj + bB*this->num_points_;        // point to batch of weights
-      DType* fkb = fk + bB*this->mode_count_;         // point to batch of mode coeffs
+      DType* fkb = fk + bB*this->grid_size_;         // point to batch of mode coeffs
 
       // STEP 1: (varies by type)
       if (this->type_ == TransformType::TYPE_1) {  // type 1: spread NU pts this->points_[0], weights cj, to fw grid
-        TF_RETURN_IF_ERROR(this->spread_or_interp_sorted_batch(thisBatchSize, cjb));
+        TF_RETURN_IF_ERROR(this->spread_or_interp_sorted_batch(batch_size, cjb));
       } else {          //  type 2: amplify Fourier coeffs fk into 0-padded fw
-        TF_RETURN_IF_ERROR(this->deconvolve_batch(thisBatchSize, fkb));
+        TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size, fkb));
       }
 
       // STEP 2: call the pre-planned FFT on this batch
-      // This wastes some flops if thisBatchSize < batch_size.
+      // This wastes some flops if batch_size < this->batch_size_.
       fftw::execute<FloatType>(this->fft_plan_);
 
       // STEP 3: (varies by type)
       if (this->type_ == TransformType::TYPE_1) {   // type 1: deconvolve (amplify) fw and shuffle to fk
-        TF_RETURN_IF_ERROR(this->deconvolve_batch(thisBatchSize, fkb));
+        TF_RETURN_IF_ERROR(this->deconvolve_batch(batch_size, fkb));
       } else {          // type 2: interpolate unif fw grid to NU target pts
-        TF_RETURN_IF_ERROR(this->spread_or_interp_sorted_batch(thisBatchSize, cjb));
+        TF_RETURN_IF_ERROR(this->spread_or_interp_sorted_batch(batch_size, cjb));
       }
     }                                                   // ........end b loop
   } else {
@@ -487,7 +373,7 @@ Status Plan<CPUDevice, FloatType>::execute(DType* cj, DType* fk){
     return errors::Unimplemented("Type-3 transforms not implemented yet.");
   }
 
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -501,22 +387,94 @@ Status Plan<CPUDevice, FloatType>::spread(DType* c, DType* f) {
 }
 
 template<typename FloatType>
-Status Plan<CPUDevice, FloatType>::spread_or_interp(DType* cj, DType* fk) {
+Status Plan<CPUDevice, FloatType>::initialize_fft() {
+  using FftwType = typename fftw::ComplexType<FloatType>::Type;
 
-  double t_sprint = 0.0, t_fft = 0.0, t_deconv = 0.0;  // accumulated timing
+  // FFTW initialization must be done single-threaded.
+  #pragma omp critical
+  {
+    static bool is_fftw_initialized = false;
 
-  for (int b=0; b*this->batch_size_ < this->num_transforms_; b++) { // .....loop b over batches
-
-    // current batch is either batch_size, or possibly truncated if last one
-    int thisBatchSize = std::min(this->num_transforms_ - b*this->batch_size_, this->batch_size_);
-    int bB = b*this->batch_size_;         // index of vector, since batchsizes same
-    DType* cjb = cj + bB*this->num_points_;        // point to batch of weights
-    DType* fkb = fk + bB*this->mode_count_;         // point to batch of mode coeffs
-
-    this->spread_or_interp_sorted_batch(thisBatchSize, cjb, fkb);
+    if (!is_fftw_initialized) {
+      // Set up global FFTW state. Should be done only once.
+      #ifdef _OPENMP
+      // Initialize FFTW threads.
+      fftw::init_threads<FloatType>();
+      // Let FFTW use all threads.
+      fftw::plan_with_nthreads<FloatType>(this->options_.num_threads);
+      #endif
+      is_fftw_initialized = true;
+    }
   }
 
-  return Status::OK();
+  // Get FFT dimensions (must be reversed).
+  int fft_dims[3] = {1, 1, 1};
+  switch (this->rank_) {
+    case 1:
+      fft_dims[0] = this->fine_dims_[0];
+      break;
+    case 2:
+      fft_dims[1] = this->fine_dims_[0];
+      fft_dims[0] = this->fine_dims_[1];
+      break;
+    case 3:
+      fft_dims[2] = this->fine_dims_[0];
+      fft_dims[1] = this->fine_dims_[1];
+      fft_dims[0] = this->fine_dims_[2];
+      break;
+  }
+
+  // FFTW flags.
+  unsigned flags = 0;
+  switch (this->options_.fftw().planning_rigor()) {
+    case FftwPlanningRigor::AUTO:       flags = FFTW_MEASURE;     break;
+    case FftwPlanningRigor::ESTIMATE:   flags = FFTW_ESTIMATE;    break;
+    case FftwPlanningRigor::MEASURE:    flags = FFTW_MEASURE;     break;
+    case FftwPlanningRigor::PATIENT:    flags = FFTW_PATIENT;     break;
+    case FftwPlanningRigor::EXHAUSTIVE: flags = FFTW_EXHAUSTIVE;  break;
+  }
+
+  #pragma omp critical
+  {
+    this->fft_plan_ = fftw::plan_many_dft<FloatType>(
+        /* int rank */ this->rank_,
+        /* const int *n */ fft_dims,
+        /* int howmany */ this->batch_size_,
+        /* fftw_complex *in */ reinterpret_cast<FftwType*>(this->fine_data_),
+        /* const int *inembed */ nullptr,
+        /* int istride */ 1,
+        /* int idist */ this->fine_size_,
+        /* fftw_complex *out */ reinterpret_cast<FftwType*>(this->fine_data_),
+        /* const int *onembed */ nullptr,
+        /* int ostride */ 1,
+        /* int odist */ this->fine_size_,
+        /* int sign */ static_cast<int>(this->fft_direction_),
+        /* unsigned flags */ flags);
+  }
+
+  return OkStatus();
+}
+
+template<typename FloatType>
+Status Plan<CPUDevice, FloatType>::spread_or_interp(DType* cj, DType* fk) {
+  // Loop over batches.
+  for (int batch_index = 0;
+       batch_index * this->batch_size_ < this->num_transforms_;
+       batch_index++) {
+
+    // Get current batch size (possibly truncated if last one).
+    int batch_size = std::min(
+        this->num_transforms_ - batch_index * this->batch_size_,
+        this->batch_size_);
+
+    // Execute this batch.
+    this->spread_or_interp_sorted_batch(
+        batch_size,
+        cj + batch_index * this->batch_size_ * this->num_points_,
+        fk + batch_index * this->batch_size_ * this->grid_size_);
+  }
+
+  return OkStatus();
 }
 
 template<typename FloatType>
@@ -528,95 +486,212 @@ Status Plan<CPUDevice, FloatType>::spread_or_interp_sorted_batch(
   int nthr_outer = this->options_.spread_threading == SpreadThreading::SEQUENTIAL_MULTI_THREADED ? 1 : batch_size;
 
   if (fBatch == nullptr) {
-    fBatch = (DType*) this->grid_data_;
+    fBatch = (DType*) this->fine_data_;
   }
 
-  int64_t grid_size_0 = this->grid_dims_[0];
+  int64_t grid_size_0 = this->fine_dims_[0];
   int64_t grid_size_1 = 1;
   int64_t grid_size_2 = 1;
-  if (this->rank_ > 1) grid_size_1 = this->grid_dims_[1];
-  if (this->rank_ > 2) grid_size_2 = this->grid_dims_[2];
+  if (this->rank_ > 1) grid_size_1 = this->fine_dims_[1];
+  if (this->rank_ > 2) grid_size_2 = this->fine_dims_[2];
 
   #pragma omp parallel for num_threads(nthr_outer)
   for (int i=0; i<batch_size; i++) {
-    DType *fwi = fBatch + i*this->grid_size_;  // start of i'th fw array in wkspace
+    DType *fwi = fBatch + i*this->fine_size_;  // start of i'th fw array in wkspace
     DType *ci = cBatch + i*this->num_points_;            // start of i'th c array in cBatch
     spreadinterpSorted(this->sort_indices_, grid_size_0, grid_size_1, grid_size_2,
                        (FloatType*)fwi, this->num_points_, this->points_[0], this->points_[1], this->points_[2],
                        (FloatType*)ci, this->spread_params_, this->did_sort_);
   }
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::deconvolve_batch(int batch_size, DType* fkBatch) {
-  FloatType one = 1.0;
-  // since deconvolveshuffle?d are single-thread, omp par seems to help here...
   #pragma omp parallel for num_threads(batch_size)
-  for (int batch_index = 0; batch_index < batch_size; batch_index++) {
-    FftwType *fwi = this->grid_data_ + batch_index * this->grid_size_;
-    DType *fki = fkBatch + batch_index * this->mode_count_;
-    if (this->rank_ == 1)
-      deconvolveshuffle1d(this->spread_params_.spread_direction, one, this->fseries_data_[0],
-                          this->num_modes_[0], (FloatType *)fki,
-                          this->grid_dims_[0], fwi, this->options_.mode_order);
-    else if (this->rank_ == 2)
-      deconvolveshuffle2d(this->spread_params_.spread_direction, one, this->fseries_data_[0],
-                          this->fseries_data_[1], this->num_modes_[0], this->num_modes_[1], (FloatType *)fki,
-                          this->grid_dims_[0], this->grid_dims_[1], fwi, this->options_.mode_order);
-    else
-      deconvolveshuffle3d(this->spread_params_.spread_direction, one, this->fseries_data_[0],
-                          this->fseries_data_[1], this->fseries_data_[2], this->num_modes_[0], this->num_modes_[1], this->num_modes_[2],
-                          (FloatType *)fki, this->grid_dims_[0], this->grid_dims_[1], this->grid_dims_[2],
-                          fwi, this->options_.mode_order);
+  for (int elem_index = 0; elem_index < batch_size; elem_index++) {
+    DType *fwi = this->fine_data_ + elem_index * this->fine_size_;
+    DType *fki = fkBatch + elem_index * this->grid_size_;
+    switch (this->rank_) {
+      case 1: {
+        this->deconvolve_1d(fki, fwi);
+        break;
+      }
+      case 2: {
+        this->deconvolve_2d(fki, fwi);
+        break;
+      }
+      case 3: {
+        this->deconvolve_3d(fki, fwi);
+        break;
+      }
+    }
   }
-  return Status::OK();
+  return OkStatus();
+}
+
+template<typename FloatType>
+void Plan<CPUDevice, FloatType>::deconvolve_1d(
+    DType *fk, DType* fw, FloatType prefactor) {
+
+  int64_t kmin = -this->grid_dims_[0] / 2;
+  int64_t kmax = (this->grid_dims_[0] - 1) / 2;
+
+  if (this->grid_dims_[0] == 0) {
+    kmax = -1;
+  }
+
+  // Get start of positive and negative chunks of fk array.
+  int64_t pp, pn;
+  switch (this->options_.mode_order) {
+    case ModeOrder::FFT: {
+      pp = 0;
+      pn = kmax + 1;
+      break;
+    }
+    case ModeOrder::CMCL: {
+      pp = -kmin;
+      pn = 0;
+      break;
+    }
+  }
+
+  if (this->spread_params_.spread_direction == SpreadDirection::SPREAD) {
+    // Non-negative frequencies.
+    for (int64_t k = 0; k <= kmax; ++k) {
+      fk[pp++] = prefactor * fw[k] / this->fseries_data_[0][k];
+    }
+    // Negative frequencies.
+    for (int64_t k = kmin; k < 0; ++k) {
+      fk[pn++] = prefactor * fw[this->fine_dims_[0] + k] /
+          this->fseries_data_[0][-k];
+    }
+  } else {
+    // Zero-padding.
+    for (int64_t k = kmax + 1; k < this->fine_dims_[0] + kmin; ++k) {
+      fw[k] = std::complex(0.0, 0.0);
+    }
+    // Non-negative frequencies.
+    for (int64_t k = 0;k <= kmax; ++k) {
+      fw[k] = prefactor * fk[pp++] / this->fseries_data_[0][k];
+    }
+    // Negative frequencies.
+    for (int64_t k = kmin; k < 0; ++k) {
+      fw[this->fine_dims_[0] + k] =
+          prefactor * fk[pn++] / this->fseries_data_[0][-k];
+    }
+  }
+}
+
+template<typename FloatType>
+void Plan<CPUDevice, FloatType>::deconvolve_2d(
+    DType *fk, DType* fw, FloatType prefactor) {
+  FloatType* ker2 = this->fseries_data_[1];
+  int64_t ms = this->grid_dims_[0];
+  int64_t mt = this->grid_dims_[1];
+  int64_t nf1 = this->fine_dims_[0];
+  int64_t nf2 = this->fine_dims_[1];
+
+  int64_t k2min = -mt / 2;
+  int64_t k2max = (mt - 1) / 2;
+
+  if (mt == 0) {
+    k2max = -1;
+  }
+
+  // Get start of positive and negative chunks of fk array.
+  int64_t pp, pn;
+  switch (this->options_.mode_order) {
+    case ModeOrder::FFT: {
+      pp = 0;
+      pn = (k2max + 1) * ms;
+      break;
+    }
+    case ModeOrder::CMCL: {
+      pp = -k2min * ms;
+      pn = 0;
+      break;
+    }
+  }
+
+  // Zero-padding.
+  if (this->spread_params_.spread_direction == SpreadDirection::INTERP) {
+    for (int64_t j = nf1 * (k2max + 1); j < nf1 * (nf2 + k2min); ++j)  {
+      fw[j] = std::complex(0.0, 0.0);
+    }
+  }
+
+  // Non-negative frequencies.
+  for (int64_t k2 = 0; k2 <= k2max; ++k2, pp += ms) {
+    this->deconvolve_1d(fk + pp, &fw[nf1 * k2], prefactor / ker2[k2]);
+  }
+
+  // Negative frequencies.
+  for (int64_t k2 = k2min; k2 < 0; ++k2, pn += ms) {
+    this->deconvolve_1d(fk + pn, &fw[nf1 * (nf2 + k2)], prefactor / ker2[-k2]);
+  }
+}
+
+template<typename FloatType>
+void Plan<CPUDevice, FloatType>::deconvolve_3d(
+    DType *fk, DType* fw, FloatType prefactor) {
+  FloatType* ker3 = this->fseries_data_[2];
+  int64_t ms = this->grid_dims_[0];
+  int64_t mt = this->grid_dims_[1];
+  int64_t mu = this->grid_dims_[2];
+  int64_t nf1 = this->fine_dims_[0];
+  int64_t nf2 = this->fine_dims_[1];
+  int64_t nf3 = this->fine_dims_[2];
+
+  int64_t k3min = -mu / 2;
+  int64_t k3max = (mu - 1) / 2;
+  if (mu == 0) {
+    k3max = -1;
+  }
+
+  // Get start of positive and negative chunks of fk array.
+  int64_t pp, pn;
+  switch (this->options_.mode_order) {
+    case ModeOrder::FFT: {
+      pp = 0;
+      pn = (k3max + 1) * ms * mt;
+      break;
+    }
+    case ModeOrder::CMCL: {
+      pp = -k3min * ms * mt;
+      pn = 0;
+      break;
+    }
+  }
+
+  int64_t np = nf1 * nf2;
+
+  // Zero-padding.
+  if (this->spread_params_.spread_direction == SpreadDirection::INTERP) {
+    for (int64_t j = np * (k3max + 1); j < np * (nf3 + k3min); ++j) {
+      fw[j] = std::complex(0.0, 0.0);
+    }
+  }
+
+  // Non-negative frequencies.
+  for (int64_t k3 = 0; k3 <= k3max; ++k3, pp += ms * mt) {
+    this->deconvolve_2d(fk + pp, &fw[np * k3], prefactor / ker3[k3]);
+  }
+
+  // Negative frequencies.
+  for (int64_t k3 = k3min; k3 < 0; ++k3, pn += ms * mt) {
+    this->deconvolve_2d(fk + pn, &fw[np * (nf3 + k3)], prefactor / ker3[-k3]);
+  }
 }
 
 namespace {
 
-// Set 1D size of upsampled array, grid_size, given options and requested number of
-// Fourier modes.
-template<typename FloatType>
-Status set_grid_size(int ms,
-                     const InternalOptions& options,
-                     SpreadParameters<FloatType> spread_params,
-                     int* grid_size) {
-  // for spread/interp only, we do not apply oversampling (Montalt 6/8/2021).
-  if (options.spread_only) {
-    *grid_size = ms;
-  } else {
-    *grid_size = static_cast<int>(options.upsampling_factor * ms);
-  }
-
-  // This is required to avoid errors.
-  if (*grid_size < 2 * spread_params.kernel_width)
-    *grid_size = 2 * spread_params.kernel_width;
-
-  // Check if array size is too big.
-  if (*grid_size > kMaxArraySize) {
-    return errors::Internal(
-        "Upsampled dim size too big: ", *grid_size, " > ", kMaxArraySize);
-  }
-
-  // Find the next smooth integer.
-  *grid_size = next_smooth_int(*grid_size);
-
-  // For spread/interp only mode, make sure that the grid size is valid.
-  if (options.spread_only && *grid_size != ms) {
-    return errors::Internal(
-        "Invalid grid size: ", ms, ". Value should be even, "
-        "larger than the kernel (", 2 * spread_params.kernel_width, ") and have no prime "
-        "factors larger than 5.");
-  }
-
-  return Status::OK();
-}
-
 template<typename FloatType>
 Status setup_spreader(
-    int rank, FloatType eps, double upsampling_factor,
-    int kerevalmeth, bool show_warnings, SpreadParameters<FloatType> &spread_params)
+    int rank,
+    int kerevalmeth, bool show_warnings,
+    const InternalOptions& options,
+    SpreadParameters<FloatType> &spread_params)
 /* Initializes spreader kernel parameters given desired NUFFT tol eps,
    upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), ker eval meth
    (either 0:exp(sqrt()), 1: Horner ppval), and some debug-level flags.
@@ -624,33 +699,24 @@ Status setup_spreader(
    rank is spatial dimension (1,2, or 3).
    See finufft.cpp:finufft_plan() for where upsampling_factor is set.
    Must call this before any kernel evals done, otherwise segfault likely.
-   Returns:
-     0  : success
-     WARN_EPS_TOO_SMALL : requested eps cannot be achieved, but proceed with
-                          best possible eps
-     otherwise : failure (see codes in finufft_definitions.h); spreading must not proceed
    Barnett 2017. debug, loosened eps logic 6/14/20.
 */
 {
-  if (upsampling_factor != 2.0 && upsampling_factor != 1.25) {
+  if (options.upsampling_factor != 2.0 && options.upsampling_factor != 1.25) {
     if (kerevalmeth == 1) {
       return errors::Internal(
           "Horner kernel evaluation only supports standard "
-          "upsampling factors of 2.0 or 1.25, but got ", upsampling_factor);
-    }
-    if (upsampling_factor <= 1.0) {
-      return errors::Internal(
-          "upsampling_factor must be > 1.0, but is ", upsampling_factor);
+          "upsampling factors of 2.0 or 1.25, but got ",
+          options.upsampling_factor);
     }
   }
 
   // write out default SpreadParameters<FloatType>
   spread_params.pirange = 1;             // user also should always set this
-  spread_params.check_bounds = false;
   spread_params.sort_points = SortPoints::AUTO;
   spread_params.pad_kernel = 0;              // affects only evaluate_kernel_vector
   spread_params.kerevalmeth = kerevalmeth;
-  spread_params.upsampling_factor = upsampling_factor;
+  spread_params.upsampling_factor = options.upsampling_factor;
   spread_params.num_threads = 0;            // all avail
   spread_params.sort_threads = 0;        // 0:auto-choice
   // heuristic dir=1 chunking for num_threads>>1, typical for intel i7 and skylake...
@@ -660,20 +726,7 @@ Status setup_spreader(
   // heuristic num_threads above which switch OMP critical to atomic (add_wrapped...):
   spread_params.atomic_threshold = 10;   // R Blackwell's value
 
-  int ns = 0;  // Set kernel width w (aka ns, kernel_width) then copy to spread_params...
-  if (eps < kEpsilon<FloatType>) {
-    eps = kEpsilon<FloatType>;
-  }
-
-  // Select kernel width.
-  if (upsampling_factor == 2.0)           // standard sigma (see SISC paper)
-    ns = std::ceil(-log10(eps / (FloatType)10.0));          // 1 digit per power of 10
-  else                          // custom sigma
-    ns = std::ceil(-log(eps) / (kPi<FloatType> * sqrt(1.0 - 1.0 / upsampling_factor)));  // formula, gam=1
-  ns = std::max(2, ns);               // (we don't have ns=1 version yet)
-  if (ns > kMaxKernelWidth) {         // clip to fit allocated arrays, Horner rules
-    ns = kMaxKernelWidth;
-  }
+  int ns = options.kernel_width;
   spread_params.kernel_width = ns;
 
   // setup for reference kernel eval (via formula): select beta width param...
@@ -684,9 +737,9 @@ Status setup_spreader(
   if (ns == 2) beta_over_ns = 2.20;  // some small-width tweaks...
   if (ns == 3) beta_over_ns = 2.26;
   if (ns == 4) beta_over_ns = 2.38;
-  if (upsampling_factor != 2.0) {          // again, override beta for custom sigma
+  if (options.upsampling_factor != 2.0) {          // again, override beta for custom sigma
     FloatType gamma = 0.97;              // must match devel/gen_all_horner_C_code.m !
-    beta_over_ns = gamma * kPi<FloatType>*(1.0 - 1.0 / (2 * upsampling_factor));  // formula based on cutoff
+    beta_over_ns = gamma * kPi<FloatType>*(1.0 - 1.0 / (2 * options.upsampling_factor));  // formula based on cutoff
   }
   spread_params.kernel_beta = beta_over_ns * (FloatType)ns;    // set the kernel beta parameter
 
@@ -694,11 +747,11 @@ Status setup_spreader(
   if (spread_params.spread_only)
     spread_params.kernel_scale = calculate_scale_factor<FloatType>(rank, spread_params);
 
-  return Status::OK();
+  return OkStatus();
 }
 
 template<typename FloatType>
-Status setup_spreader_for_nufft(int rank, FloatType eps,
+Status setup_spreader_for_nufft(int rank,
                                 const InternalOptions& options,
                                 SpreadParameters<FloatType> &spread_params)
 // Set up the spreader parameters given eps, and pass across various nufft
@@ -708,23 +761,22 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
   spread_params.spread_only = options.spread_only;
 
   TF_RETURN_IF_ERROR(setup_spreader(
-      rank, eps, options.upsampling_factor,
+      rank,
       static_cast<int>(options.kernel_evaluation_method) - 1, // We subtract 1 temporarily, as spreader expects values of 0 or 1 instead of 1 and 2.
-      options.show_warnings, spread_params));
+      options.show_warnings, options, spread_params));
 
   // override various spread spread_params from their defaults...
   spread_params.sort_points = options.sort_points;
   spread_params.spread_method = options.spread_method;
   spread_params.verbosity = options.verbosity;
   spread_params.pad_kernel = options.pad_kernel; // (only applies to kerevalmeth=0)
-  spread_params.check_bounds = options.check_bounds;
   spread_params.num_threads = options.num_threads;
   if (options.num_threads_for_atomic_spread >= 0) // overrides
     spread_params.atomic_threshold = options.num_threads_for_atomic_spread;
   if (options.max_spread_subproblem_size > 0)        // overrides
     spread_params.max_subproblem_size = options.max_spread_subproblem_size;
 
-  return Status::OK();
+  return OkStatus();
 }
 
 // Checks spreader inputs.
@@ -743,46 +795,8 @@ Status check_spread_inputs(int64_t n1, int64_t n2, int64_t n3, int64_t num_point
         "cuboid too small for spreading, got (", n1, ", ", n2, ", ", n3, ") ",
         "but need at least ", min_n, " in each non-trivial dimension");
   }
-  int rank = get_transform_rank(n1, n2, n3);
 
-  // Check bounds. Check that non-uniform points are valid (+-3pi if pirange, or [-grid_size,2N])
-  // exit gracefully as soon as invalid is found.
-  // Note: isfinite() breaks with -Ofast
-  if (opts.check_bounds) {
-    FloatType lower_bound, upper_bound;
-    lower_bound = opts.pirange ? -3.0 * kPi<FloatType> : -(FloatType)n1;
-    upper_bound = opts.pirange ? 3.0 * kPi<FloatType> : 2 * (FloatType)n1;
-    for (int64_t i = 0; i < num_points; ++i) {
-      if ((kx[i] < lower_bound || kx[i] > upper_bound) || !isfinite(kx[i])) {
-        return errors::InvalidArgument(
-            "points outside valid range: kx[", i, "] = ", kx[i],
-            " is not in [", lower_bound, ", ", upper_bound, "]");
-      }
-    }
-    if (rank > 1) {
-      lower_bound = opts.pirange ? -3.0 * kPi<FloatType> : -(FloatType)n2;
-      upper_bound = opts.pirange ? 3.0 * kPi<FloatType> : 2 * (FloatType)n2;
-      for (int64_t i = 0; i<num_points; ++i) {
-        if ((ky[i] < lower_bound || ky[i] > upper_bound) || !isfinite(ky[i])) {
-          return errors::InvalidArgument(
-              "points outside valid range: ky[", i, "] = ", ky[i],
-              " is not in [", lower_bound, ", ", upper_bound, "]");
-        }
-      }
-    }
-    if (rank > 2) {
-      lower_bound = opts.pirange ? -3.0 * kPi<FloatType> : -(FloatType)n3;
-      upper_bound = opts.pirange ? 3.0 * kPi<FloatType> : 2 * (FloatType)n3;
-      for (int64_t i = 0; i < num_points; ++i) {
-        if ((kz[i] < lower_bound || kz[i] > upper_bound) || !isfinite(kz[i])) {
-          return errors::InvalidArgument(
-              "points outside valid range: kz[", i, "] = ", kz[i],
-              " is not in [", lower_bound, ", ", upper_bound, "]");
-        }
-      }
-    }
-  }
-  return Status::OK();
+  return OkStatus();
 }
 
 // This makes a decision whether or not to sort the NU pts (influenced by
@@ -798,7 +812,6 @@ Status check_spread_inputs(int64_t n1, int64_t n2, int64_t n3, int64_t num_point
 //             for FOLD_AND_RESCALE, which includes [0,n1], [0,n2], [0,n3]
 //             respectively, if opts.pirange=0; or [-pi,pi] if opts.pirange=1.
 //             (only kz used in 1D, only kx and ky used in 2D.)
-//             These must have been bounds-checked already; see check_spread_inputs.
 // n1,n2,n3 - integer sizes of overall box (set n2=n3=1 for 1D, n3=1 for 2D).
 //             1 = x (fastest), 2 = y (medium), 3 = z (slowest).
 // opts     - spreading options struct, documented in ../include/SpreadParameters<FloatType>.h
@@ -907,8 +920,9 @@ void bin_sort_singlethread(
   }
   std::vector<int64_t> offsets(num_bins);   // cumulative sum of bin counts
   offsets[0] = 0;     // do: offsets = [0 cumsum(counts(1:end-1)]
-  for (int64_t i = 1; i < num_bins; i++)
+  for (int64_t i = 1; i < num_bins; i++) {
     offsets[i] = offsets[i - 1] + counts[i-1];
+  }
 
   std::vector<int64_t> inv(num_points);           // fill inverse map
   for (int64_t i = 0; i < num_points; i++) {
@@ -922,8 +936,9 @@ void bin_sort_singlethread(
     inv[i] = offset;
   }
   // invert the map, writing to output pointer (writing pattern is random)
-  for (int64_t i = 0; i < num_points; i++)
+  for (int64_t i = 0; i < num_points; i++) {
     ret[inv[i]] = i;
+  }
 }
 
 // Mostly-OpenMP'ed version of bin_sort_singlethread.
@@ -938,6 +953,7 @@ void bin_sort_multithread(
     int64_t n1,int64_t n2,int64_t n3,int pirange,
     double bin_size_x, double bin_size_y, double bin_size_z, int debug,
     int num_threads) {
+
   bool isky = (n2 > 1), iskz = (n3 > 1);  // ky,kz avail? (cannot access if not)
   int64_t nbins1=n1 / bin_size_x + 1, nbins2, nbins3;  // see above note on why +1
   nbins2 = isky ? n2 / bin_size_y + 1 : 1;
@@ -1019,143 +1035,6 @@ static int get_transform_rank(int64_t n1, int64_t n2, int64_t n3) {
   return rank;
 }
 
-
-// We macro because it has no FloatType args but gets compiled for both prec's...
-template<typename FloatType>
-void deconvolveshuffle1d(SpreadDirection dir, FloatType prefac,FloatType* ker, int64_t ms,
-			 FloatType *fk, int64_t nf1, typename fftw::ComplexType<FloatType>::Type* fw, ModeOrder mode_order)
-/*
-  if dir == SpreadDirection::SPREAD: copies fw to fk with amplification by prefac/ker
-  if dir == SpreadDirection::INTERP: copies fk to fw (and zero pads rest of it), same amplification.
-
-  mode_order=0: use CMCL-compatible mode ordering in fk (from -N/2 up to N/2-1)
-          1: use FFT-style (from 0 to N/2-1, then -N/2 up to -1).
-
-  fk is size-ms FloatType complex array (2*ms FloatTypes alternating re,im parts)
-  fw is a FFTW style complex array, ie FloatType [nf1][2], essentially FloatTypes
-       alternating re,im parts.
-  ker is real-valued FloatType array of length nf1/2+1.
-
-  Single thread only, but shouldn't matter since mostly data movement.
-
-  It has been tested that the repeated floating division in this inner loop
-  only contributes at the <3% level in 3D relative to the fftw cost (8 threads).
-  This could be removed by passing in an inverse kernel and doing mults.
-
-  todo: rewrite w/ C++-complex I/O, check complex divide not slower than
-        real divide, or is there a way to force a real divide?
-
-  Barnett 1/25/17. Fixed ms=0 case 3/14/17. mode_order flag & clean 10/25/17
-*/
-{
-  int64_t kmin = -ms/2, kmax = (ms-1)/2;    // inclusive range of k indices
-  if (ms==0) kmax=-1;           // fixes zero-pad for trivial no-mode case
-  // set up pp & pn as ptrs to start of pos(ie nonneg) & neg chunks of fk array
-  int64_t pp = -2*kmin, pn = 0;       // CMCL mode-ordering case (2* since cmplx)
-  if (mode_order==ModeOrder::FFT) { pp = 0; pn = 2*(kmax+1); }   // or, instead, FFT ordering
-  if (dir == SpreadDirection::SPREAD) {    // read fw, write out to fk...
-    for (int64_t k=0;k<=kmax;++k) {                    // non-neg freqs k
-      fk[pp++] = prefac * fw[k][0] / ker[k];          // re
-      fk[pp++] = prefac * fw[k][1] / ker[k];          // im
-    }
-    for (int64_t k=kmin;k<0;++k) {                     // neg freqs k
-      fk[pn++] = prefac * fw[nf1+k][0] / ker[-k];     // re
-      fk[pn++] = prefac * fw[nf1+k][1] / ker[-k];     // im
-    }
-  } else {    // read fk, write out to fw w/ zero padding...
-    for (int64_t k=kmax+1; k<nf1+kmin; ++k) {  // zero pad precisely where needed
-      fw[k][0] = fw[k][1] = 0.0; }
-    for (int64_t k=0;k<=kmax;++k) {                    // non-neg freqs k
-      fw[k][0] = prefac * fk[pp++] / ker[k];          // re
-      fw[k][1] = prefac * fk[pp++] / ker[k];          // im
-    }
-    for (int64_t k=kmin;k<0;++k) {                     // neg freqs k
-      fw[nf1+k][0] = prefac * fk[pn++] / ker[-k];     // re
-      fw[nf1+k][1] = prefac * fk[pn++] / ker[-k];     // im
-    }
-  }
-}
-
-template<typename FloatType>
-void deconvolveshuffle2d(SpreadDirection dir,FloatType prefac,FloatType *ker1, FloatType *ker2,
-			 int64_t ms, int64_t mt,
-			 FloatType *fk, int64_t nf1, int64_t nf2, typename fftw::ComplexType<FloatType>::Type* fw,
-			 ModeOrder mode_order)
-/*
-  2D version of deconvolveshuffle1d, calls it on each x-line using 1/ker2 fac.
-
-  if dir == SpreadDirection::SPREAD: copies fw to fk with amplification by prefac/(ker1(k1)*ker2(k2)).
-  if dir == SpreadDirection::INTERP: copies fk to fw (and zero pads rest of it), same amplification.
-
-  mode_order=0: use CMCL-compatible mode ordering in fk (each rank increasing)
-          1: use FFT-style (pos then negative, on each rank)
-
-  fk is complex array stored as 2*ms*mt FloatTypes alternating re,im parts, with
-    ms looped over fast and mt slow.
-  fw is a FFTW style complex array, ie FloatType [nf1*nf2][2], essentially FloatTypes
-       alternating re,im parts; again nf1 is fast and nf2 slow.
-  ker1, ker2 are real-valued FloatType arrays of lengths nf1/2+1, nf2/2+1
-       respectively.
-
-  Barnett 2/1/17, Fixed mt=0 case 3/14/17. mode_order 10/25/17
-*/
-{
-  int64_t k2min = -mt/2, k2max = (mt-1)/2;    // inclusive range of k2 indices
-  if (mt==0) k2max=-1;           // fixes zero-pad for trivial no-mode case
-  // set up pp & pn as ptrs to start of pos(ie nonneg) & neg chunks of fk array
-  int64_t pp = -2*k2min*ms, pn = 0;   // CMCL mode-ordering case (2* since cmplx)
-  if (mode_order == ModeOrder::FFT) { pp = 0; pn = 2*(k2max+1)*ms; }  // or, instead, FFT ordering
-  if (dir == SpreadDirection::INTERP)               // zero pad needed x-lines (contiguous in memory)
-    for (int64_t j=nf1*(k2max+1); j<nf1*(nf2+k2min); ++j)  // sweeps all dims
-      fw[j][0] = fw[j][1] = 0.0;
-  for (int64_t k2=0;k2<=k2max;++k2, pp+=2*ms)          // non-neg y-freqs
-    // point fk and fw to the start of this y value's row (2* is for complex):
-    deconvolveshuffle1d(dir,prefac/ker2[k2],ker1,ms,fk + pp,nf1,&fw[nf1*k2],mode_order);
-  for (int64_t k2=k2min;k2<0;++k2, pn+=2*ms)           // neg y-freqs
-    deconvolveshuffle1d(dir,prefac/ker2[-k2],ker1,ms,fk + pn,nf1,&fw[nf1*(nf2+k2)],mode_order);
-}
-
-template<typename FloatType>
-void deconvolveshuffle3d(SpreadDirection dir,FloatType prefac,FloatType *ker1, FloatType *ker2,
-			 FloatType *ker3, int64_t ms, int64_t mt, int64_t mu,
-			 FloatType *fk, int64_t nf1, int64_t nf2, int64_t nf3,
-			 typename fftw::ComplexType<FloatType>::Type* fw, ModeOrder mode_order)
-/*
-  3D version of deconvolveshuffle2d, calls it on each xy-plane using 1/ker3 fac.
-
-  if dir == SpreadDirection::SPREAD: copies fw to fk with ampl by prefac/(ker1(k1)*ker2(k2)*ker3(k3)).
-  if dir == SpreadDirection::INTERP: copies fk to fw (and zero pads rest of it), same amplification.
-
-  mode_order=0: use CMCL-compatible mode ordering in fk (each rank increasing)
-          1: use FFT-style (pos then negative, on each rank)
-
-  fk is complex array stored as 2*ms*mt*mu FloatTypes alternating re,im parts, with
-    ms looped over fastest and mu slowest.
-  fw is a FFTW style complex array, ie FloatType [nf1*nf2*nf3][2], effectively
-       FloatTypes alternating re,im parts; again nf1 is fastest and nf3 slowest.
-  ker1, ker2, ker3 are real-valued FloatType arrays of lengths nf1/2+1, nf2/2+1,
-       and nf3/2+1 respectively.
-
-  Barnett 2/1/17, Fixed mu=0 case 3/14/17. mode_order 10/25/17
-*/
-{
-  int64_t k3min = -mu/2, k3max = (mu-1)/2;    // inclusive range of k3 indices
-  if (mu==0) k3max=-1;           // fixes zero-pad for trivial no-mode case
-  // set up pp & pn as ptrs to start of pos(ie nonneg) & neg chunks of fk array
-  int64_t pp = -2*k3min*ms*mt, pn = 0; // CMCL mode-ordering (2* since cmplx)
-  if (mode_order == ModeOrder::FFT) { pp = 0; pn = 2*(k3max+1)*ms*mt; }  // or FFT ordering
-  int64_t np = nf1*nf2;  // # pts in an upsampled Fourier xy-plane
-  if (dir == SpreadDirection::INTERP)           // zero pad needed xy-planes (contiguous in memory)
-    for (int64_t j=np*(k3max+1);j<np*(nf3+k3min);++j)  // sweeps all dims
-      fw[j][0] = fw[j][1] = 0.0;
-  for (int64_t k3=0;k3<=k3max;++k3, pp+=2*ms*mt)      // non-neg z-freqs
-    // point fk and fw to the start of this z value's plane (2* is for complex):
-    deconvolveshuffle2d(dir,prefac/ker3[k3],ker1,ker2,ms,mt,
-			fk + pp,nf1,nf2,&fw[np*k3],mode_order);
-  for (int64_t k3=k3min;k3<0;++k3, pn+=2*ms*mt)       // neg z-freqs
-    deconvolveshuffle2d(dir,prefac/ker3[-k3],ker1,ker2,ms,mt,
-			fk + pn,nf1,nf2,&fw[np*(nf3+k3)],mode_order);
-}
 
 template<typename FloatType>
 int spreadinterpSorted(int64_t* sort_indices, int64_t N1, int64_t N2, int64_t N3,

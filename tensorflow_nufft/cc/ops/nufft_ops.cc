@@ -41,7 +41,7 @@ Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
   }
   if (!c->ValueKnown(rank_handle)) {
     c->set_output(0, c->UnknownShape());
-    return Status::OK();
+    return OkStatus();
   }
   int64_t rank = c->Value(rank_handle);
 
@@ -99,7 +99,7 @@ Status NUFFTBaseShapeFn(InferenceContext* c, int transform_type) {
   }
   c->set_output(0, output_shape);
 
-  return Status::OK();
+  return OkStatus();
 }
 
 

@@ -23,7 +23,7 @@ from tensorflow_nufft.proto import nufft_options_pb2
 
 
 class FftwPlanningRigor(enum.IntEnum):
-  """Represents the planning rigor for the FFTW library.
+  r"""Represents the planning rigor for the FFTW library.
 
   Controls the rigor (and time) of the FFTW planning process. More rigorous
   planning takes longer the first time `nufft` is called, but may result in
@@ -92,6 +92,100 @@ class FftwPlanningRigor(enum.IntEnum):
     )
 
 
+class PointsRange(enum.IntEnum):
+  r"""Represents the supported range for the nonuniform points.
+
+  Specifies the supported range for the nonuniform points. More restrictive
+  options may result in faster execution.
+
+  ```{note}
+  The discrete Fourier transform (DFT) is periodic with respect to the points
+  $k$, i.e., $f(x, k + 2\pi) = f(x, k)$. Therefore, the DFT is defined for
+  $k \in (-\infty, +\infty)$ and can always be computed by shifting $k$
+  by a multiple of $2\pi$ to the interval $[-\pi, +\pi]$. However, if
+  you can promise that the input points lie within a narrower range, the
+  algorithm might be able to perform some optimizations.
+  ```
+
+  The following options are available:
+
+  - **STRICT**: the algorithm is only guaranteed to support values in the range
+    $[-\pi, +\pi]$. This option offers the most opportunities for performance
+    optimization.
+
+  - **EXTENDED**: the algorithm is guaranteed to support values in the range
+    $[-3 \pi, +3 \pi]$. This option offers a compromise between flexibility and
+    performance. Even if your points are in $[-\pi, +\pi]$, this option might
+    offer robustness against rounding error. This is the default option.
+
+  - **INFINITE**: the algorithm is guaranteed to support values in the range
+    $(-\infty, +\infty)$. This option offers the most flexibility, but cannot
+    optimize performance.
+
+  ```{attention}
+  For options `STRICT` and `EXTENDED`, passing points outside the supported
+  range is undefined behaviour.
+  ```
+  """
+  STRICT = 0
+  EXTENDED = 1
+  INFINITE = 2
+
+  def to_proto(self):  # pylint: disable=missing-function-docstring
+    if self == PointsRange.STRICT:
+      return nufft_options_pb2.PointsRange.STRICT
+    if self == PointsRange.EXTENDED:
+      return nufft_options_pb2.PointsRange.EXTENDED
+    if self == PointsRange.INFINITE:
+      return nufft_options_pb2.PointsRange.INFINITE
+    raise ValueError(
+        f"Invalid value of `PointsRange`. Supported values include "
+        f"`STRICT`, `EXTENDED` and `INFINITE`. Got {self.name}."
+    )
+
+  @classmethod
+  def from_proto(cls, pb):  # pylint: disable=missing-function-docstring
+    if pb == nufft_options_pb2.PointsRange.STRICT:
+      return cls.STRICT
+    if pb == nufft_options_pb2.PointsRange.EXTENDED:
+      return cls.EXTENDED
+    if pb == nufft_options_pb2.PointsRange.INFINITE:
+      return cls.INFINITE
+    raise ValueError(
+        f"Invalid value of `PointsRange` in protocol buffer. Supported "
+        f"values include `STRICT`, `EXTENDED` and `INFINITE`. Got {pb.name}."
+    )
+
+
+class DebuggingOptions(pydantic.BaseModel):
+  r"""Represents options for debugging.
+
+  Example:
+    >>> options = tfft.Options()
+    >>> # Assert that input points `x` lie within the supported range.
+    >>> options.debugging.check_points_range = True
+    >>> tfft.nufft(x, k, options=options)
+
+  Attributes:
+    check_points_range: If `True`, `nufft` will assert that the nonuniform
+      point coordinates lie within the supported range (as determined by
+      `options.points_range`). This improves the safety of the operation,
+      but may have a small impact on performance. Defaults to `False`.
+  """
+  check_points_range: bool = False
+
+  def to_proto(self):  # pylint: disable=missing-function-docstring
+    pb = nufft_options_pb2.DebuggingOptions()
+    pb.check_points_range = self.check_points_range
+    return pb
+
+  @classmethod
+  def from_proto(cls, pb):  # pylint: disable=missing-function-docstring
+    obj = cls()
+    obj.check_points_range = pb.check_points_range
+    return obj
+
+
 class FftwOptions(pydantic.BaseModel):
   """Represents options for the FFTW library.
 
@@ -103,9 +197,9 @@ class FftwOptions(pydantic.BaseModel):
   ```
 
   Example:
-  >>> options = tfft.Options()
-  >>> options.fftw.planning_rigor = tfft.FftwPlanningRigor.PATIENT
-  >>> tfft.nufft(x, k, options=options)
+    >>> options = tfft.Options()
+    >>> options.fftw.planning_rigor = tfft.FftwPlanningRigor.PATIENT
+    >>> tfft.nufft(x, k, options=options)
 
   Attributes:
     planning_rigor: Controls the rigor (and time) of the planning process.
@@ -133,12 +227,13 @@ class Options(pydantic.BaseModel):
   are not required for most use cases.
 
   Example:
-
-  >>> options = tfft.Options()
-  >>> options.max_batch_size = 4
-  >>> tfft.nufft(x, k, options=options)
+    >>> options = tfft.Options()
+    >>> options.max_batch_size = 4
+    >>> tfft.nufft(x, k, options=options)
 
   Attributes:
+    debugging: Options for debugging. See `tfft.DebuggingOptions` for more
+      information.
     fftw: Options for the FFTW library. See `tfft.FftwOptions` for more
       information.
     max_batch_size: An optional `int`. The maximum batch size to use during
@@ -146,23 +241,32 @@ class Options(pydantic.BaseModel):
       vectorization batch size to this value. Smaller values may reduce memory
       usage, but may also reduce performance. If not set, the internal batch
       size is chosen automatically.
+    points_range: An optional `tfft.PointsRange`. Specifies the supported
+      bounds for the nonuniform points. See `tfft.PointsRange` for more
+      information. Defaults to `tfft.PointsRange.EXTENDED`.
   """
+  debugging: DebuggingOptions = DebuggingOptions()
   fftw: FftwOptions = FftwOptions()
   max_batch_size: typing.Optional[int] = None
+  points_range: PointsRange = PointsRange.EXTENDED
 
   def to_proto(self):
     pb = nufft_options_pb2.Options()
+    pb.debugging.CopyFrom(self.debugging.to_proto())
     pb.fftw.CopyFrom(self.fftw.to_proto())
     if self.max_batch_size is not None:
       pb.max_batch_size = self.max_batch_size
+    pb.points_range = self.points_range.to_proto()
     return pb
 
   @classmethod
   def from_proto(cls, pb):
     obj = cls()
+    obj.debugging = DebuggingOptions.from_proto(pb.debugging)
     obj.fftw = FftwOptions.from_proto(pb.fftw)
     if pb.max_batch_size is not None:
       obj.max_batch_size = pb.max_batch_size
+    obj.points_range = PointsRange.from_proto(pb.points_range)
     return obj
 
   class Config:

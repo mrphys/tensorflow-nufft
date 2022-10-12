@@ -37,6 +37,9 @@ limitations under the License.
 #include "third_party/gpus/cuda/include/vector_types.h"
 #endif  // GOOGLE_CUDA
 
+#include "tensorflow_nufft/proto/nufft_options.pb.h"
+
+
 namespace tensorflow {
 namespace nufft {
 
@@ -73,21 +76,24 @@ enum class SpreadMethod {
   BLOCK_GATHER = 3
 };
 
+// Specifies the measurement unit for the non-uniform points.
+enum class PointsUnit {
+  CYCLES = 0,               // points in [-N/2, N/2] - unimplemented
+  CYCLES_PER_SAMPLE = 1,    // points in [-0.5, 0.5] - unimplemented
+  RADIANS_PER_SAMPLE = 2    // points in [-pi, pi]
+};
+
 // InternalOptions for the NUFFT operations. This class is used for both the
 // CPU and the GPU implementation, although some options are only used by one
 // or the other.
 // TODO(jmontalt): Consider splitting into two classes, one for CPU and one for
 // GPU, derived from a common base.
 // TODO(jmontalt): Consider replacing entirely by proto options.
-struct InternalOptions {
+class InternalOptions : public Options {
+ public:
   // The mode order to use. See enum above. Applies only to type 1 and type 2
   // transforms. Applies only to the CPU kernel.
   ModeOrder mode_order = ModeOrder::CMCL;
-
-  // Whether to check if the NUFFT points are in the correct range
-  // [-3*pi, 3*pi]. This check has a small performance penalty. Applies only to
-  // the CPU kernel.
-  bool check_bounds = true;
 
   // The verbosity level. 0 means silent, 1 means some timing/debug, and 2 means
   // more debug. Applies to the CPU and the GPU kernels.
@@ -99,9 +105,6 @@ struct InternalOptions {
   // The number of threads to use. A value of 0 means the system picks an
   // appropriate number. Applies only to the CPU kernel.
   int num_threads = 0;
-
-  // FFTW flags. Applies only to the CPU kernel.
-  int fftw_flags = FFTW_ESTIMATE;
 
   // Whether to sort the non-uniform points. See enum above. Used by CPU and GPU
   // kernels.
@@ -121,13 +124,12 @@ struct InternalOptions {
   // the GPU kernels.
   double upsampling_factor = 0.0;
 
+  // The kernel width.
+  int kernel_width = 0.0;
+
   // The spreader threading strategy. See enum above. Only relevant if the
   // number of threads is larger than 1. Applies only to the CPU kernel.
   SpreadThreading spread_threading = SpreadThreading::AUTO;
-
-  // The maximum batch size for the vectorized NUFFT. A value of 0 means the
-  // batch size is automatically chosen. Applies to CPU and GPU kernels.
-  int max_batch_size = 0;
 
   // The number of threads above which the spreader OMP critical goes atomic.
   // Applies only to the CPU kernel.
@@ -141,6 +143,9 @@ struct InternalOptions {
 
   // The CUDA interpolation/spreading method.
   SpreadMethod spread_method = SpreadMethod::AUTO;
+
+  // The input unit for the nonuniform points. See enum above.
+  PointsUnit points_unit = PointsUnit::RADIANS_PER_SAMPLE;
 
   #if GOOGLE_CUDA
 

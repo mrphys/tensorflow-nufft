@@ -388,7 +388,7 @@ class NUFFTBaseOp : public OpKernel {
                  int64_t batch_rank,
                  int64_t* source_batch_dims,
                  int64_t* points_batch_dims,
-                 int64_t* num_modes,
+                 int64_t* grid_dims,
                  int64_t num_points,
                  FloatType* points,
                  Complex<Device, FloatType>* source,
@@ -396,7 +396,7 @@ class NUFFTBaseOp : public OpKernel {
     // Number of coefficients.
     int num_coeffs = 1;
     for (int d = 0; d < rank; d++) {
-      num_coeffs *= num_modes[d];
+      num_coeffs *= grid_dims[d];
     }
 
     // Number of calls to FINUFFT execute.
@@ -465,10 +465,10 @@ class NUFFTBaseOp : public OpKernel {
     options.num_threads = worker_threads.num_threads;
 
     // Make inlined vector from pointer to number of modes. TODO: use inlined
-    // vector for all of num_modes.
+    // vector for all of grid_dims.
     int num_modes_int[3] = {1, 1, 1};
     for (int i = 0; i < rank; ++i) {
-      num_modes_int[i] = static_cast<int>(num_modes[i]);
+      num_modes_int[i] = static_cast<int>(grid_dims[i]);
     }
 
     // Make the NUFFT plan.

@@ -186,7 +186,7 @@ template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::initialize(
     TransformType type,
     int rank,
-    int* num_modes,
+    int* grid_dims,
     FftDirection fft_direction,
     int num_transforms,
     FloatType tol,
@@ -209,9 +209,9 @@ Status Plan<CPUDevice, FloatType>::initialize(
   this->num_transforms_ = num_transforms;
   this->options_ = options;
 
-  this->grid_dims_[0] = num_modes[0];
-  this->grid_dims_[1] = (this->rank_ > 1) ? num_modes[1] : 1;
-  this->grid_dims_[2] = (this->rank_ > 2) ? num_modes[2] : 1;
+  this->grid_dims_[0] = grid_dims[0];
+  this->grid_dims_[1] = (this->rank_ > 1) ? grid_dims[1] : 1;
+  this->grid_dims_[2] = (this->rank_ > 2) ? grid_dims[2] : 1;
   this->grid_size_ = this->grid_dims_[0] * this->grid_dims_[1] * this->grid_dims_[2];
 
   // Choose kernel evaluation method.

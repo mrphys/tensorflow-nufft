@@ -221,7 +221,7 @@ class PlanBase {
   // evaluates spreading kernel coefficients, and instantiates the FFT plan.
   virtual Status initialize(TransformType type,
                             int rank,
-                            int* num_modes,
+                            int* grid_dims,
                             FftDirection fft_direction,
                             int num_transforms,
                             FloatType tol,
@@ -365,7 +365,7 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
   Status initialize(TransformType type,
                     int rank,
-                    int* num_modes,
+                    int* grid_dims,
                     FftDirection fft_direction,
                     int num_transforms,
                     FloatType tol,
@@ -476,7 +476,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
   Status initialize(TransformType type,
                     int rank,
-                    int* num_modes,
+                    int* grid_dims,
                     FftDirection fft_direction,
                     int num_transforms,
                     FloatType tol,
@@ -506,10 +506,13 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // Initializes the FFT library and plan.
   Status initialize_fft() override;
 
+  // Performs bin-sorting if required for plan configuration.
+  Status binsort_if_needed();
+
+  // Initializes subproblems for subproblem-based interpolation/spreading.
+  Status initialize_subproblems();
+
  private:
-  Status init_spreader();
-  Status init_spreader_nupts_driven();
-  Status init_spreader_subproblem();
   Status spread_batch(int batch_size);
   Status interp_batch(int batch_size);
   Status spread_batch_nupts_driven(int batch_size);

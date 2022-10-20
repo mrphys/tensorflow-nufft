@@ -1814,7 +1814,6 @@ Status Plan<GPUDevice, FloatType>::initialize(
     int num_transforms,
     FloatType tol,
     const InternalOptions& options) {
-  std::cout << "initialize" << std::endl;
   auto* ctx = this->context_;
   auto* stream = ctx->op_device_context()->stream();
   if (!stream)
@@ -1943,10 +1942,10 @@ Status Plan<GPUDevice, FloatType>::initialize(
   this->num_bins_[1] = 1;
   this->num_bins_[2] = 1;
   this->bin_count_ = 1;
-  for (int i = 0; i < this->rank_; i++) {
-    this->num_bins_[i] =
-        (this->fine_dims_[i] + this->bin_dims_[i] - 1) / this->bin_dims_[i];
-    this->bin_count_ *= this->num_bins_[i];
+  for (int d = 0; d < this->rank_; d++) {
+    this->num_bins_[d] =
+        (this->fine_dims_[d] + this->bin_dims_[d] - 1) / this->bin_dims_[d];
+    this->bin_count_ *= this->num_bins_[d];
   }
 
   // Allocate memory for the bins.
@@ -2058,7 +2057,6 @@ Status Plan<GPUDevice, FloatType>::set_points(
     FloatType* points_x,
     FloatType* points_y,
     FloatType* points_z) {
-  std::cout << "set_points" << std::endl;
   // Store the input pointers and number of points.
   this->num_points_ = num_points;
   this->points_[0] = points_x;
@@ -2114,7 +2112,6 @@ Status Plan<GPUDevice, FloatType>::set_points(
 
 template<typename FloatType>
 Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
-  std::cout << "execute" << std::endl;
   auto* ctx = this->context_;
   auto* stream = ctx->op_device_context()->stream();
   if (!stream)
@@ -2167,7 +2164,6 @@ Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
     }
   }
 
-  std::cout << "execute done" << std::endl;
   return OkStatus();
 }
 
@@ -3124,6 +3120,12 @@ Status setup_spreader_for_nufft(int rank, FloatType eps,
 
 void set_bin_sizes(TransformType type, int rank, InternalOptions& options) {
   switch (rank) {
+    case 1:
+      options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 1024 :
+          options.gpu_bin_size.x;
+      options.gpu_bin_size.y = 1;
+      options.gpu_bin_size.z = 1;
+      break;
     case 2:
       options.gpu_bin_size.x = (options.gpu_bin_size.x == 0) ? 32 :
           options.gpu_bin_size.x;

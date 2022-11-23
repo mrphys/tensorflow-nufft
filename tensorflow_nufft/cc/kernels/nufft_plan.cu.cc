@@ -1882,6 +1882,7 @@ Status Plan<GPUDevice, FloatType>::execute(DType* d_c, DType* d_fk) {
         this->grid_tensor_.shape().num_elements());
     if (!stream->ThenFft(this->fft_plan_.get(), src, &src).ok())
       return errors::Internal("fft failed");
+    this->device_.synchronize();
 
     // Step 3: deconvolve (type 1) or interp (type 2).
     switch (this->type_) {
@@ -1973,6 +1974,7 @@ Status Plan<GPUDevice, FloatType>::spread_batch(int batch_size) {
     case SpreadMethod::BLOCK_GATHER:
       return errors::Unimplemented("spread method not implemented");
   }
+  this->device_.synchronize();
   return Status::OK();
 }
 
@@ -1989,6 +1991,7 @@ Status Plan<GPUDevice, FloatType>::interp_batch(int batch_size) {
     case SpreadMethod::BLOCK_GATHER:
       return errors::Unimplemented("interp method not implemented");
   }
+  this->device_.synchronize();
   return Status::OK();
 }
 
@@ -2441,6 +2444,7 @@ Status Plan<GPUDevice, FloatType>::deconvolve_batch(int batch_size) {
         break;
     }
   }
+  this->device_.synchronize();
   return Status::OK();
 }
 

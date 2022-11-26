@@ -49,6 +49,7 @@ limitations under the License.
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/platform/stream_executor.h"
 #include "tensorflow_nufft/cc/kernels/fftw_api.h"
+#include "tensorflow_nufft/cc/kernels/legendre_rule_fast.h"
 #include "tensorflow_nufft/cc/kernels/nufft_options.h"
 
 namespace tensorflow {
@@ -134,20 +135,18 @@ enum class SpreadDirection {
   INTERP   // uniform to non-uniform
 };
 
+// Parameters for the interpolation kernel.
+template<typename FloatType>
+struct KernelArgs {
+  int w;  // width
+  FloatType hw;  // half-width
+  FloatType beta;  // constant beta
+  FloatType c;  // constant c
+  FloatType scale;  // scaling factor
+};
+
 template<typename FloatType>
 struct SpreadParameters {
-  // The spread direction (U->NU or NU->U). See enum above.
-  SpreadDirection spread_direction;
-  // Whether to sort the non-uniform points.
-  SortPoints sort_points = SortPoints::AUTO;
-  // Specifies the spread method.
-  SpreadMethod spread_method = SpreadMethod::AUTO;
-  // If true, do only spreading/interpolation step
-  // (no FFT or amplification/deconvolution).
-  bool spread_only;
-  // Number of threads used for spreading/interpolation. If 0, use the default
-  // value. Relevant for both CPU and GPU implementations.
-  int num_threads;
   // Number of threads used during sorting. If 0, a default value is selected.
   // Only relevant for CPU implementation.
   int sort_threads;
@@ -156,26 +155,10 @@ struct SpreadParameters {
   // TODO(jmontalt): revise the following options.
   int pirange;            // 0: NU periodic domain is [0,N), 1: domain [-pi,pi)
   int kerevalmeth;        // 0: direct exp(sqrt()), or 1: Horner ppval, fastest
-  bool pad_kernel;            // 0: no pad w to mult of 4, 1: do pad
-                          // (this helps SIMD for kerevalmeth=0, eg on i7).
   int max_subproblem_size;  // # pts per t1 subprob; sets extra RAM per thread
   int flags;              // binary flags for timing only (may give wrong ans
                           // if changed from 0!). See spreadinterp.h
   int verbosity;          // 0: silent, 1: small text output, 2: verbose
-  double upsampling_factor;       // sigma, upsampling factor
-  // Parameters of the "exponential of semicircle" spreading kernel.
-  int kernel_width;
-  FloatType kernel_beta;
-  FloatType kernel_half_width;
-  FloatType kernel_c;
-  FloatType kernel_scale;
-
-  #if GOOGLE_CUDA
-  // Used for 3D subproblem method. 0 means automatic selection.
-  dim3 gpu_bin_size = {0, 0, 0};
-  // Used for 3D spread-block-gather method. 0 means automatic selection.
-  dim3 gpu_obin_size = {0, 0, 0};
-  #endif  // GOOGLE_CUDA
 };
 
 namespace {
@@ -258,16 +241,54 @@ class PlanBase {
   // initialize(...)
 
   // Sets default values for unset options.
-  // Sets: options_.upsampling_factor, options_.kernel_width.
+  // Sets: options_.upsampling_factor, options_.kernel_eval_algo.
   // Requires: tol_ must be set.
   // this->options_ is valid after calling this function.
   Status set_default_options();
 
+  // Returns the default upsampling factor.
+  virtual double default_upsampling_factor() const = 0;
+
+  // Returns the default kernel evaluation algorithm.
+  virtual KernelEvalAlgo default_kernel_eval_algo() const = 0;
+
+  // Checks that the kernel evaluation algorithm is valid.
+  virtual Status check_kernel_eval_algo(KernelEvalAlgo algo) const = 0;
+
+  // Initializes the interpolator.
+  Status initialize_interpolator();
+
+  // Initializes the interpolation kernel.
+  // Sets: kernel_args_.
+  Status initialize_kernel();
+
   // Initializes the fine grid dimension sizes and allocates the array.
-  // Sets: fine_dims_, fine_size_, fine_tensor_, fine_data_ and
-  //   options_.upsampling_factor.
+  // Sets: fine_dims_, fine_size_, fine_tensor_, fine_data_.
   // Requires: rank_, tol_, grid_dims_, grid_size_ and batch_size_.
   Status initialize_fine_grid();
+
+  // Initializes the deconvolution/amplification weights.
+  virtual Status initialize_weights() = 0;
+
+  // Approximates exact Fourier series coeffs of cnufftspread's real symmetric
+  // kernel, directly via q-node quadrature on Euler-Fourier formula, exploiting
+  // narrowness of kernel. Uses phase winding for cheap eval on the regular freq
+  // grid. Note that this is also the Fourier transform of the non-periodized
+  // kernel. The FT definition is f(k) = int e^{-ikx} f(x) dx. The output has an
+  // overall prefactor of 1/h, which is needed anyway for the correction, and
+  // arises because the quadrature weights are scaled for grid units not x
+  // units.
+  void compute_weights(int dim_size, FloatType* weights) const;
+
+  // Evaluates the exponential of semi-circle kernel at the specified point.
+  // Kernel is related to an asymptotic approximation to the Kaiser-Bessel
+  // kernel, itself an approximation to prolate spheroidal wavefunction (PSWF)
+  // of order 0.
+  FloatType evaluate_kernel(FloatType x) const;
+
+  // Validates the input fine grid dimension, returning a potentially
+  // modified valid value. This is specialized for CPU and GPU.
+  virtual int validate_fine_grid_dimension(int idx, int dim) const = 0;
 
   // Initializes the FFT library and plan.
   virtual Status initialize_fft() = 0;
@@ -279,6 +300,9 @@ class PlanBase {
 
   // Folds and rescales nonuniform points to the canonical range.
   Status fold_and_rescale_points();
+
+  // Performs bin-sorting if required for plan configuration.
+  virtual Status binsort_if_needed() = 0;
 
   // general
 
@@ -298,6 +322,9 @@ class PlanBase {
 
   // Direction of the FFT. See enum above.
   FftDirection fft_direction_;
+
+  // Direction of the spreading. See enum above.
+  SpreadDirection spread_direction_;
 
   // Relative user tol.
   FloatType tol_;
@@ -338,6 +365,9 @@ class PlanBase {
   //  - These pointers are not owned by the plan.
   //  - Unused pointers are set to nullptr.
   FloatType* points_[3];
+
+  // Parameters of the interpolation kernel.
+  KernelArgs<FloatType> kernel_args_;
 
   // Pointer to the op kernel context.
   OpKernelContext* context_;
@@ -383,12 +413,54 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   Status spread(DType* c, DType* f) override;
 
  protected:
+  // Returns the default upsampling factor.
+  virtual double default_upsampling_factor() const override;
+
+  // Returns the default kernel evaluation algorithm.
+  virtual KernelEvalAlgo default_kernel_eval_algo() const override;
+
+  // Checks that the kernel evaluation algorithm is valid.
+  virtual Status check_kernel_eval_algo(KernelEvalAlgo algo) const override;
+
+  // Validates the input fine grid dimension, returning a potentially
+  // modified valid value.
+  int validate_fine_grid_dimension(int idx, int dim) const override;
+
+  // Initializes the deconvolution/amplification weights.
+  Status initialize_weights() override;
+
+  // Initializes the FFT library and plan.
+  // Sets this->fft_plan_.
+  Status initialize_fft() override;
+
+  // Performs bin-sorting if required for plan configuration.
+  Status binsort_if_needed() override;
+
+  // Performs bin-sorting single-threaded.
+  Status binsort_singlethread();
+
+  // Performs bin-sorting multi-threaded.
+  Status binsort_multithread();
+
+  // Retrieves the default Thrust execution policy.
+  const ExecutionPolicyType execution_policy() const override {
+    // TODO: consider using a multi-threaded policy.
+    return thrust::cpp::par;
+  }
+
+  // Precomputed non-uniform point permutation, used to speed up spread/interp.
+  int64_t* binsort_indices_;
+
+  // Whether bin-sorting is being used. This is automatically set by
+  // `binsort_if_needed()`.
+  bool do_binsort_;
+
+ protected:
 
   // Magland Dec 2016. Barnett openmp version, many speedups 1/16/17-2/16/17
   // error codes 3/13/17. pirange 3/28/17. Rewritten 6/15/17. parallel sort 2/9/18
   // No separate subprob indices in t-1 2/11/18.
   // sort_threads (since for M<<N, multithread sort slower than single) 3/27/18
-  // kereval, pad_kernel 4/24/18
   // Melody Shih split into 3 routines: check, sort, spread. Jun 2018, making
   // this routine just a caller to them. Name change, Barnett 7/27/18
   // Tidy, Barnett 5/20/20. Tidy doc, Barnett 10/22/20.
@@ -397,7 +469,7 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // Spreads (or interpolates) a batch of batch_size strength vectors in cBatch
   // to (or from) the batch of fine working grids this->fine_data_, using the same set of
   // (index-sorted) NU points this->points_[0],Y,Z for each vector in the batch.
-  // The direction (spread vs interpolate) is set by this->spread_params_.spread_direction.
+  // The direction (spread vs interpolate) is set by this->spread_direction.
   // Returns 0 (no error reporting for now).
   // Notes:
   // 1) cBatch is already assumed to have the correct offset, ie here we
@@ -410,11 +482,26 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   Status spread_or_interp_sorted_batch(
       int batch_size, DType* cBatch, DType* fBatch=nullptr);
 
+  // Logic to select the main spreading (dir=1) vs interpolation (dir=2) routine.
+  // See spreadinterp() above for inputs arguments and definitions.
+  // Return value should always be 0 (no error reporting).
+  // Split out by Melody Shih, Jun 2018; renamed Barnett 5/20/20.
+  Status spread_or_interp_sorted(
+      FloatType *data_uniform, FloatType *data_nonuniform) const;
+
+  // Spread NU pts in sorted order to a uniform grid. See spreadinterp() for
+  // doc.
+  Status spread_sorted(
+      FloatType *data_uniform, FloatType *data_nonuniform) const;
+
+  Status interp_sorted(
+      FloatType *data_uniform, FloatType *data_nonuniform) const;
+
   // Type 1: deconvolves (amplifies) from each interior fw array in this->fine_data_
   // into each output array fk in fkBatch.
   // Type 2: deconvolves from user-supplied input fk to 0-padded interior fw,
   // again looping over fk in fkBatch and fw in this->fine_data_.
-  // The direction (spread vs interpolate) is set by this->spread_params_.spread_direction.
+  // The direction (spread vs interpolate) is set by this->spread_direction.
   // This is mostly a loop calling deconvolveshuffle?d for the needed rank batch_size
   // times.
   // Barnett 5/21/20, simplified from Malleo 2019 (eg t3 logic won't be in here)
@@ -430,16 +517,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   void deconvolve_3d(
       DType* fk, DType* fw, FloatType prefactor = FloatType(1.0));
 
-  // Initializes the FFT library and plan.
-  // Sets this->fft_plan_.
-  Status initialize_fft() override;
-
-  // Retrieves the default Thrust execution policy.
-  const ExecutionPolicyType execution_policy() const override {
-    // TODO: consider using a multi-threaded policy.
-    return thrust::cpp::par;
-  }
-
  public:  // TODO(jmontalt): make private after refactoring FINUFFT.
 
   // Number of batches in one execution (includes all the transforms in
@@ -447,18 +524,13 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   int num_batches_;
   // The FFTW plan for FFTs.
   typename fftw::PlanType<FloatType>::Type fft_plan_;
-  // The parameters for the spreading algorithm/s.
-  SpreadParameters<FloatType> spread_params_;
+
   // Tensors in host memory. Used for deconvolution. Empty in spread/interp
   // mode. Only the first `rank` tensors are allocated.
-  Tensor fseries_tensor_[3];
+  Tensor weights_tensor_[3];
   // Convenience raw pointers to above tensors. Only the first `rank` pointers
   // are valid.
-  FloatType* fseries_data_[3];
-  // Precomputed non-uniform point permutation, used to speed up spread/interp.
-  int64_t* sort_indices_;
-  // Whether bin-sorting was used.
-  bool did_sort_;
+  FloatType* weights_data_[3];
 };
 
 #if GOOGLE_CUDA
@@ -494,25 +566,41 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   Status spread(DType* d_c, DType* d_fk) override;
 
  protected:
+  static int64_t CufftScratchSize;
+
+  // Returns the default upsampling factor.
+  virtual double default_upsampling_factor() const override;
+
+  // Returns the default kernel evaluation algorithm.
+  virtual KernelEvalAlgo default_kernel_eval_algo() const override;
+
+  // Checks that the kernel evaluation algorithm is valid.
+  virtual Status check_kernel_eval_algo(KernelEvalAlgo algo) const override;
+
+  // Validates the input fine grid dimension, returning a potentially
+  // modified valid value.
+  int validate_fine_grid_dimension(int idx, int dim) const override;
+
+  // Initializes the deconvolution/amplification weights.
+  Status initialize_weights() override;
+
+  // Initializes the FFT library and plan.
+  Status initialize_fft() override;
+
+  // Performs bin-sorting if required for plan configuration.
+  Status binsort_if_needed() override;
+
+  // Initializes subproblems for subproblem-based interpolation/spreading.
+  Status initialize_subproblems();
+
   // Retrieves the default Thrust execution policy.
   const ExecutionPolicyType execution_policy() const override {
     // TODO: consider using par_nosync once Thrust gets upgraded to 1.16.
     return thrust::cuda::par.on(this->device_.stream());
   }
 
- protected:
-  static int64_t CufftScratchSize;
-
-  // Initializes the FFT library and plan.
-  Status initialize_fft() override;
-
-  // Performs bin-sorting if required for plan configuration.
-  Status binsort_if_needed();
-
-  // Initializes subproblems for subproblem-based interpolation/spreading.
-  Status initialize_subproblems();
-
  private:
+  Status setup_spreader();
   Status spread_batch(int batch_size);
   Status interp_batch(int batch_size);
   Status spread_batch_nupts_driven(int batch_size);
@@ -521,21 +609,14 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   Status interp_batch_subproblem(int batch_size);
   // Deconvolve and/or amplify a batch of data.
   Status deconvolve_batch(int batch_size);
-  // Batch of fine grids for cuFFT to plan and execute. This is usually the
-  // largest array allocated by NUFFT.
-  Tensor fine_tensor_;
-  // A convenience pointer to the fine grid array.
-  DType* fine_data_;
   // Tensors in device memory. Used for deconvolution. Empty in spread/interp
   // mode. Only the first `rank` tensors are allocated.
-  Tensor fseries_tensor_[3];
+  Tensor weights_tensor_[3];
   // Convenience raw pointers to above tensors. These are device pointers. Only
   // the first `rank` pointers are valid.
-  FloatType* fseries_data_[3];
+  FloatType* weights_data_[3];
   // The cuFFT plan.
   std::unique_ptr<se::fft::Plan> fft_plan_;
-  // The parameters for the spreading algorithm/s.
-  SpreadParameters<FloatType> spread_params_;
   // The GPU bin dimension sizes.
   int bin_dims_[3];
   // The number of GPU bins.
@@ -694,15 +775,8 @@ Status PlanBase<Device, FloatType>::set_default_options() {
   // Upsampling factor.
   double upsampling_factor = this->options_.upsampling_factor;
   if (upsampling_factor == 0.0) {
-    // In general, the upsampling factor is 2.0.
-    upsampling_factor = 2.0;
-    // In certain circumstances, an upsampling factor of 1.25 is enough.
-    if (this->tol_ >= FloatType(1e-9)) {
-      if ((this->rank_ == 1 && this->grid_size_ > 10000000) ||
-          (this->rank_ == 2 && this->grid_size_ > 300000) ||
-          (this->rank_ == 3 && this->grid_size_ > 3000000))
-        upsampling_factor = 1.25;
-    }
+    // Use default upsampling factor.
+    upsampling_factor = this->default_upsampling_factor();
   } else {
     // User-specified value. Do input checking.
     if (upsampling_factor <= 1.0) {
@@ -712,25 +786,87 @@ Status PlanBase<Device, FloatType>::set_default_options() {
   }
   this->options_.upsampling_factor = upsampling_factor;
 
-  // Kernel width.
-  int kernel_width = 0;
-  if (upsampling_factor == 2.0) {
-    // Special case for sigma == 2.0.
-    kernel_width = std::ceil(-log10(this->tol_ / FloatType(10.0)));
+  // Kernel evaluation algorithm.
+  KernelEvalAlgo kernel_eval_algo = this->options_.kernel_eval_algo;
+  if (kernel_eval_algo == KernelEvalAlgo::AUTO) {
+    kernel_eval_algo = this->default_kernel_eval_algo();
   } else {
-    // General case.
-    kernel_width = std::ceil(
-        -log(this->tol_) /
-        (kPi<FloatType> * std::sqrt(1.0 - 1.0 / upsampling_factor)));
+    TF_RETURN_IF_ERROR(this->check_kernel_eval_algo(kernel_eval_algo));
   }
-  // Kernel width must be at least 2.
-  kernel_width = std::max(kernel_width, 2);
-  // Kernel width must no be larger than limit.
-  kernel_width = std::min(kernel_width, kMaxKernelWidth);
-  this->options_.kernel_width = kernel_width;
+  this->options_.kernel_eval_algo = kernel_eval_algo;
 
   return OkStatus();
 }
+
+
+template<typename Device, typename FloatType>
+Status PlanBase<Device, FloatType>::initialize_interpolator() {
+  TF_RETURN_IF_ERROR(this->initialize_kernel());
+
+  switch (this->type_) {
+    case TransformType::TYPE_1: {  // spreading, NU -> U
+      this->spread_direction_ = SpreadDirection::SPREAD;
+      break;
+    }
+    case TransformType::TYPE_2: {  // interpolation, U -> NU
+      this->spread_direction_ = SpreadDirection::INTERP;
+      break;
+    }
+    default: {
+      LOG(FATAL) << "Invalid transform type.";
+    }
+  }
+
+  return OkStatus();
+};
+
+
+template<typename Device, typename FloatType>
+Status PlanBase<Device, FloatType>::initialize_kernel() {
+  // Kernel width.
+  int width = 0;
+  if (this->options_.upsampling_factor == 2.0) {
+    // Special case for sigma == 2.0.
+    width = std::ceil(-log10(this->tol_ / FloatType(10.0)));
+  } else {
+    // General case.
+    width = std::ceil(
+        -log(this->tol_) /
+        (kPi<FloatType> * std::sqrt(
+            1.0 - 1.0 / this->options_.upsampling_factor)));
+  }
+  // Kernel width must be at least 2 and no larger than kMaxKernelWidth.
+  width = std::max(width, 2);
+  width = std::min(width, kMaxKernelWidth);
+
+  // beta divided by width.
+  FloatType beta_over_width;
+  if (this->options_.upsampling_factor == 2.0) {
+    // Heuristic precomputed values for standard upsampling factors, with some
+    // adjustments for small widths.
+    if (width == 2) {
+      beta_over_width = 2.20;
+    } else if (width == 3) {
+      beta_over_width = 2.26;
+    } else if (width == 4) {
+      beta_over_width = 2.38;
+    } else {
+      // Good generic value.
+      beta_over_width = 2.30;
+    }
+  } else {
+    FloatType gamma = 0.97;
+    beta_over_width = gamma * kPi<FloatType> *
+                      (1.0 - 1.0 / (2 * this->options_.upsampling_factor));
+  }
+
+  this->kernel_args_.w = width;
+  this->kernel_args_.hw = static_cast<FloatType>(width) / FloatType(2.0);
+  this->kernel_args_.c = 4.0 / static_cast<FloatType>(width * width);
+  this->kernel_args_.beta = static_cast<FloatType>(width) * beta_over_width;
+
+  return OkStatus();
+};
 
 
 template<typename Device, typename FloatType>
@@ -753,11 +889,13 @@ Status PlanBase<Device, FloatType>::initialize_fine_grid() {
     }
 
     // Make sure fine grid is at least as large as the kernel.
-    if (this->fine_dims_[d] < 2 * this->options_.kernel_width)
-      this->fine_dims_[d] = 2 * this->options_.kernel_width;
+    if (this->fine_dims_[d] < 2 * this->kernel_args_.w) {
+      this->fine_dims_[d] = 2 * this->kernel_args_.w;
+    }
 
     // Find the next smooth integer.
-    this->fine_dims_[d] = next_smooth_integer(this->fine_dims_[d]);
+    this->fine_dims_[d] = this->validate_fine_grid_dimension(
+        d, this->fine_dims_[d]);
 
     // For spread-only operation, make sure that the grid size is valid.
     if (this->options_.spread_only &&
@@ -765,7 +903,7 @@ Status PlanBase<Device, FloatType>::initialize_fine_grid() {
       return errors::InvalidArgument(
           "Invalid grid dimension size: ", this->grid_dims_[d],
           ". Grid dimension must be even, larger than the kernel (",
-          2 * this->options_.kernel_width,
+          2 * this->kernel_args_.w,
           ") and have no prime factors larger than 5.");
     }
 
@@ -787,12 +925,72 @@ Status PlanBase<Device, FloatType>::initialize_fine_grid() {
   if (!this->options_.spread_only) {
     TensorShape fine_shape({this->fine_size_ * this->batch_size_});
     TF_RETURN_IF_ERROR(this->context_->allocate_temp(
-        DataTypeToEnum<DType>::value, fine_shape, &this->fine_tensor_));
+        DataTypeToEnum<std::complex<FloatType>>::value,
+        fine_shape,
+        &this->fine_tensor_));
     this->fine_data_ = reinterpret_cast<DType*>(
-        this->fine_tensor_.flat<DType>().data());
+        this->fine_tensor_.flat<std::complex<FloatType>>().data());
   }
 
   return OkStatus();
+}
+
+
+template<typename Device, typename FloatType>
+void PlanBase<Device, FloatType>::compute_weights(
+    int dim_size, FloatType* weights) const {
+  // Number of quadrature nodes in z (from 0 to J/2, reflections will be added).
+  int q = static_cast<int>(2 + 3.0 * this->kernel_args_.hw);
+  FloatType f[kMaxQuadNodes];
+  double z[2 * kMaxQuadNodes];
+  double w[2 * kMaxQuadNodes];
+
+  // Only half the nodes used, eg on (0, 1).
+  legendre_compute_glr(2 * q, z, w);
+
+  // Set up nodes z[n] and values f[n].
+  std::complex<FloatType> a[kMaxQuadNodes];
+  for (int n = 0; n < q; ++n) {
+    z[n] *= this->kernel_args_.hw;
+    f[n] = this->kernel_args_.hw * static_cast<FloatType>(w[n]) *
+            this->evaluate_kernel(static_cast<FloatType>(z[n]));
+    a[n] = exp(
+        2 * kPi<FloatType> * kImaginaryUnit<FloatType> *
+        static_cast<FloatType>(dim_size / 2 - z[n]) /
+        static_cast<FloatType>(dim_size));  // phase winding rates
+  }
+  int nout = dim_size / 2 + 1;                   // how many values we're writing to
+  int nt = std::min(nout, this->options_.num_threads);
+  std::vector<int> brk(nt + 1);        // start indices for each thread
+  for (int t = 0; t <= nt; ++t)             // split nout mode indices btw threads
+    brk[t] = (int)(0.5 + nout * t / (double)nt);
+
+  #pragma omp parallel num_threads(nt)
+  {                                     // each thread gets own chunk to do
+    int t = OMP_GET_THREAD_NUM();
+    std::complex<FloatType> aj[kMaxQuadNodes];    // phase rotator for this thread
+
+    for (int n = 0; n < q; ++n)
+      aj[n] = pow(a[n], (FloatType)brk[t]);    // init phase factors for chunk
+
+    for (int j = brk[t]; j < brk[t + 1]; ++j) {          // loop along output array
+      FloatType x = 0.0;                      // accumulator for answer at this j
+      for (int n = 0; n < q; ++n) {
+        x += f[n] * 2 * real(aj[n]);      // include the negative freq
+        aj[n] *= a[n];                  // wind the phases
+      }
+      weights[j] = x;
+    }
+  }
+}
+
+
+template<typename Device, typename FloatType>
+FloatType PlanBase<Device, FloatType>::evaluate_kernel(FloatType x) {
+  if (abs(x) >= this->kernel_args_.hw)
+    return 0.0;
+  return exp(this->kernel_args_.beta *
+             sqrt(1.0 - this->kernel_args_.c * x * x));
 }
 
 

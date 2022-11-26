@@ -52,68 +52,10 @@ namespace nufft {
 
 namespace {
 
-template<typename FloatType>
-Status setup_spreader(int rank,
-                      int kerevalmeth, bool show_warnings,
-                      const InternalOptions& options,
-                      SpreadParameters<FloatType> &spread_params);
-
-template<typename FloatType>
-Status setup_spreader_for_nufft(int rank,
-                                const InternalOptions& options,
-                                SpreadParameters<FloatType> &spread_params);
-
 static int get_transform_rank(int64_t n1, int64_t n2, int64_t n3);
 
 template<typename FloatType>
-Status check_spread_inputs(int64_t n1, int64_t n2, int64_t n3,
-                           int64_t num_points, FloatType *kx, FloatType *ky,
-                           FloatType *kz, SpreadParameters<FloatType> opts);
-
-template<typename FloatType>
-bool bin_sort_points(int64_t* sort_indices, int64_t n1, int64_t n2, int64_t n3,
-                     int64_t num_points,  FloatType *kx, FloatType *ky,
-                     FloatType *kz, SpreadParameters<FloatType> opts);
-
-template<typename FloatType>
-void bin_sort_singlethread(
-    int64_t *ret, int64_t num_points, FloatType *kx, FloatType *ky,
-    FloatType *kz, int64_t n1, int64_t n2, int64_t n3, int pirange,
-    double bin_size_x, double bin_size_y, double bin_size_z, int debug);
-
-template<typename FloatType>
-void bin_sort_multithread(
-    int64_t *ret, int64_t num_points, FloatType *kx, FloatType *ky, FloatType *kz,
-    int64_t n1,int64_t n2,int64_t n3,int pirange,
-    double bin_size_x, double bin_size_y, double bin_size_z, int debug,
-    int num_threads);
-
-template<typename FloatType>
-int spreadinterpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
-		             FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
-		             FloatType *data_nonuniform, tensorflow::nufft::SpreadParameters<FloatType> opts, int did_sort);
-
-template<typename FloatType>
-int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
-		      FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
-		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort);
-
-template<typename FloatType>
-int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
-		      FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
-		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort);
-
-template<typename FloatType>
-static inline void set_kernel_args(FloatType *args, FloatType x, const SpreadParameters<FloatType>& opts);
-
-template<typename FloatType>
-static inline void evaluate_kernel_vector(FloatType *ker, FloatType *args, const SpreadParameters<FloatType>& opts, const int N);
-
-template<typename FloatType>
-static inline void eval_kernel_vec_Horner(FloatType *ker, const FloatType z, const int w, const SpreadParameters<FloatType> &opts);
-
-template<typename FloatType>
-void interp_line(FloatType *out,FloatType *du, FloatType *ker,int64_t i1,int64_t N1,int ns);
+void interp_line(FloatType *out,FloatType *du, FloatType *kv,int64_t i1,int64_t N1,int ns);
 
 template<typename FloatType>
 void interp_square(FloatType *out,FloatType *du, FloatType *ker1, FloatType *ker2, int64_t i1,int64_t i2,int64_t N1,int64_t N2,int ns);
@@ -179,7 +121,7 @@ Plan<CPUDevice, FloatType>::~Plan() {
     #endif
   }
 
-  free(this->sort_indices_);
+  free(this->binsort_indices_);
 }
 
 template<typename FloatType>
@@ -205,19 +147,15 @@ Status Plan<CPUDevice, FloatType>::initialize(
   this->rank_ = rank;
   this->type_ = type;
   this->fft_direction_ = fft_direction;
-  this->tol_ = std::max(tol, kEpsilon<FloatType>);
   this->num_transforms_ = num_transforms;
+  this->tol_ = std::max(tol, kEpsilon<FloatType>);
   this->options_ = options;
 
   this->grid_dims_[0] = grid_dims[0];
   this->grid_dims_[1] = (this->rank_ > 1) ? grid_dims[1] : 1;
   this->grid_dims_[2] = (this->rank_ > 2) ? grid_dims[2] : 1;
-  this->grid_size_ = this->grid_dims_[0] * this->grid_dims_[1] * this->grid_dims_[2];
-
-  // Choose kernel evaluation method.
-  if (this->options_.kernel_evaluation_method == KernelEvaluationMethod::AUTO) {
-    this->options_.kernel_evaluation_method = KernelEvaluationMethod::HORNER;
-  }
+  this->grid_size_ = this->grid_dims_[0] * this->grid_dims_[1] *
+                     this->grid_dims_[2];
 
   // Choose overall number of threads.
   int num_threads = OMP_GET_MAX_THREADS();
@@ -238,6 +176,9 @@ Status Plan<CPUDevice, FloatType>::initialize(
   // Set default options.
   TF_RETURN_IF_ERROR(this->set_default_options());
 
+  // Initialize the interpolator.
+  TF_RETURN_IF_ERROR(this->initialize_interpolator());
+
   // Initialize the fine grid and related quantities.
   TF_RETURN_IF_ERROR(this->initialize_fine_grid());
 
@@ -247,35 +188,14 @@ Status Plan<CPUDevice, FloatType>::initialize(
     this->options_.spread_threading = SpreadThreading::PARALLEL_SINGLE_THREADED;
 
   // Populate the spreader options.
-  TF_RETURN_IF_ERROR(setup_spreader_for_nufft(
+  TF_RETURN_IF_ERROR(setup_spreader(
       rank, this->options_, this->spread_params_));
 
   // Initialize pointers to null.
   for (int i = 0; i < 3; i++) {
     this->points_[i] = nullptr;
-    this->fseries_data_[i] = nullptr;
   }
-  this->sort_indices_ = nullptr;
-
-  if (type == TransformType::TYPE_1)
-    this->spread_params_.spread_direction = SpreadDirection::SPREAD;
-  else // if (type == TransformType::TYPE_2)
-    this->spread_params_.spread_direction = SpreadDirection::INTERP;
-
-  // Get Fourier coefficients of spreading kernel along each fine grid
-  // dimension.
-  for (int i = 0; i < this->rank_; i++) {
-    // Number of Fourier coefficients.
-    int num_coeffs = this->fine_dims_[i] / 2 + 1;
-    // Allocate memory and calculate the Fourier series.
-    TF_RETURN_IF_ERROR(this->context_->allocate_temp(
-        DataTypeToEnum<FloatType>::value, TensorShape({num_coeffs}),
-        &this->fseries_tensor_[i]));
-    this->fseries_data_[i] = reinterpret_cast<FloatType*>(
-        this->fseries_tensor_[i].flat<FloatType>().data());
-    kernel_fseries_1d(this->fine_dims_[i], this->spread_params_,
-                      this->fseries_data_[i]);
-  }
+  this->binsort_indices_ = nullptr;
 
   if (!this->options_.spread_only) {
     TF_RETURN_IF_ERROR(this->initialize_fft());
@@ -302,11 +222,6 @@ Status Plan<CPUDevice, FloatType>::set_points(
   int64_t grid_size_2 = 1;
   if (this->rank_ > 2) grid_size_2 = this->fine_dims_[2];
 
-  TF_RETURN_IF_ERROR(check_spread_inputs(
-      grid_size_0, grid_size_1, grid_size_2,
-      this->num_points_, points_x, points_y, points_z,
-      this->spread_params_));
-
   // Check that points are within bounds.
   if (this->options_.debugging().check_points_range()) {
     TF_RETURN_IF_ERROR(this->check_points_within_range());
@@ -315,14 +230,8 @@ Status Plan<CPUDevice, FloatType>::set_points(
   // Fold and rescale points.
   TF_RETURN_IF_ERROR(this->fold_and_rescale_points());
 
-  this->sort_indices_ = (int64_t*) malloc(sizeof(int64_t) * this->num_points_);
-  if (!this->sort_indices_) {
-    fprintf(stderr,"[%s] failed to allocate sort_indices_!\n",__func__);
-    // return ERR_SPREAD_ALLOC;
-  }
-  this->did_sort_ = bin_sort_points(
-      this->sort_indices_, grid_size_0, grid_size_1, grid_size_2,
-      this->num_points_, points_x, points_y, points_z, this->spread_params_);
+
+  this->binsort_if_needed();
 
   return OkStatus();
 }
@@ -385,6 +294,76 @@ template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::spread(DType* c, DType* f) {
   return this->spread_or_interp(c, f);
 }
+
+
+template<typename FloatType>
+double Plan<CPUDevice, FloatType>::default_upsampling_factor() const {
+  // In general, the upsampling factor is 2.0.
+  double upsampling_factor = 2.0;
+  // In certain circumstances, an upsampling factor of 1.25 is enough.
+  if (this->tol_ >= 1e-9) {
+    if ((this->rank_ == 1 && this->grid_size_ > 10000000) ||
+        (this->rank_ == 2 && this->grid_size_ > 300000) ||
+        (this->rank_ == 3 && this->grid_size_ > 3000000))
+      upsampling_factor = 1.25;
+  }
+  return upsampling_factor;
+}
+
+
+template<typename FloatType>
+KernelEvalAlgo Plan<CPUDevice, FloatType>::default_kernel_eval_algo() const {
+  if (this->options_.upsampling_factor == 2.0 ||
+      this->options_.upsampling_factor == 1.25) {
+    // Horner is faster but only implemented if upsampling factor is 2.0 or
+    // 1.25.
+    return KernelEvalAlgo::HORNER;
+  }
+  return KernelEvalAlgo::DIRECT;
+}
+
+
+template<typename FloatType>
+Status Plan<CPUDevice, FloatType>::check_kernel_eval_algo(
+    KernelEvalAlgo kernel_eval_algo) const {
+  if (kernel_eval_algo == KernelEvalAlgo::HORNER &&
+      this->options_.upsampling_factor != 2.0 &&
+      this->options_.upsampling_factor != 1.25) {
+    return errors::Unimplemented(
+        "Horner kernel evaluation algorithm is only implemented for "
+        "upsampling factor equal to 2.0 or 1.25 (CPU).");
+  }
+  return OkStatus();
+}
+
+
+template<typename FloatType>
+int Plan<CPUDevice, FloatType>::validate_fine_grid_dimension(
+    int idx, int dim) const {
+  return next_smooth_integer(dim);
+}
+
+
+template<typename FloatType>
+Status Plan<CPUDevice, FloatType>::initialize_weights() {
+  for (int d = 0; d < 3; ++d) {
+    this->weights_data_[d] = nullptr;
+  }
+
+  for (int d = 0; d < this->rank_; ++d) {
+    int num_coeffs = this->fine_dims_[d] / 2 + 1;
+
+    TF_RETURN_IF_ERROR(this->context_->allocate_temp(
+        DataTypeToEnum<FloatType>::value, TensorShape({num_coeffs}),
+        &this->weights_tensor_[d], attr));
+    this->weights_data_[d] = reinterpret_cast<FloatType*>(
+        this->weights_tensor_[d].flat<FloatType>().data());
+    this->compute_weights(this->fine_dims_[d], this->weights_data_[d]);
+  }
+
+  return OkStatus();
+}
+
 
 template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::initialize_fft() {
@@ -499,9 +478,9 @@ Status Plan<CPUDevice, FloatType>::spread_or_interp_sorted_batch(
   for (int i=0; i<batch_size; i++) {
     DType *fwi = fBatch + i*this->fine_size_;  // start of i'th fw array in wkspace
     DType *ci = cBatch + i*this->num_points_;            // start of i'th c array in cBatch
-    spreadinterpSorted(this->sort_indices_, grid_size_0, grid_size_1, grid_size_2,
+    spread_or_interp_sorted(this->binsort_indices_, grid_size_0, grid_size_1, grid_size_2,
                        (FloatType*)fwi, this->num_points_, this->points_[0], this->points_[1], this->points_[2],
-                       (FloatType*)ci, this->spread_params_, this->did_sort_);
+                       (FloatType*)ci, this->spread_params_, this->do_binsort_);
   }
   return OkStatus();
 }
@@ -556,15 +535,15 @@ void Plan<CPUDevice, FloatType>::deconvolve_1d(
     }
   }
 
-  if (this->spread_params_.spread_direction == SpreadDirection::SPREAD) {
+  if (this->spread_direction_ == SpreadDirection::SPREAD) {
     // Non-negative frequencies.
     for (int64_t k = 0; k <= kmax; ++k) {
-      fk[pp++] = prefactor * fw[k] / this->fseries_data_[0][k];
+      fk[pp++] = prefactor * fw[k] / this->weights_data_[0][k];
     }
     // Negative frequencies.
     for (int64_t k = kmin; k < 0; ++k) {
       fk[pn++] = prefactor * fw[this->fine_dims_[0] + k] /
-          this->fseries_data_[0][-k];
+          this->weights_data_[0][-k];
     }
   } else {
     // Zero-padding.
@@ -573,12 +552,12 @@ void Plan<CPUDevice, FloatType>::deconvolve_1d(
     }
     // Non-negative frequencies.
     for (int64_t k = 0;k <= kmax; ++k) {
-      fw[k] = prefactor * fk[pp++] / this->fseries_data_[0][k];
+      fw[k] = prefactor * fk[pp++] / this->weights_data_[0][k];
     }
     // Negative frequencies.
     for (int64_t k = kmin; k < 0; ++k) {
       fw[this->fine_dims_[0] + k] =
-          prefactor * fk[pn++] / this->fseries_data_[0][-k];
+          prefactor * fk[pn++] / this->weights_data_[0][-k];
     }
   }
 }
@@ -586,7 +565,7 @@ void Plan<CPUDevice, FloatType>::deconvolve_1d(
 template<typename FloatType>
 void Plan<CPUDevice, FloatType>::deconvolve_2d(
     DType *fk, DType* fw, FloatType prefactor) {
-  FloatType* ker2 = this->fseries_data_[1];
+  FloatType* ker2 = this->weights_data_[1];
   int64_t ms = this->grid_dims_[0];
   int64_t mt = this->grid_dims_[1];
   int64_t nf1 = this->fine_dims_[0];
@@ -615,7 +594,7 @@ void Plan<CPUDevice, FloatType>::deconvolve_2d(
   }
 
   // Zero-padding.
-  if (this->spread_params_.spread_direction == SpreadDirection::INTERP) {
+  if (this->spread_direction_ == SpreadDirection::INTERP) {
     for (int64_t j = nf1 * (k2max + 1); j < nf1 * (nf2 + k2min); ++j)  {
       fw[j] = std::complex(0.0, 0.0);
     }
@@ -635,7 +614,7 @@ void Plan<CPUDevice, FloatType>::deconvolve_2d(
 template<typename FloatType>
 void Plan<CPUDevice, FloatType>::deconvolve_3d(
     DType *fk, DType* fw, FloatType prefactor) {
-  FloatType* ker3 = this->fseries_data_[2];
+  FloatType* ker3 = this->weights_data_[2];
   int64_t ms = this->grid_dims_[0];
   int64_t mt = this->grid_dims_[1];
   int64_t mu = this->grid_dims_[2];
@@ -667,7 +646,7 @@ void Plan<CPUDevice, FloatType>::deconvolve_3d(
   int64_t np = nf1 * nf2;
 
   // Zero-padding.
-  if (this->spread_params_.spread_direction == SpreadDirection::INTERP) {
+  if (this->spread_direction_ == SpreadDirection::INTERP) {
     for (int64_t j = np * (k3max + 1); j < np * (nf3 + k3min); ++j) {
       fw[j] = std::complex(0.0, 0.0);
     }
@@ -684,16 +663,8 @@ void Plan<CPUDevice, FloatType>::deconvolve_3d(
   }
 }
 
-namespace {
-
-template<typename FloatType>
-Status setup_spreader(
-    int rank,
-    int kerevalmeth, bool show_warnings,
-    const InternalOptions& options,
-    SpreadParameters<FloatType> &spread_params)
 /* Initializes spreader kernel parameters given desired NUFFT tol eps,
-   upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), ker eval meth
+   upsampling factor (=sigma in paper, or R in Dutt-Rokhlin), kv eval meth
    (either 0:exp(sqrt()), 1: Horner ppval), and some debug-level flags.
    Also sets all default options in SpreadParameters<FloatType>. See SpreadParameters<FloatType>.h for spread_params.
    rank is spatial dimension (1,2, or 3).
@@ -701,21 +672,15 @@ Status setup_spreader(
    Must call this before any kernel evals done, otherwise segfault likely.
    Barnett 2017. debug, loosened eps logic 6/14/20.
 */
-{
-  if (options.upsampling_factor != 2.0 && options.upsampling_factor != 1.25) {
-    if (kerevalmeth == 1) {
-      return errors::Internal(
-          "Horner kernel evaluation only supports standard "
-          "upsampling factors of 2.0 or 1.25, but got ",
-          options.upsampling_factor);
-    }
-  }
+template<typename FloatType>
+void Plan<CPUDevice, FloatType>::setup_spreader() {
+  spread_params.spread_only = options.spread_only;
+
+  bool show_warnings = options.show_warnings;
 
   // write out default SpreadParameters<FloatType>
-  spread_params.pirange = 1;             // user also should always set this
   spread_params.sort_points = SortPoints::AUTO;
-  spread_params.pad_kernel = 0;              // affects only evaluate_kernel_vector
-  spread_params.kerevalmeth = kerevalmeth;
+  spread_params.kerevalmeth = static_cast<int>(options.kernel_eval_algo) - 1;;
   spread_params.upsampling_factor = options.upsampling_factor;
   spread_params.num_threads = 0;            // all avail
   spread_params.sort_threads = 0;        // 0:auto-choice
@@ -726,75 +691,19 @@ Status setup_spreader(
   // heuristic num_threads above which switch OMP critical to atomic (add_wrapped...):
   spread_params.atomic_threshold = 10;   // R Blackwell's value
 
-  int ns = options.kernel_width;
-  spread_params.kernel_width = ns;
-
-  // setup for reference kernel eval (via formula): select beta width param...
-  // (even when kerevalmeth=1, this ker eval needed for FTs in onedim_*_kernel)
-  spread_params.kernel_half_width = (FloatType)ns / 2;   // constants to help (see below routines)
-  spread_params.kernel_c = 4.0 / (FloatType)(ns * ns);
-  FloatType beta_over_ns = 2.30;         // gives decent betas for default sigma=2.0
-  if (ns == 2) beta_over_ns = 2.20;  // some small-width tweaks...
-  if (ns == 3) beta_over_ns = 2.26;
-  if (ns == 4) beta_over_ns = 2.38;
-  if (options.upsampling_factor != 2.0) {          // again, override beta for custom sigma
-    FloatType gamma = 0.97;              // must match devel/gen_all_horner_C_code.m !
-    beta_over_ns = gamma * kPi<FloatType>*(1.0 - 1.0 / (2 * options.upsampling_factor));  // formula based on cutoff
-  }
-  spread_params.kernel_beta = beta_over_ns * (FloatType)ns;    // set the kernel beta parameter
-
   // Calculate scaling factor for spread/interp only mode.
   if (spread_params.spread_only)
     spread_params.kernel_scale = calculate_scale_factor<FloatType>(rank, spread_params);
-
-  return OkStatus();
-}
-
-template<typename FloatType>
-Status setup_spreader_for_nufft(int rank,
-                                const InternalOptions& options,
-                                SpreadParameters<FloatType> &spread_params)
-// Set up the spreader parameters given eps, and pass across various nufft
-// options. Return status of setup_spreader. Uses pass-by-ref. Barnett 10/30/17
-{
-  // This must be set before calling setup_spreader
-  spread_params.spread_only = options.spread_only;
-
-  TF_RETURN_IF_ERROR(setup_spreader(
-      rank,
-      static_cast<int>(options.kernel_evaluation_method) - 1, // We subtract 1 temporarily, as spreader expects values of 0 or 1 instead of 1 and 2.
-      options.show_warnings, options, spread_params));
 
   // override various spread spread_params from their defaults...
   spread_params.sort_points = options.sort_points;
   spread_params.spread_method = options.spread_method;
   spread_params.verbosity = options.verbosity;
-  spread_params.pad_kernel = options.pad_kernel; // (only applies to kerevalmeth=0)
   spread_params.num_threads = options.num_threads;
   if (options.num_threads_for_atomic_spread >= 0) // overrides
     spread_params.atomic_threshold = options.num_threads_for_atomic_spread;
   if (options.max_spread_subproblem_size > 0)        // overrides
     spread_params.max_subproblem_size = options.max_spread_subproblem_size;
-
-  return OkStatus();
-}
-
-// Checks spreader inputs.
-// Split out by Melody Shih, Jun 2018. Finiteness chk Barnett 7/30/18.
-// Bypass FOLD_AND_RESCALE macro which has inevitable rounding err even nr +pi,
-// giving fake invalids well inside the [-3pi,3pi] domain, 4/9/21.
-// Equivalent to spreadcheck in original FINUFFT code.
-template<typename FloatType>
-Status check_spread_inputs(int64_t n1, int64_t n2, int64_t n3, int64_t num_points,
-                           FloatType *kx, FloatType *ky, FloatType *kz,
-                           SpreadParameters<FloatType> opts) {
-  // Check that cuboid is large enough for spreading.
-  int min_n = 2 * opts.kernel_width;
-  if (n1 < min_n || (n2 > 1 && n2 < min_n) || (n3 > 1 && n3 < min_n)) {
-    return errors::InvalidArgument(
-        "cuboid too small for spreading, got (", n1, ", ", n2, ", ", n3, ") ",
-        "but need at least ", min_n, " in each non-trivial dimension");
-  }
 
   return OkStatus();
 }
@@ -823,48 +732,52 @@ Status check_spread_inputs(int64_t n1, int64_t n2, int64_t n3, int64_t num_point
 
 // Barnett 2017; split out by Melody Shih, Jun 2018.
 // Called indexSort in original FINUFFT code.
+// TODO: homogenize docs
 template<typename FloatType>
-bool bin_sort_points(int64_t* sort_indices, int64_t n1, int64_t n2, int64_t n3,
-                     int64_t num_points,  FloatType *kx, FloatType *ky,
-                     FloatType *kz, SpreadParameters<FloatType> opts) {
-  int rank = get_transform_rank(n1, n2, n3);
-  int64_t grid_size = n1 * n2 * n3;
+Status Plan<CPUDevice, FloatType>::binsort_if_needed() {
+  // TODO(jmontalt): use proper allocation mechanisms.
+  this->binsort_indices_ = (int64_t*) malloc(sizeof(int64_t) * this->num_points_);
+  if (!this->binsort_indices_) {
+    fprintf(stderr,"[%s] failed to allocate binsort_indices_!\n",__func__);
+    // return ERR_SPREAD_ALLOC;
+  }
 
   // Heuristic binning box size for uniform grid... affects performance:
   double bin_size_x = 16, bin_size_y = 4, bin_size_z = 4;
-  // Put in heuristics based on cache sizes (only useful for single-thread).
-  bool should_sort = !(rank == 1 && (opts.spread_direction == SpreadDirection::INTERP || (num_points > 1000 * n1)));  // 1D small-grid_size or dir=2 case: don't sort
-  bool did_sort = false;
 
-  int max_threads = OMP_GET_MAX_THREADS();
-  if (opts.num_threads > 0)  // user override up to max threads
-    max_threads = std::min(max_threads, opts.num_threads);
+  // Heuristics based on cache sizes (only useful for single-thread).
+  bool should_sort = !(
+      this->rank_ == 1 && (
+          opts.spread_direction == SpreadDirection::INTERP ||
+          (this->num_points_ > 1000 * n1)));
 
-  if (opts.sort_points == SortPoints::YES ||
-      (opts.sort_points == SortPoints::AUTO && should_sort)) {
-    // store a good permutation ordering of all NU pts (rank=1,2 or 3)
-    int sort_debug = (opts.verbosity>=2);   // show timing output?
-    int sort_threads = opts.sort_threads;   // choose # threads for sorting
-    if (sort_threads == 0)   // use auto choice: when grid_size >> num_points, one thread is better!
-      sort_threads = (10 * num_points > grid_size) ? max_threads : 1;
-    if (sort_threads == 1) {
-      bin_sort_singlethread(sort_indices, num_points, kx, ky, kz, n1, n2, n3,
-                            opts.pirange, bin_size_x, bin_size_y, bin_size_z,
-                            sort_debug);
+  if (this->options_.sort_points == SortPoints::YES ||
+     (this->options_.sort_points == SortPoints::AUTO && should_sort)) {
+    this->do_binsort_ = true;
+  } else {
+    this->do_binsort_ = false;
+  }
+
+  int num_threads = this->options_.num_threads;
+
+  if (this->do_binsort_) {
+    // Heuristic: when size of grid is much larger than the number of
+    // non-uniform points, single-thread is better.
+    if (this->fine_size_ > 10 * num_points) {
+      num_threads = 1;
+    }
+    if (num_threads == 1) {
+      this->binsort_singlethread();
     }
     else {
-      bin_sort_multithread(sort_indices, num_points, kx, ky, kz, n1, n2, n3,
-                           opts.pirange, bin_size_x, bin_size_y, bin_size_z,
-                           sort_debug, sort_threads);
+      this->bin_sort_multithread();
     }
-    did_sort = true;
   } else {
     // Set identity permutation. Here OMP helps Xeon, hinders i7.
     #pragma omp parallel for num_threads(max_threads) schedule(static,1000000)
     for (int64_t i = 0; i < num_points; i++)
-      sort_indices[i] = i;
+      this->binsort_indices_[i] = i;
   }
-  return did_sort;
 }
 
 /* Returns permutation of all nonuniform points with good RAM access,
@@ -895,173 +808,207 @@ bool bin_sort_points(int64_t* sort_indices, int64_t n1, int64_t n2, int64_t n3,
  *
  * Timings (2017): 3s for num_points=1e8 NU pts on 1 core of i7; 5s on 1 core of xeon.
  */
+// TODO: homogenize docs
 template<typename FloatType>
-void bin_sort_singlethread(
-    int64_t *ret, int64_t num_points, FloatType *kx, FloatType *ky, FloatType *kz,
-    int64_t n1, int64_t n2, int64_t n3, int pirange,
-    double bin_size_x, double bin_size_y, double bin_size_z, int debug) {
-  bool isky = (n2 > 1), iskz = (n3 > 1);  // ky,kz avail? (cannot access if not)
+void Plan<CPUDevice, FloatType>::binsort_singlethread() {
   // here the +1 is needed to allow round-off error causing i1=n1/bin_size_x,
   // for kx near +pi, ie foldrescale gives n1 (exact arith would be 0 to n1-1).
   // Note that round-off near kx=-pi stably rounds negative to i1=0.
-  int64_t nbins1 = n1 / bin_size_x + 1, nbins2, nbins3;
-  nbins2 = isky ? n2 / bin_size_y + 1 : 1;
-  nbins3 = iskz ? n3 / bin_size_z + 1 : 1;
-  int64_t num_bins = nbins1 * nbins2 * nbins3;
+  int64_t num_bins_per_dim[3];
+  int64_t num_bins = 1;
+  for (int d = 0; d < this->rank_; ++d) {
+    num_bins_per_dim[d] = num_bins_per_dim[d] / bin_sizes[d] + 1;
+    num_bins *= num_bins_per_dim[d];
+  }
 
-  std::vector<int64_t> counts(num_bins,0);  // count how many pts in each bin
-  for (int64_t i = 0; i < num_points; i++) {
+  std::vector<int64_t> counts(num_bins, 0);  // count how many pts in each bin
+  for (int64_t i = 0; i < num_points; ++i) {
     // find the bin index in however many dims are needed
-    int64_t i1 = FOLD_AND_RESCALE(kx[i], n1, pirange) / bin_size_x, i2 = 0, i3 = 0;
-    if (isky) i2 = FOLD_AND_RESCALE(ky[i], n2, pirange) / bin_size_y;
-    if (iskz) i3 = FOLD_AND_RESCALE(kz[i], n3, pirange) / bin_size_z;
-    int64_t bin = i1 + nbins1 * (i2 + nbins2 * i3);
-    counts[bin]++;
-  }
-  std::vector<int64_t> offsets(num_bins);   // cumulative sum of bin counts
-  offsets[0] = 0;     // do: offsets = [0 cumsum(counts(1:end-1)]
-  for (int64_t i = 1; i < num_bins; i++) {
-    offsets[i] = offsets[i - 1] + counts[i-1];
+    int64_t bin_multi_index[3];
+    int64_t bin_index = 0;
+    for (int d = this->rank_ - 1; d >= 0; --d) {
+      bin_multi_index[d] = FOLD_AND_RESCALE(
+          this->points_[d][i], this->fine_dims_[d], pirange) / bin_sizes[d];
+      bin_index = bin_multi_index[d] + num_bins_per_dim[d] * bin_index;
+    }
+    counts[bin_index]++;
   }
 
-  std::vector<int64_t> inv(num_points);           // fill inverse map
-  for (int64_t i = 0; i < num_points; i++) {
+  // Cumulative sum of bin counts.
+  std::vector<int64_t> offsets(num_bins);
+  offsets[0] = 0;
+  for (int64_t i = 1; i < num_bins; ++i) {
+    offsets[i] = offsets[i - 1] + counts[i - 1];
+  }
+
+  // Fill inverse map.
+  std::vector<int64_t> inv(num_points);
+  for (int64_t i = 0; i < num_points; ++i) {
     // find the bin index (again! but better than using RAM)
-    int64_t i1 = FOLD_AND_RESCALE(kx[i], n1, pirange) / bin_size_x, i2 = 0, i3 = 0;
-    if (isky) i2 = FOLD_AND_RESCALE(ky[i], n2, pirange) / bin_size_y;
-    if (iskz) i3 = FOLD_AND_RESCALE(kz[i], n3, pirange) / bin_size_z;
-    int64_t bin = i1 + nbins1 * (i2 + nbins2 * i3);
-    int64_t offset = offsets[bin];
-    offsets[bin]++;
+    int64_t bin_multi_index[3];
+    int64_t bin_index = 0;
+    for (int d = this->rank_ - 1; d >= 0; --d) {
+      bin_multi_index[d] = FOLD_AND_RESCALE(
+          this->points_[d][i], this->fine_dims_[d], pirange) / bin_sizes[d];
+      bin_index = bin_multi_index[d] + num_bins_per_dim[d] * bin_index;
+    }
+    int64_t offset = offsets[bin_index];
+    offsets[bin_index]++;
     inv[i] = offset;
   }
+
   // invert the map, writing to output pointer (writing pattern is random)
   for (int64_t i = 0; i < num_points; i++) {
-    ret[inv[i]] = i;
+    this->binsort_indices_[inv[i]] = i;
   }
 }
 
-// Mostly-OpenMP'ed version of bin_sort_singlethread.
-// For documentation see: bin_sort_singlethread.
+// Mostly-OpenMP'ed version of binsort_singlethread.
+// For documentation see: binsort_singlethread.
 // Caution: when num_points (# NU pts) << N (# U pts), is SLOWER than single-thread.
 // Barnett 2/8/18
 // Explicit #threads control argument 7/20/20.
 // Todo: if debug, print timing breakdowns.
 template<typename FloatType>
-void bin_sort_multithread(
-    int64_t *ret, int64_t num_points, FloatType *kx, FloatType *ky, FloatType *kz,
-    int64_t n1,int64_t n2,int64_t n3,int pirange,
-    double bin_size_x, double bin_size_y, double bin_size_z, int debug,
-    int num_threads) {
+void Plan<CPUDevice, FloatType>::binsort_multithread() {
+  int64_t num_bins_per_dim[3];
+  int64_t num_bins = 1;
+  for (int d = 0; d < this->rank_; ++d) {
+    num_bins_per_dim[d] = num_bins_per_dim[d] / bin_sizes[d] + 1;
+    num_bins *= num_bins_per_dim[d];
+  }
 
-  bool isky = (n2 > 1), iskz = (n3 > 1);  // ky,kz avail? (cannot access if not)
-  int64_t nbins1=n1 / bin_size_x + 1, nbins2, nbins3;  // see above note on why +1
-  nbins2 = isky ? n2 / bin_size_y + 1 : 1;
-  nbins3 = iskz ? n3 / bin_size_z + 1 : 1;
-  int64_t num_bins = nbins1 * nbins2 * nbins3;
-  if (num_threads == 0)
-    fprintf(stderr, "[%s] num_threads (%d) must be positive!\n",
-            __func__, num_threads);
-  // handle case of less points than threads
+  // Handle case of less points than threads.
   num_threads = std::min(num_points, (int64_t)num_threads);
-  std::vector<int64_t> brk(num_threads+1);    // list of start NU pt indices per thread
 
-  // distribute the NU pts to threads once & for all...
-  for (int thread_index = 0; thread_index <= num_threads; ++thread_index)
-    brk[thread_index] = (int64_t)(0.5 + num_points * thread_index / (double)num_threads);
+  // List of start NU point indices per thread.
+  std::vector<int64_t> break_points(num_threads + 1);
 
-  std::vector<int64_t> counts(num_bins, 0);     // global counts: # pts in each bin
-  // offsets per thread, size num_threads * num_bins, init to 0 by copying the counts vec...
-  std::vector< std::vector<int64_t> > ot(num_threads, counts);
-  {    // scope for ct, the 2d array of counts in bins for each thread's NU pts
-    std::vector< std::vector<int64_t> > ct(num_threads, counts);   // num_threads * num_bins, init to 0
+  // Distribute the NU points to threads.
+  for (int thread_index = 0; thread_index <= num_threads; ++thread_index) {
+    break_points[thread_index] = static_cast<int64_t>(
+        0.5 + num_points * thread_index / static_cast<double>(num_threads));
+  }
+
+  // Global counts, number of points in each bin.
+  std::vector<int64_t> counts(num_bins, 0);
+
+  // Offsets per thread, size num_threads * num_bins,
+  // initialize to 0 by copying the counts vector.
+  std::vector<std::vector<int64_t>> offsets_per_thread(num_threads, counts);
+  {
+    // Scope for counts_per_thread, the 2D array of counts in bins for each
+    // thread's NU points. Has size num_threads * num_bins, init to 0 by
+    // copying counts.
+    std::vector<std::vector<int64_t>> counts_per_thread(num_threads, counts);
 
     #pragma omp parallel num_threads(num_threads)
-    {  // parallel binning to each thread's count. Block done once per thread
+    {
+      // Parallel binning to each thread's count. Block done once per thread.
       int thread_index = OMP_GET_THREAD_NUM();
-      //printf("\tt=%d: [%d,%d]\n",thread_index,jlo[thread_index],jhi[thread_index]);
-      for (int64_t i = brk[thread_index]; i < brk[thread_index+1]; i++) {
-        // find the bin index in however many dims are needed
-        int64_t i1=FOLD_AND_RESCALE(kx[i],n1,pirange)/bin_size_x, i2=0, i3=0;
-        if (isky) i2 = FOLD_AND_RESCALE(ky[i],n2,pirange)/bin_size_y;
-        if (iskz) i3 = FOLD_AND_RESCALE(kz[i],n3,pirange)/bin_size_z;
-        int64_t bin = i1+nbins1*(i2+nbins2*i3);
-        ct[thread_index][bin]++;               // no clash btw threads
+
+      for (int64_t i = break_points[thread_index];
+           i < break_points[thread_index + 1];
+           ++i) {
+        // Find the bin index in however many dims are needed.
+        int64_t bin_multi_index[3];
+        int64_t bin_index = 0;
+        for (int d = this->rank_ - 1; d >= 0; --d) {
+          bin_multi_index[d] = FOLD_AND_RESCALE(
+              this->points_[d][i], this->fine_dims_[d], pirange) / bin_sizes[d];
+          bin_index = bin_multi_index[d] + num_bins_per_dim[d] * bin_index;
+        }
+        // Each element only ever accessed by one thread, so read-write op is
+        // safe.
+        counts_per_thread[thread_index][bin_index]++;
       }
     }
-    // sum along thread axis to get global counts
-    for (int64_t b = 0; b < num_bins; ++b)   // (not worth omp. Either loop order is ok)
-      for (int thread_index = 0; thread_index < num_threads; ++thread_index)
-	  counts[b] += ct[thread_index][b];
 
-    std::vector<int64_t> offsets(num_bins);   // cumulative sum of bin counts
-    // do: offsets = [0 cumsum(counts(1:end-1))] ...
+    // Sum along thread axis to get global counts.
+    // Not worth parallelizing this loop. Either loop order is OK.
+    for (int64_t bin_index = 0; bin_index < num_bins; ++bin_index) {
+      for (int thread_index = 0; thread_index < num_threads; ++thread_index) {
+	      counts[bin_index] += counts_per_thread[thread_index][bin_index];
+      }
+    }
+
+    // Cumulative sum of bin counts.
+    std::vector<int64_t> offsets(num_bins);
     offsets[0] = 0;
-    for (int64_t i = 1; i < num_bins; i++)
-      offsets[i] = offsets[i-1] + counts[i-1];
+    for (int64_t bin_index = 1; bin_index < num_bins; ++bin_index) {
+      offsets[bin_index] = offsets[bin_index - 1] + counts[bin_index - 1];
+    }
 
-    for (int64_t b = 0; b < num_bins; ++b)  // now build offsets for each thread & bin:
-      ot[0][b] = offsets[b];                     // init
-    for (int thread_index = 1; thread_index < num_threads; ++thread_index)   // (again not worth omp. Either loop order is ok)
-      for (int64_t b = 0; b < num_bins; ++b)
-	ot[thread_index][b] = ot[thread_index - 1][b]+ct[thread_index - 1][b];        // cumsum along thread_index axis
+    // Now build offsets for each thread and bin.
+    for (int64_t bin_index = 0; bin_index < num_bins; ++bin_index) {
+      offsets_per_thread[0][bin_index] = offsets[b];
+    }
+    // Again not worth parallelizing. Either loop order OK.
+    for (int thread_index = 1; thread_index < num_threads; ++thread_index) {
+      for (int64_t bin_index = 0; bin_index < num_bins; ++bin_index) {
+        // Cumulative sum along threads axis.
+	      offsets_per_thread[thread_index][bin_index] = (
+            offsets_per_thread[thread_index - 1][bin_index] +
+            counts_per_thread[thread_index - 1][bin_index]);
+      }
+    }
+  }  // Scope frees up counts_per_thread here.
 
-  }  // scope frees up ct here, before inv alloc
-
-  std::vector<int64_t> inv(num_points);           // fill inverse map, in parallel
+  // Fill inverse map, in parallel.
+  std::vector<int64_t> inv(this->num_points_);
   #pragma omp parallel num_threads(num_threads)
   {
     int thread_index = OMP_GET_THREAD_NUM();
-    for (int64_t i = brk[thread_index]; i < brk[thread_index+1]; i++) {
-      // find the bin index (again! but better than using RAM)
-      int64_t i1=FOLD_AND_RESCALE(kx[i], n1, pirange) / bin_size_x, i2=0, i3=0;
-      if (isky) i2 = FOLD_AND_RESCALE(ky[i], n2, pirange) / bin_size_y;
-      if (iskz) i3 = FOLD_AND_RESCALE(kz[i], n3, pirange) / bin_size_z;
-      int64_t bin = i1 + nbins1 * (i2 + nbins2 * i3);
-      inv[i] = ot[thread_index][bin];   // get the offset for this NU pt and thread
-      ot[thread_index][bin]++;               // no clash
+    for (int64_t i = break_points[thread_index];
+         i < break_points[thread_index + 1];
+         ++i) {
+      // Find the bin index (again, but better than using RAM).
+      int64_t bin_multi_index[3];
+      int64_t bin_index = 0;
+      for (int d = this->rank_ - 1; d >= 0; --d) {
+        bin_multi_index[d] = FOLD_AND_RESCALE(
+            this->points_[d][i], this->fine_dims_[d], pirange) / bin_sizes[d];
+        bin_index = bin_multi_index[d] + num_bins_per_dim[d] * bin_index;
+      }
+      // Get the offset for this NU point and thread.
+      inv[i] = offsets_per_thread[thread_index][bin_index];
+      // Each element only ever accessed by one thread, so read-write op is
+      // safe.
+      offsets_per_thread[thread_index][bin_index]++;
     }
   }
-  // invert the map, writing to output pointer (writing pattern is random)
+
+  // Invert the map.
   #pragma omp parallel for num_threads(num_threads) schedule(dynamic,10000)
-  for (int64_t i=0; i<num_points; i++)
-    ret[inv[i]]=i;
+  for (int64_t i = 0; i < this->num_points_; ++i) {
+    this->binsort_indices_[inv[i]] = i;
+  }
 }
-
-static int get_transform_rank(int64_t n1, int64_t n2, int64_t n3) {
-  int rank = 1;
-  if (n2 > 1) ++rank;
-  if (n3 > 1) ++rank;
-  return rank;
-}
-
 
 template<typename FloatType>
-int spreadinterpSorted(int64_t* sort_indices, int64_t N1, int64_t N2, int64_t N3,
-		      FloatType *data_uniform, int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
-		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort)
-/* Logic to select the main spreading (dir=1) vs interpolation (dir=2) routine.
-   See spreadinterp() above for inputs arguments and definitions.
-   Return value should always be 0 (no error reporting).
-   Split out by Melody Shih, Jun 2018; renamed Barnett 5/20/20.
-*/
-{
-  if (opts.spread_direction == SpreadDirection::SPREAD)
-    spreadSorted(sort_indices, N1, N2, N3, data_uniform, M, kx, ky, kz, data_nonuniform, opts, did_sort);
-  else // if (opts.spread_direction == SpreadDirection::INTERP)
-    interpSorted(sort_indices, N1, N2, N3, data_uniform, M, kx, ky, kz, data_nonuniform, opts, did_sort);
+Status Plan<CPUDevice, FloatType>::spread_or_interp_sorted(
+    FloatType *data_uniform, FloatType *data_nonuniform) const {
+  switch (this->spread_direction_) {
+    case SpreadDirection::INTERP: {
+      TF_RETURN_IF_ERROR(this->interp_sorted(data_uniform, data_nonuniform));
+      break;
+    }
+    case SpreadDirection::SPREAD: {
+      TF_RETURN_IF_ERROR(this->spread_sorted(data_uniform, data_nonuniform));
+      break;
+    }
+    default: {
+      LOG(FATAL) << "Invalid spread direction."
+    }
+  }
 
-  return 0;
+  return OkStatus();
 }
 
-
-// --------------------------------------------------------------------------
 template<typename FloatType>
-int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
-		      FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
-		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort)
-// Spread NU pts in sorted order to a uniform grid. See spreadinterp() for doc.
-{
+Status Plan<CPUDevice, FloatType>::spread_sorted(
+    FloatType *data_uniform,
+    FloatType *data_nonuniform) {
   int ndims = get_transform_rank(N1,N2,N3);
   int64_t N=N1*N2*N3;            // output array size
   int ns=opts.kernel_width;          // abbrev. for w, kernel width
@@ -1100,13 +1047,13 @@ int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
       if (opts.verbosity) printf("\tunsorted nthr=1: forcing single subproblem...\n");
     }
 
-    std::vector<int64_t> brk(nb+1); // NU index breakpoints defining nb subproblems
+    std::vector<int64_t> break_points(nb+1); // NU index breakpoints defining nb subproblems
     for (int p = 0; p <= nb; ++p)
-      brk[p] = (int64_t)(0.5 + M * p / (double)nb);
+      break_points[p] = (int64_t)(0.5 + M * p / (double)nb);
 
     #pragma omp parallel for num_threads(nthr) schedule(dynamic,1)  // each is big
     for (int isub=0; isub<nb; isub++) {   // Main loop through the subproblems
-      int64_t M0 = brk[isub+1]-brk[isub];  // # NU pts in this subproblem
+      int64_t M0 = break_points[isub+1]-break_points[isub];  // # NU pts in this subproblem
       // copy the location and data vectors for the nonuniform points
       FloatType *kx0=(FloatType*)malloc(sizeof(FloatType)*M0), *ky0=nullptr, *kz0=nullptr;
       if (N2>1)
@@ -1115,7 +1062,7 @@ int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
         kz0=(FloatType*)malloc(sizeof(FloatType)*M0);
       FloatType *dd0=(FloatType*)malloc(sizeof(FloatType)*M0*2);    // complex strength data
       for (int64_t j=0; j<M0; j++) {           // todo: can avoid this copying?
-        int64_t kk=sort_indices[j+brk[isub]];  // NU pt from subprob index list
+        int64_t kk=sort_indices[j+break_points[isub]];  // NU pt from subprob index list
         kx0[j]=FOLD_AND_RESCALE(kx[kk],N1,opts.pirange);
         if (N2>1) ky0[j]=FOLD_AND_RESCALE(ky[kk],N2,opts.pirange);
         if (N3>1) kz0[j]=FOLD_AND_RESCALE(kz[kk],N3,opts.pirange);
@@ -1186,11 +1133,11 @@ int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
     FloatType xjlist[CHUNK_SIZE], yjlist[CHUNK_SIZE], zjlist[CHUNK_SIZE];
     FloatType outbuf[2 * CHUNK_SIZE];
     // Kernels: static alloc is faster, so we do it for up to 3D...
-    FloatType kernel_args[3 * MAX_KERNEL_WIDTH];
-    FloatType kernel_values[3 * MAX_KERNEL_WIDTH];
-    FloatType *ker1 = kernel_values;
-    FloatType *ker2 = kernel_values + ns;
-    FloatType *ker3 = kernel_values + 2 * ns;
+    FloatType ka[3 * MAX_KERNEL_WIDTH];
+    FloatType kv[3 * MAX_KERNEL_WIDTH];
+    FloatType *ker1 = kv;
+    FloatType *ker2 = kv + ns;
+    FloatType *ker3 = kv + 2 * ns;
 
     // Loop over interpolation chunks
     #pragma omp for schedule (dynamic,1000)  // assign threads to NU targ pts:
@@ -1220,21 +1167,29 @@ int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
         int64_t i2= (ndims > 1) ? (int64_t)std::ceil(yj-ns2) : 0; // min y grid index
         int64_t i3= (ndims > 1) ? (int64_t)std::ceil(zj-ns2) : 0; // min z grid index
 
-        FloatType x1=(FloatType)i1-xj;           // shift of ker center, in [-w/2,-w/2+1]
+        FloatType x1=(FloatType)i1-xj;           // shift of kv center, in [-w/2,-w/2+1]
         FloatType x2= (ndims > 1) ? (FloatType)i2-yj : 0 ;
         FloatType x3= (ndims > 2)? (FloatType)i3-zj : 0;
 
         // eval kernel values patch and use to interpolate from uniform data...
         if (opts.kerevalmeth==0) {               // choose eval method
-          set_kernel_args(kernel_args, x1, opts);
-          if(ndims > 1)  set_kernel_args(kernel_args+ns, x2, opts);
-          if(ndims > 2)  set_kernel_args(kernel_args+2*ns, x3, opts);
-
-          evaluate_kernel_vector(kernel_values, kernel_args, opts, ndims*ns);
+          iota(ns, ka, x1);
+          if (ndims > 1) {
+            iota(ns, ka + ns, x2);
+          }
+          if (ndims > 2) {
+            iota(ns, ka + 2 * ns, x3);
+          }
+          eval_kernel(ndims * ns, ka, kv,
+                      this->kernel_args_, this->options_.pad_for_simd);
         } else {
-          eval_kernel_vec_Horner(ker1,x1,ns,opts);
-          if (ndims > 1) eval_kernel_vec_Horner(ker2,x2,ns,opts);
-          if (ndims > 2) eval_kernel_vec_Horner(ker3,x3,ns,opts);
+          eval_kernel_horner(ker1,x1,ns,opts);
+          if (ndims > 1) {
+            eval_kernel_horner(ker2,x2,ns,opts);
+          }
+          if (ndims > 2) {
+            eval_kernel_horner(ker3,x3,ns,opts);
+          }
         }
 
         switch (ndims) {
@@ -1271,80 +1226,99 @@ int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
   return 0;
 };
 
+namespace {
+
 ///////////////////////////////////////////////////////////////////////////
 
+
+// Fills a vector with sequentially increasing values.
+// Args:
+//   w: Length of the vector to be filled.
+//   x: Pointer to the output vector.
+//   v: Initial value.
 template<typename FloatType>
-static inline void set_kernel_args(FloatType *args, FloatType x, const SpreadParameters<FloatType>& opts)
-// Fills vector args[] with kernel arguments x, x+1, ..., x+ns-1.
-// needed for the vectorized kernel eval of Ludvig af K.
-{
-  int ns=opts.kernel_width;
-  for (int i=0; i<ns; i++)
-    args[i] = x + (FloatType) i;
+static inline void iota(const int w, FloatType* x, FloatType v) {
+  for (int i = 0; i < w; ++i) {
+    x[i] = v + static_cast<FloatType>(i);
+  }
 }
 
+// Evaluates the "exponential of semi-circle" interpolation kernel on a vector
+// of points.
+//
+// Args:
+//   w: The kernel width.
+//   x: Pointer to input points. Must have length n.
+//   y: Pointer to output values. Must have length n.
+//   args: Arguments for the interpolation kernel.
+//   pad_for_simd: If true, n is padded to a multiple of 4 to improve SIMD
+//     vectorization. Note that, in this case, x and y must have sufficient
+//     memory allocated for this padding.
 template<typename FloatType>
-static inline void evaluate_kernel_vector(FloatType *ker, FloatType *args, const SpreadParameters<FloatType>& opts, const int N)
-/* Evaluate ES kernel for a vector of N arguments; by Ludvig af K.
-   If opts.pad_kernel true, args and ker must be allocated for Npad, and args is
-   written to (to pad to length Npad), only first N outputs are correct.
-   Barnett 4/24/18 option to pad to mult of 4 for better SIMD vectorization.
+static inline void eval_kernel(
+    const int w, const FloatType* x, FloatType *y,
+    const KernelArgs<FloatType>& args, bool pad_for_simd = false) {
+  FloatType b = args.beta;
+  FloatType c = args.c;
 
-   Obsolete (replaced by Horner), but keep around for experimentation since
-   works for arbitrary beta. Formula must match reference implementation. */
-{
-  FloatType b = opts.kernel_beta;
-  FloatType c = opts.kernel_c;
+  // If requested, pad length to multiple of 4. This helps some processors
+  // with vectorization.
+  int p = w;
+  if (pad_for_simd) {
+    // Conditional does not affect speed because it's always the same branch.
+    p = 4 * (1 + (w - 1) / 4);
+    for (int i = w; i < p; ++i) {
+      x[i] = 0.0;
+    }
+  }
 
   // Note (by Ludvig af K): Splitting kernel evaluation into two loops
   // seems to benefit auto-vectorization.
-  // gcc 5.4 vectorizes first loop; gcc 7.2 vectorizes both loops
-  int Npad = N;
-  if (opts.pad_kernel) {        // since always same branch, no speed hit
-    Npad = 4*(1+(N-1)/4);   // pad N to mult of 4; help i7 GCC, not xeon
-    for (int i=N;i<Npad;++i)    // pad with 1-3 zeros for safe eval
-      args[i] = 0.0;
-  }
 
   // Loop 1: Compute exponential arguments.
-  for (int i = 0; i < Npad; i++) {
-    ker[i] = b * sqrt(1.0 - c * args[i] * args[i]);
+  for (int i = 0; i < p; ++i) {
+    y[i] = b * sqrt(1.0 - c * x[i] * x[i]);
   }
+
   // Loop 2: Compute exponentials.
-  for (int i = 0; i < Npad; i++) {
-  	ker[i] = exp(ker[i]);
+  for (int i = 0; i < p; ++i) {
+  	y[i] = exp(y[i]);
   }
-  // Separate check from arithmetic (Is this really needed? doesn't slow down)
-  for (int i = 0; i < N; i++) {
-    if (abs(args[i])>=opts.kernel_half_width) ker[i] = 0.0;
+
+  // Separate check from arithmetic.
+  // TODO: Is this really needed? Doesn't slow down.
+  for (int i = 0; i < w; ++i) {
+    if (abs(x[i]) >= args.hw) {
+      y[i] = 0.0;
+    }
   }
 }
 
+// Evaluates the kernel at points x_j = x + j for j = 0, 1, ..., w - 1 using
+// Horner piecewise polynomial approximation.
 template<typename FloatType>
-static inline void eval_kernel_vec_Horner(FloatType *ker, const FloatType x, const int w,
-					  const SpreadParameters<FloatType> &opts)
-/* Fill ker[] with Horner piecewise poly approx to [-w/2,w/2] ES kernel eval at
-   x_j = x + j,  for j=0,..,w-1.  Thus x in [-w/2,-w/2+1].   w is aka ns.
-   This is the current evaluation method, since it's faster (except i7 w=16).
-   Two upsampfacs implemented. Params must match ref formula. Barnett 4/24/18 */
-{
-  FloatType z = 2 * x + w - 1.0;         // scale so local grid offset z in [-1,1]
-  // insert the auto-generated code which expects z, w args, writes to ker...
-  if (opts.upsampling_factor == 2.0) {     // floating point equality is fine here
+static inline void eval_kernel_horner(
+    FloatType *kv, const FloatType x, const int w,
+    const double upsampling_factor) {
+  // Scale so that local grid offset z is in [-1, 1].
+  FloatType z = 2 * x + w - 1.0;
+  // Insert the auto-generated code.
+  if (upsampling_factor == 2.0) {
     #include "kernel_horner_sigma2.inc"
-  } else if (opts.upsampling_factor == 1.25) {
+  } else if (upsampling_factor == 1.25) {
     #include "kernel_horner_sigma125.inc"
-  } else
-    fprintf(stderr,"%s: unknown upsampling_factor, failed!\n",__func__);
+  } else {
+    LOG(FATAL) << "invalid upsampling factor for Horner kernel evaluation";
+  }
 }
 
 template<typename FloatType>
-void interp_line(FloatType *target,FloatType *du, FloatType *ker,int64_t i1,int64_t N1,int ns)
+void interp_line(FloatType *target,FloatType *du, FloatType *kv,int64_t i1,int64_t N1,int ns)
 // 1D interpolate complex values from du array to out, using real weights
-// ker[0] through ker[ns-1]. out must be size 2 (real,imag), and du
+// kv[0] through kv[ns-1]. out must be size 2 (real,imag), and du
 // of size 2*N1 (alternating real,imag). i1 is the left-most index in [0,N1)
 // Periodic wrapping in the du array is applied, assuming N1>=ns.
-// dx is index into ker array, j index in complex du (data_uniform) array.
+// dx is index into kv array, j index in complex du (data_uniform) array.
 // Barnett 6/15/17
 {
   FloatType out[] = {0.0, 0.0};
@@ -1352,32 +1326,32 @@ void interp_line(FloatType *target,FloatType *du, FloatType *ker,int64_t i1,int6
   if (i1<0) {                               // wraps at left
     j+=N1;
     for (int dx=0; dx<-i1; ++dx) {
-      out[0] += du[2*j]*ker[dx];
-      out[1] += du[2*j+1]*ker[dx];
+      out[0] += du[2*j]*kv[dx];
+      out[1] += du[2*j+1]*kv[dx];
       ++j;
     }
     j-=N1;
     for (int dx=-i1; dx<ns; ++dx) {
-      out[0] += du[2*j]*ker[dx];
-      out[1] += du[2*j+1]*ker[dx];
+      out[0] += du[2*j]*kv[dx];
+      out[1] += du[2*j+1]*kv[dx];
       ++j;
     }
   } else if (i1+ns>=N1) {                    // wraps at right
     for (int dx=0; dx<N1-i1; ++dx) {
-      out[0] += du[2*j]*ker[dx];
-      out[1] += du[2*j+1]*ker[dx];
+      out[0] += du[2*j]*kv[dx];
+      out[1] += du[2*j+1]*kv[dx];
       ++j;
     }
     j-=N1;
     for (int dx=N1-i1; dx<ns; ++dx) {
-      out[0] += du[2*j]*ker[dx];
-      out[1] += du[2*j+1]*ker[dx];
+      out[0] += du[2*j]*kv[dx];
+      out[1] += du[2*j+1]*kv[dx];
       ++j;
     }
   } else {                                     // doesn't wrap
     for (int dx=0; dx<ns; ++dx) {
-      out[0] += du[2*j]*ker[dx];
-      out[1] += du[2*j+1]*ker[dx];
+      out[0] += du[2*j]*kv[dx];
+      out[1] += du[2*j+1]*kv[dx];
       ++j;
     }
   }
@@ -1389,11 +1363,11 @@ template<typename FloatType>
 void interp_square(FloatType *target,FloatType *du, FloatType *ker1, FloatType *ker2, int64_t i1,int64_t i2,int64_t N1,int64_t N2,int ns)
 // 2D interpolate complex values from du (uniform grid data) array to out value,
 // using ns*ns square of real weights
-// in ker. out must be size 2 (real,imag), and du
+// in kv. out must be size 2 (real,imag), and du
 // of size 2*N1*N2 (alternating real,imag). i1 is the left-most index in [0,N1)
 // and i2 the bottom index in [0,N2).
 // Periodic wrapping in the du array is applied, assuming N1,N2>=ns.
-// dx,dy indices into ker array, j index in complex du array.
+// dx,dy indices into kv array, j index in complex du array.
 // Barnett 6/16/17
 {
   FloatType out[] = {0.0, 0.0};
@@ -1437,11 +1411,11 @@ void interp_cube(FloatType *target,FloatType *du, FloatType *ker1, FloatType *ke
 		 int64_t i1,int64_t i2,int64_t i3, int64_t N1,int64_t N2,int64_t N3,int ns)
 // 3D interpolate complex values from du (uniform grid data) array to out value,
 // using ns*ns*ns cube of real weights
-// in ker. out must be size 2 (real,imag), and du
+// in kv. out must be size 2 (real,imag), and du
 // of size 2*N1*N2*N3 (alternating real,imag). i1 is the left-most index in
 // [0,N1), i2 the bottom index in [0,N2), i3 lowest in [0,N3).
 // Periodic wrapping in the du array is applied, assuming N1,N2,N3>=ns.
-// dx,dy,dz indices into ker array, j index in complex du array.
+// dx,dy,dz indices into kv array, j index in complex du array.
 // Barnett 6/16/17
 {
   FloatType out[] = {0.0, 0.0};
@@ -1519,8 +1493,8 @@ void spread_subproblem_1d(int64_t off1, int64_t size1,FloatType *du,int64_t M,
   FloatType ns2 = (FloatType)ns/2;          // half spread width
   for (int64_t i=0;i<2*size1;++i)         // zero output
     du[i] = 0.0;
-  FloatType kernel_args[MAX_KERNEL_WIDTH];
-  FloatType ker[MAX_KERNEL_WIDTH];
+  FloatType ka[MAX_KERNEL_WIDTH];
+  FloatType kv[MAX_KERNEL_WIDTH];
   for (int64_t i=0; i<M; i++) {           // loop over NU pts
     FloatType re0 = dd[2*i];
     FloatType im0 = dd[2*i+1];
@@ -1533,14 +1507,15 @@ void spread_subproblem_1d(int64_t off1, int64_t size1,FloatType *du,int64_t M,
     if (x1<-ns2) x1=-ns2;
     if (x1>-ns2+1) x1=-ns2+1;   // ***
     if (opts.kerevalmeth==0) {          // faster Horner poly method
-      set_kernel_args(kernel_args, x1, opts);
-      evaluate_kernel_vector(ker, kernel_args, opts, ns);
+      set_kernel_args(ka, x1, opts);
+      eval_kernel(ns, ka, kv,
+                  this->kernel_args_, this->options_.pad_for_simd);
     } else
-      eval_kernel_vec_Horner(ker,x1,ns,opts);
+      eval_kernel_horner(kv,x1,ns,opts);
     int64_t j = i1-off1;    // offset rel to subgrid, starts the output indices
     // critical inner loop:
     for (int dx=0; dx<ns; ++dx) {
-      FloatType k = ker[dx];
+      FloatType k = kv[dx];
       du[2*j] += re0*k;
       du[2*j+1] += im0*k;
       ++j;
@@ -1563,12 +1538,12 @@ void spread_subproblem_2d(int64_t off1,int64_t off2,int64_t size1,int64_t size2,
   FloatType ns2 = (FloatType)ns/2;          // half spread width
   for (int64_t i=0;i<2*size1*size2;++i)
     du[i] = 0.0;
-  FloatType kernel_args[2*MAX_KERNEL_WIDTH];
+  FloatType ka[2*MAX_KERNEL_WIDTH];
   // Kernel values stored in consecutive memory. This allows us to compute
   // values in two directions in a single kernel evaluation call.
-  FloatType kernel_values[2*MAX_KERNEL_WIDTH];
-  FloatType *ker1 = kernel_values;
-  FloatType *ker2 = kernel_values + ns;
+  FloatType kv[2*MAX_KERNEL_WIDTH];
+  FloatType *ker1 = kv;
+  FloatType *ker2 = kv + ns;
   for (int64_t i=0; i<M; i++) {           // loop over NU pts
     FloatType re0 = dd[2*i];
     FloatType im0 = dd[2*i+1];
@@ -1578,12 +1553,13 @@ void spread_subproblem_2d(int64_t off1,int64_t off2,int64_t size1,int64_t size2,
     FloatType x1 = (FloatType)i1 - kx[i];
     FloatType x2 = (FloatType)i2 - ky[i];
     if (opts.kerevalmeth==0) {          // faster Horner poly method
-      set_kernel_args(kernel_args, x1, opts);
-      set_kernel_args(kernel_args+ns, x2, opts);
-      evaluate_kernel_vector(kernel_values, kernel_args, opts, 2*ns);
+      iota(ns, ka, x1);
+      iota(ns, ka + ns, x2);
+      eval_kernel(2 * ns, ka, kv,
+                  this->kernel_args_, this->options_.pad_for_simd);
     } else {
-      eval_kernel_vec_Horner(ker1,x1,ns,opts);
-      eval_kernel_vec_Horner(ker2,x2,ns,opts);
+      eval_kernel_horner(ker1,x1,ns,opts);
+      eval_kernel_horner(ker2,x2,ns,opts);
     }
     // Combine kernel with complex source value to simplify inner loop
     FloatType ker1val[2*MAX_KERNEL_WIDTH];    // here 2* is because of complex
@@ -1619,13 +1595,13 @@ void spread_subproblem_3d(int64_t off1,int64_t off2,int64_t off3,int64_t size1,
   FloatType ns2 = (FloatType)ns/2;          // half spread width
   for (int64_t i=0;i<2*size1*size2*size3;++i)
     du[i] = 0.0;
-  FloatType kernel_args[3*MAX_KERNEL_WIDTH];
+  FloatType ka[3*MAX_KERNEL_WIDTH];
   // Kernel values stored in consecutive memory. This allows us to compute
   // values in all three directions in a single kernel evaluation call.
-  FloatType kernel_values[3*MAX_KERNEL_WIDTH];
-  FloatType *ker1 = kernel_values;
-  FloatType *ker2 = kernel_values + ns;
-  FloatType *ker3 = kernel_values + 2*ns;
+  FloatType kv[3*MAX_KERNEL_WIDTH];
+  FloatType *ker1 = kv;
+  FloatType *ker2 = kv + ns;
+  FloatType *ker3 = kv + 2*ns;
   for (int64_t i=0; i<M; i++) {           // loop over NU pts
     FloatType re0 = dd[2*i];
     FloatType im0 = dd[2*i+1];
@@ -1636,15 +1612,16 @@ void spread_subproblem_3d(int64_t off1,int64_t off2,int64_t off3,int64_t size1,
     FloatType x1 = (FloatType)i1 - kx[i];
     FloatType x2 = (FloatType)i2 - ky[i];
     FloatType x3 = (FloatType)i3 - kz[i];
-    if (opts.kerevalmeth==0) {          // faster Horner poly method
-      set_kernel_args(kernel_args, x1, opts);
-      set_kernel_args(kernel_args+ns, x2, opts);
-      set_kernel_args(kernel_args+2*ns, x3, opts);
-      evaluate_kernel_vector(kernel_values, kernel_args, opts, 3*ns);
+    if (opts.kerevalmeth==0) {
+      iota(ns, ka, x1);
+      iota(ns, ka + ns, x2);
+      iota(ns, ka + 2 * ns, x3);
+      eval_kernel(3 * ns, ka, kv,
+                  this->kernel_args_, this->options_.pad_for_simd);
     } else {
-      eval_kernel_vec_Horner(ker1,x1,ns,opts);
-      eval_kernel_vec_Horner(ker2,x2,ns,opts);
-      eval_kernel_vec_Horner(ker3,x3,ns,opts);
+      eval_kernel_horner(ker1,x1,ns,opts);
+      eval_kernel_horner(ker2,x2,ns,opts);
+      eval_kernel_horner(ker3,x3,ns,opts);
     }
     // Combine kernel with complex source value to simplify inner loop
     FloatType ker1val[2*MAX_KERNEL_WIDTH];    // here 2* is because of complex

@@ -48,7 +48,7 @@ enum class ModeOrder {
   FFT = 1    // FFT-style mode order.
 };
 
-enum class KernelEvaluationMethod {
+enum class KernelEvalAlgo {
   AUTO = 0,    // Select automatically.
   DIRECT = 1,  // Direct evaluation of kernel.
   HORNER = 2   // Evaluate using Horner piecewise polynomial. Faster.
@@ -112,20 +112,17 @@ class InternalOptions : public Options {
 
   // The kernel evaluation method. See enum above. Applies to the CPU and the
   // GPU kernels.
-  KernelEvaluationMethod kernel_evaluation_method = \
-      KernelEvaluationMethod::AUTO;
+  KernelEvalAlgo kernel_eval_algo = KernelEvalAlgo::AUTO;
 
-  // Whether to pad the interpolation kernel to a multiple of 4. This helps SIMD
-  // when using direct kernel evaluation. Applies only to the CPU kernel.
-  bool pad_kernel = true;
+  // Whether to pad the kernel evaluation vector to a multiple of 4. This may
+  // help SIMD vectorization when using direct kernel evaluation. Applies only
+  // to the CPU kernel.
+  bool pad_for_simd = true;
 
   // The upsampling factor used to create the intermediate grid. A value of 0.0
   // means the upsampling factor is automatically chosen. Applies to the CPU and
   // the GPU kernels.
   double upsampling_factor = 0.0;
-
-  // The kernel width.
-  int kernel_width = 0.0;
 
   // The spreader threading strategy. See enum above. Only relevant if the
   // number of threads is larger than 1. Applies only to the CPU kernel.

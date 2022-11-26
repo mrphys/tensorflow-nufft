@@ -84,12 +84,12 @@ class NUFFTOpsTest(tf.test.TestCase):
     self.assertAllClose(target1, target2, rtol=rtol, atol=atol)
 
 
-  @parameterized(grid_shape=[[8]],# [6, 8], [4, 8, 6]],
+  @parameterized(grid_shape=[[8], [6, 8], [4, 8, 6]],
                  source_batch_shape=[[], [2, 4], [4]],
                  points_batch_shape=[[], [2, 1], [1, 4], [4]],
                  transform_type=['type_1', 'type_2'],
                  fft_direction=['forward', 'backward'],
-                #  points_shift=[1, -1],
+                 points_shift=[1, -1],
                  dtype=[tf.dtypes.complex64, tf.dtypes.complex128],
                  device=['/cpu:0', '/gpu:0'])
   def test_nufft(self,  # pylint: disable=missing-param-doc

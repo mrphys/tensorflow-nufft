@@ -44,10 +44,6 @@ def nufft(source,  # pylint: disable=missing-raises-doc
   via the non-uniform fast Fourier transform (NUFFT) algorithm. Supports 1D, 2D
   and 3D transforms.
 
-  ```{warning}
-  Currently 1D transforms are only supported on the CPU.
-  ```
-
   Args:
     source: A `tf.Tensor` of type `complex64` or `complex128`.
       The source grid, for type-2 transforms, or the source point

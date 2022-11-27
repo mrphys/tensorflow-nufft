@@ -438,10 +438,6 @@ class NUFFTOpsTest(tf.test.TestCase):
   @parameterized(rank=[1, 2, 3], device=['/cpu:0', '/gpu:0'])
   def test_nufft_type_1_invalid_grid_shape_raises(self, rank, device):  # pylint: disable=missing-param-doc
     """Test that type-1 transform raises error when given invalid grid shape."""
-    # TODO(#14): Remove once 1D NUFFT has been implemented.
-    if rank == 1 and device == '/gpu:0':
-      self.skipTest("1D NUFFT not implemented on GPU")
-
     with tf.device(device):
       source = tf.complex(
           tf.random.normal(shape=(10,), dtype=tf.float32),

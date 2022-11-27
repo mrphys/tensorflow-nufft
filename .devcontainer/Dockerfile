@@ -1,4 +1,4 @@
-FROM ghcr.io/mrphys/tensorflow-manylinux:1.14.0
+FROM ghcr.io/mrphys/tensorflow-manylinux:1.15.0
 
 # To enable plotting.
 RUN apt-get update && \

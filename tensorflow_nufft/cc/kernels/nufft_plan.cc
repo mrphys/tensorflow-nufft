@@ -29,6 +29,7 @@ limitations under the License.
 ==============================================================================*/
 
 #include <thrust/execution_policy.h>
+#include <thrust/sequence.h>
 #include <thrust/transform.h>
 
 #include "tensorflow_nufft/cc/kernels/fftw_api.h"
@@ -71,17 +72,17 @@ Status check_spread_inputs(int64_t n1, int64_t n2, int64_t n3,
                            FloatType *kz, SpreadParameters<FloatType> opts);
 
 template<typename FloatType>
-int spreadinterpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
+int spreadinterpSorted(int* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 		             FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		             FloatType *data_nonuniform, tensorflow::nufft::SpreadParameters<FloatType> opts, int did_sort);
 
 template<typename FloatType>
-int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
+int interpSorted(int* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 		      FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort);
 
 template<typename FloatType>
-int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
+int spreadSorted(int* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 		      FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort);
 
@@ -160,8 +161,6 @@ Plan<CPUDevice, FloatType>::~Plan() {
     }
     #endif
   }
-
-  free(this->binsort_indices_);
 }
 
 template<typename FloatType>
@@ -206,6 +205,8 @@ Status Plan<CPUDevice, FloatType>::initialize(
   if (this->options_.num_threads > 0)
     num_threads = this->options_.num_threads;
   this->options_.num_threads = num_threads;
+  // Set number of threads to be used in subsequent parallel regions.
+  OMP_SET_NUM_THREADS(this->options_.num_threads);
 
   // Select batch size.
   if (this->options_.max_batch_size() == 0) {
@@ -237,7 +238,6 @@ Status Plan<CPUDevice, FloatType>::initialize(
     this->points_[i] = nullptr;
     this->fseries_data_[i] = nullptr;
   }
-  this->binsort_indices_ = nullptr;
 
   // TODO(jmontalt): Remove once spread_params_ has been factored away.
   this->spread_params_.spread_direction = this->spread_direction_;
@@ -431,12 +431,10 @@ Status Plan<CPUDevice, FloatType>::initialize_fft() {
 
 template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::binsort_if_needed() {
-  // TODO(jmontalt): use proper allocation mechanisms.
-  this->binsort_indices_ = (int64_t*) malloc(sizeof(int64_t) * this->num_points_);
-  if (!this->binsort_indices_) {
-    fprintf(stderr,"[%s] failed to allocate binsort_indices_!\n",__func__);
-    // return ERR_SPREAD_ALLOC;
-  }
+  // Allocate memory for bin-sort indices.
+  TF_RETURN_IF_ERROR(this->context_->allocate_temp(
+      DT_INT32, TensorShape({this->num_points_}),
+      &this->binsort_indices_));
 
   // Heuristics based on cache sizes (only useful for single-thread).
   bool should_sort = !(
@@ -465,10 +463,10 @@ Status Plan<CPUDevice, FloatType>::binsort_if_needed() {
       this->binsort_multithread();
     }
   } else {
-    // Set identity permutation. Here OMP helps Xeon, hinders i7.
-    #pragma omp parallel for num_threads(num_threads) schedule(static,1000000)
-    for (int64_t i = 0; i < this->num_points_; i++)
-      this->binsort_indices_[i] = i;
+    // Set identity permutation.
+    int* binsort_indices = this->binsort_indices_.flat<int>().data();
+    thrust::sequence(this->execution_policy(), binsort_indices,
+                     binsort_indices + this->num_points_);
   }
 
   return OkStatus();
@@ -480,8 +478,8 @@ void Plan<CPUDevice, FloatType>::binsort_singlethread() {
   int bin_dims[3] = {16, 4, 4};
 
   // Number of bins in the box along each dimension.
-  int64_t box_dims[3];
-  int64_t num_bins = 1;
+  int box_dims[3];
+  int num_bins = 1;
   for (int d = 0; d < this->rank_; ++d) {
     // +1 needed for robustness against round-off error near +pi.
     // Note that round-off near -pi stably rounds negative to 0.
@@ -489,11 +487,11 @@ void Plan<CPUDevice, FloatType>::binsort_singlethread() {
     num_bins *= box_dims[d];
   }
 
-  std::vector<int64_t> counts(num_bins, 0);  // count how many pts in each bin
-  for (int64_t i = 0; i < this->num_points_; ++i) {
+  std::vector<int> counts(num_bins, 0);  // count how many pts in each bin
+  for (int i = 0; i < this->num_points_; ++i) {
     // find the bin index in however many dims are needed
-    int64_t bin_multi_index[3];
-    int64_t bin_index = 0;
+    int bin_multi_index[3];
+    int bin_index = 0;
     for (int d = this->rank_ - 1; d >= 0; --d) {
       bin_multi_index[d] = FOLD_AND_RESCALE(
           this->points_[d][i], this->fine_dims_[d], pirange) / bin_dims[d];
@@ -503,31 +501,32 @@ void Plan<CPUDevice, FloatType>::binsort_singlethread() {
   }
 
   // Cumulative sum of bin counts.
-  std::vector<int64_t> offsets(num_bins);
+  std::vector<int> offsets(num_bins);
   offsets[0] = 0;
-  for (int64_t i = 1; i < num_bins; ++i) {
+  for (int i = 1; i < num_bins; ++i) {
     offsets[i] = offsets[i - 1] + counts[i - 1];
   }
 
   // Fill inverse map.
-  std::vector<int64_t> inv(this->num_points_);
-  for (int64_t i = 0; i < this->num_points_; ++i) {
+  std::vector<int> inv(this->num_points_);
+  for (int i = 0; i < this->num_points_; ++i) {
     // find the bin index (again! but better than using RAM)
-    int64_t bin_multi_index[3];
-    int64_t bin_index = 0;
+    int bin_multi_index[3];
+    int bin_index = 0;
     for (int d = this->rank_ - 1; d >= 0; --d) {
       bin_multi_index[d] = FOLD_AND_RESCALE(
           this->points_[d][i], this->fine_dims_[d], pirange) / bin_dims[d];
       bin_index = bin_multi_index[d] + box_dims[d] * bin_index;
     }
-    int64_t offset = offsets[bin_index];
+    int offset = offsets[bin_index];
     offsets[bin_index]++;
     inv[i] = offset;
   }
 
   // invert the map, writing to output pointer (writing pattern is random)
-  for (int64_t i = 0; i < this->num_points_; i++) {
-    this->binsort_indices_[inv[i]] = i;
+  int* binsort_indices = this->binsort_indices_.flat<int>().data();
+  for (int i = 0; i < this->num_points_; i++) {
+    binsort_indices[inv[i]] = i;
   }
 }
 
@@ -540,45 +539,45 @@ void Plan<CPUDevice, FloatType>::binsort_multithread() {
   // Can't have more threads than points.
   num_threads = std::min(this->num_points_, num_threads);
 
-  int64_t box_dims[3];
-  int64_t num_bins = 1;
+  int box_dims[3];
+  int num_bins = 1;
   for (int d = 0; d < this->rank_; ++d) {
     box_dims[d] = this->fine_dims_[d] / bin_dims[d] + 1;
     num_bins *= box_dims[d];
   }
 
   // List of start NU point indices per thread.
-  std::vector<int64_t> break_points(num_threads + 1);
+  std::vector<int> break_points(num_threads + 1);
 
   // Distribute the NU points to threads.
   for (int thread_index = 0; thread_index <= num_threads; ++thread_index) {
-    break_points[thread_index] = static_cast<int64_t>(
+    break_points[thread_index] = static_cast<int>(
         0.5 + this->num_points_ * thread_index / static_cast<double>(num_threads));
   }
 
   // Global counts, number of points in each bin.
-  std::vector<int64_t> counts(num_bins, 0);
+  std::vector<int> counts(num_bins, 0);
 
   // Offsets per thread, size num_threads * num_bins,
   // initialize to 0 by copying the counts vector.
-  std::vector<std::vector<int64_t>> offsets_per_thread(num_threads, counts);
+  std::vector<std::vector<int>> offsets_per_thread(num_threads, counts);
   {
     // Scope for counts_per_thread, the 2D array of counts in bins for each
     // thread's NU points. Has size num_threads * num_bins, init to 0 by
     // copying counts.
-    std::vector<std::vector<int64_t>> counts_per_thread(num_threads, counts);
+    std::vector<std::vector<int>> counts_per_thread(num_threads, counts);
 
     #pragma omp parallel num_threads(num_threads)
     {
       // Parallel binning to each thread's count. Block done once per thread.
       int thread_index = OMP_GET_THREAD_NUM();
 
-      for (int64_t i = break_points[thread_index];
+      for (int i = break_points[thread_index];
            i < break_points[thread_index + 1];
            ++i) {
         // Find the bin index in however many dims are needed.
-        int64_t bin_multi_index[3];
-        int64_t bin_index = 0;
+        int bin_multi_index[3];
+        int bin_index = 0;
         for (int d = this->rank_ - 1; d >= 0; --d) {
           bin_multi_index[d] = FOLD_AND_RESCALE(
               this->points_[d][i], this->fine_dims_[d], pirange) / bin_dims[d];
@@ -592,26 +591,26 @@ void Plan<CPUDevice, FloatType>::binsort_multithread() {
 
     // Sum along thread axis to get global counts.
     // Not worth parallelizing this loop. Either loop order is OK.
-    for (int64_t bin_index = 0; bin_index < num_bins; ++bin_index) {
+    for (int bin_index = 0; bin_index < num_bins; ++bin_index) {
       for (int thread_index = 0; thread_index < num_threads; ++thread_index) {
 	      counts[bin_index] += counts_per_thread[thread_index][bin_index];
       }
     }
 
     // Cumulative sum of bin counts.
-    std::vector<int64_t> offsets(num_bins);
+    std::vector<int> offsets(num_bins);
     offsets[0] = 0;
-    for (int64_t bin_index = 1; bin_index < num_bins; ++bin_index) {
+    for (int bin_index = 1; bin_index < num_bins; ++bin_index) {
       offsets[bin_index] = offsets[bin_index - 1] + counts[bin_index - 1];
     }
 
     // Now build offsets for each thread and bin.
-    for (int64_t bin_index = 0; bin_index < num_bins; ++bin_index) {
+    for (int bin_index = 0; bin_index < num_bins; ++bin_index) {
       offsets_per_thread[0][bin_index] = offsets[bin_index];
     }
     // Again not worth parallelizing. Either loop order OK.
     for (int thread_index = 1; thread_index < num_threads; ++thread_index) {
-      for (int64_t bin_index = 0; bin_index < num_bins; ++bin_index) {
+      for (int bin_index = 0; bin_index < num_bins; ++bin_index) {
         // Cumulative sum along threads axis.
 	      offsets_per_thread[thread_index][bin_index] = (
             offsets_per_thread[thread_index - 1][bin_index] +
@@ -621,16 +620,16 @@ void Plan<CPUDevice, FloatType>::binsort_multithread() {
   }  // Scope frees up counts_per_thread here.
 
   // Fill inverse map, in parallel.
-  std::vector<int64_t> inv(this->num_points_);
+  std::vector<int> inv(this->num_points_);
   #pragma omp parallel num_threads(num_threads)
   {
     int thread_index = OMP_GET_THREAD_NUM();
-    for (int64_t i = break_points[thread_index];
+    for (int i = break_points[thread_index];
          i < break_points[thread_index + 1];
          ++i) {
       // Find the bin index (again, but better than using RAM).
-      int64_t bin_multi_index[3];
-      int64_t bin_index = 0;
+      int bin_multi_index[3];
+      int bin_index = 0;
       for (int d = this->rank_ - 1; d >= 0; --d) {
         bin_multi_index[d] = FOLD_AND_RESCALE(
             this->points_[d][i], this->fine_dims_[d], pirange) / bin_dims[d];
@@ -645,9 +644,10 @@ void Plan<CPUDevice, FloatType>::binsort_multithread() {
   }
 
   // Invert the map.
+  int* binsort_indices = this->binsort_indices_.flat<int>().data();
   #pragma omp parallel for num_threads(num_threads) schedule(dynamic,10000)
-  for (int64_t i = 0; i < this->num_points_; ++i) {
-    this->binsort_indices_[inv[i]] = i;
+  for (int i = 0; i < this->num_points_; ++i) {
+    binsort_indices[inv[i]] = i;
   }
 }
 
@@ -695,7 +695,7 @@ Status Plan<CPUDevice, FloatType>::spread_or_interp_sorted_batch(
   for (int i=0; i<batch_size; i++) {
     DType *fwi = fBatch + i*this->fine_size_;  // start of i'th fw array in wkspace
     DType *ci = cBatch + i*this->num_points_;            // start of i'th c array in cBatch
-    spreadinterpSorted(this->binsort_indices_, grid_size_0, grid_size_1, grid_size_2,
+    spreadinterpSorted(this->binsort_indices_.flat<int>().data(), grid_size_0, grid_size_1, grid_size_2,
                        (FloatType*)fwi, this->num_points_, this->points_[0], this->points_[1], this->points_[2],
                        (FloatType*)ci, this->spread_params_, this->do_binsort_);
   }
@@ -1005,7 +1005,7 @@ static int get_transform_rank(int64_t n1, int64_t n2, int64_t n3) {
 
 
 template<typename FloatType>
-int spreadinterpSorted(int64_t* sort_indices, int64_t N1, int64_t N2, int64_t N3,
+int spreadinterpSorted(int* sort_indices, int64_t N1, int64_t N2, int64_t N3,
 		      FloatType *data_uniform, int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort)
 /* Logic to select the main spreading (dir=1) vs interpolation (dir=2) routine.
@@ -1025,7 +1025,7 @@ int spreadinterpSorted(int64_t* sort_indices, int64_t N1, int64_t N2, int64_t N3
 
 // --------------------------------------------------------------------------
 template<typename FloatType>
-int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
+int spreadSorted(int* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 		      FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort)
 // Spread NU pts in sorted order to a uniform grid. See spreadinterp() for doc.
@@ -1134,7 +1134,7 @@ int spreadSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 
 // --------------------------------------------------------------------------
 template<typename FloatType>
-int interpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
+int interpSorted(int* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 		      FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		      FloatType *data_nonuniform, SpreadParameters<FloatType> opts, int did_sort)
 // Interpolate to NU pts in sorted order from a uniform grid.

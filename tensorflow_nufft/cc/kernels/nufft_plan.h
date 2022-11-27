@@ -484,11 +484,11 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   }
 
  private:
-  // Precomputed non-uniform point permutation, used to speed up spread/interp.
-  int64_t* binsort_indices_;
-
-  // Whether bin-sorting was used.
+  // Whether bin-sorting is used to reorder the NU points.
   bool do_binsort_;
+
+  // Precomputed non-uniform point permutation, used to speed up spread/interp.
+  Tensor binsort_indices_;
 
  public:  // TODO(jmontalt): make private after refactoring FINUFFT.
 

@@ -71,24 +71,6 @@ Status check_spread_inputs(int64_t n1, int64_t n2, int64_t n3,
                            FloatType *kz, SpreadParameters<FloatType> opts);
 
 template<typename FloatType>
-bool bin_sort_points(int64_t* sort_indices, int64_t n1, int64_t n2, int64_t n3,
-                     int64_t num_points,  FloatType *kx, FloatType *ky,
-                     FloatType *kz, SpreadParameters<FloatType> opts);
-
-template<typename FloatType>
-void bin_sort_singlethread(
-    int64_t *ret, int64_t num_points, FloatType *kx, FloatType *ky,
-    FloatType *kz, int64_t n1, int64_t n2, int64_t n3, int pirange,
-    double bin_size_x, double bin_size_y, double bin_size_z, int debug);
-
-template<typename FloatType>
-void bin_sort_multithread(
-    int64_t *ret, int64_t num_points, FloatType *kx, FloatType *ky, FloatType *kz,
-    int64_t n1,int64_t n2,int64_t n3,int pirange,
-    double bin_size_x, double bin_size_y, double bin_size_z, int debug,
-    int num_threads);
-
-template<typename FloatType>
 int spreadinterpSorted(int64_t* sort_indices,int64_t N1, int64_t N2, int64_t N3,
 		             FloatType *data_uniform,int64_t M, FloatType *kx, FloatType *ky, FloatType *kz,
 		             FloatType *data_nonuniform, tensorflow::nufft::SpreadParameters<FloatType> opts, int did_sort);
@@ -179,7 +161,7 @@ Plan<CPUDevice, FloatType>::~Plan() {
     #endif
   }
 
-  free(this->sort_indices_);
+  free(this->binsort_indices_);
 }
 
 template<typename FloatType>
@@ -235,10 +217,10 @@ Status Plan<CPUDevice, FloatType>::initialize(
     this->num_batches_ = 1 + (num_transforms - 1) / this->batch_size_;
   }
 
-  // Set default options.
   TF_RETURN_IF_ERROR(this->set_default_options());
 
-  // Initialize the fine grid and related quantities.
+  TF_RETURN_IF_ERROR(this->initialize_interpolator());
+
   TF_RETURN_IF_ERROR(this->initialize_fine_grid());
 
   // Choose default spreader threading configuration.
@@ -255,12 +237,10 @@ Status Plan<CPUDevice, FloatType>::initialize(
     this->points_[i] = nullptr;
     this->fseries_data_[i] = nullptr;
   }
-  this->sort_indices_ = nullptr;
+  this->binsort_indices_ = nullptr;
 
-  if (type == TransformType::TYPE_1)
-    this->spread_params_.spread_direction = SpreadDirection::SPREAD;
-  else // if (type == TransformType::TYPE_2)
-    this->spread_params_.spread_direction = SpreadDirection::INTERP;
+  // TODO(jmontalt): Remove once spread_params_ has been factored away.
+  this->spread_params_.spread_direction = this->spread_direction_;
 
   // Get Fourier coefficients of spreading kernel along each fine grid
   // dimension.
@@ -315,14 +295,8 @@ Status Plan<CPUDevice, FloatType>::set_points(
   // Fold and rescale points.
   TF_RETURN_IF_ERROR(this->fold_and_rescale_points());
 
-  this->sort_indices_ = (int64_t*) malloc(sizeof(int64_t) * this->num_points_);
-  if (!this->sort_indices_) {
-    fprintf(stderr,"[%s] failed to allocate sort_indices_!\n",__func__);
-    // return ERR_SPREAD_ALLOC;
-  }
-  this->did_sort_ = bin_sort_points(
-      this->sort_indices_, grid_size_0, grid_size_1, grid_size_2,
-      this->num_points_, points_x, points_y, points_z, this->spread_params_);
+  // Bin-sorting for efficient RAM access.
+  TF_RETURN_IF_ERROR(this->binsort_if_needed());
 
   return OkStatus();
 }
@@ -456,6 +430,228 @@ Status Plan<CPUDevice, FloatType>::initialize_fft() {
 }
 
 template<typename FloatType>
+Status Plan<CPUDevice, FloatType>::binsort_if_needed() {
+  // TODO(jmontalt): use proper allocation mechanisms.
+  this->binsort_indices_ = (int64_t*) malloc(sizeof(int64_t) * this->num_points_);
+  if (!this->binsort_indices_) {
+    fprintf(stderr,"[%s] failed to allocate binsort_indices_!\n",__func__);
+    // return ERR_SPREAD_ALLOC;
+  }
+
+  // Heuristics based on cache sizes (only useful for single-thread).
+  bool should_sort = !(
+      this->rank_ == 1 && (
+          this->spread_direction_ == SpreadDirection::INTERP ||
+          (this->num_points_ > 1000 * this->fine_size_)));
+
+  if (this->options_.sort_points == SortPoints::YES ||
+     (this->options_.sort_points == SortPoints::AUTO && should_sort)) {
+    this->do_binsort_ = true;
+  } else {
+    this->do_binsort_ = false;
+  }
+
+  int num_threads = this->options_.num_threads;
+
+  if (this->do_binsort_) {
+    // Heuristic: when size of grid is much larger than the number of
+    // non-uniform points, single-thread is better.
+    if (this->fine_size_ > 10 * this->num_points_) {
+      num_threads = 1;
+    }
+    if (num_threads == 1) {
+      this->binsort_singlethread();
+    } else {
+      this->binsort_multithread();
+    }
+  } else {
+    // Set identity permutation. Here OMP helps Xeon, hinders i7.
+    #pragma omp parallel for num_threads(num_threads) schedule(static,1000000)
+    for (int64_t i = 0; i < this->num_points_; i++)
+      this->binsort_indices_[i] = i;
+  }
+
+  return OkStatus();
+}
+
+template<typename FloatType>
+void Plan<CPUDevice, FloatType>::binsort_singlethread() {
+  // Heuristic for bin dimensions. Affects performance.
+  int bin_dims[3] = {16, 4, 4};
+
+  // Number of bins in the box along each dimension.
+  int64_t box_dims[3];
+  int64_t num_bins = 1;
+  for (int d = 0; d < this->rank_; ++d) {
+    // +1 needed for robustness against round-off error near +pi.
+    // Note that round-off near -pi stably rounds negative to 0.
+    box_dims[d] = this->fine_dims_[d] / bin_dims[d] + 1;
+    num_bins *= box_dims[d];
+  }
+
+  std::vector<int64_t> counts(num_bins, 0);  // count how many pts in each bin
+  for (int64_t i = 0; i < this->num_points_; ++i) {
+    // find the bin index in however many dims are needed
+    int64_t bin_multi_index[3];
+    int64_t bin_index = 0;
+    for (int d = this->rank_ - 1; d >= 0; --d) {
+      bin_multi_index[d] = FOLD_AND_RESCALE(
+          this->points_[d][i], this->fine_dims_[d], pirange) / bin_dims[d];
+      bin_index = bin_multi_index[d] + box_dims[d] * bin_index;
+    }
+    counts[bin_index]++;
+  }
+
+  // Cumulative sum of bin counts.
+  std::vector<int64_t> offsets(num_bins);
+  offsets[0] = 0;
+  for (int64_t i = 1; i < num_bins; ++i) {
+    offsets[i] = offsets[i - 1] + counts[i - 1];
+  }
+
+  // Fill inverse map.
+  std::vector<int64_t> inv(this->num_points_);
+  for (int64_t i = 0; i < this->num_points_; ++i) {
+    // find the bin index (again! but better than using RAM)
+    int64_t bin_multi_index[3];
+    int64_t bin_index = 0;
+    for (int d = this->rank_ - 1; d >= 0; --d) {
+      bin_multi_index[d] = FOLD_AND_RESCALE(
+          this->points_[d][i], this->fine_dims_[d], pirange) / bin_dims[d];
+      bin_index = bin_multi_index[d] + box_dims[d] * bin_index;
+    }
+    int64_t offset = offsets[bin_index];
+    offsets[bin_index]++;
+    inv[i] = offset;
+  }
+
+  // invert the map, writing to output pointer (writing pattern is random)
+  for (int64_t i = 0; i < this->num_points_; i++) {
+    this->binsort_indices_[inv[i]] = i;
+  }
+}
+
+template<typename FloatType>
+void Plan<CPUDevice, FloatType>::binsort_multithread() {
+  // Heuristic for bin dimensions. Affects performance.
+  int bin_dims[3] = {16, 4, 4};
+  int num_threads = this->options_.num_threads;
+
+  // Can't have more threads than points.
+  num_threads = std::min(this->num_points_, num_threads);
+
+  int64_t box_dims[3];
+  int64_t num_bins = 1;
+  for (int d = 0; d < this->rank_; ++d) {
+    box_dims[d] = this->fine_dims_[d] / bin_dims[d] + 1;
+    num_bins *= box_dims[d];
+  }
+
+  // List of start NU point indices per thread.
+  std::vector<int64_t> break_points(num_threads + 1);
+
+  // Distribute the NU points to threads.
+  for (int thread_index = 0; thread_index <= num_threads; ++thread_index) {
+    break_points[thread_index] = static_cast<int64_t>(
+        0.5 + this->num_points_ * thread_index / static_cast<double>(num_threads));
+  }
+
+  // Global counts, number of points in each bin.
+  std::vector<int64_t> counts(num_bins, 0);
+
+  // Offsets per thread, size num_threads * num_bins,
+  // initialize to 0 by copying the counts vector.
+  std::vector<std::vector<int64_t>> offsets_per_thread(num_threads, counts);
+  {
+    // Scope for counts_per_thread, the 2D array of counts in bins for each
+    // thread's NU points. Has size num_threads * num_bins, init to 0 by
+    // copying counts.
+    std::vector<std::vector<int64_t>> counts_per_thread(num_threads, counts);
+
+    #pragma omp parallel num_threads(num_threads)
+    {
+      // Parallel binning to each thread's count. Block done once per thread.
+      int thread_index = OMP_GET_THREAD_NUM();
+
+      for (int64_t i = break_points[thread_index];
+           i < break_points[thread_index + 1];
+           ++i) {
+        // Find the bin index in however many dims are needed.
+        int64_t bin_multi_index[3];
+        int64_t bin_index = 0;
+        for (int d = this->rank_ - 1; d >= 0; --d) {
+          bin_multi_index[d] = FOLD_AND_RESCALE(
+              this->points_[d][i], this->fine_dims_[d], pirange) / bin_dims[d];
+          bin_index = bin_multi_index[d] + box_dims[d] * bin_index;
+        }
+        // Each element only ever accessed by one thread, so read-write op is
+        // safe.
+        counts_per_thread[thread_index][bin_index]++;
+      }
+    }
+
+    // Sum along thread axis to get global counts.
+    // Not worth parallelizing this loop. Either loop order is OK.
+    for (int64_t bin_index = 0; bin_index < num_bins; ++bin_index) {
+      for (int thread_index = 0; thread_index < num_threads; ++thread_index) {
+	      counts[bin_index] += counts_per_thread[thread_index][bin_index];
+      }
+    }
+
+    // Cumulative sum of bin counts.
+    std::vector<int64_t> offsets(num_bins);
+    offsets[0] = 0;
+    for (int64_t bin_index = 1; bin_index < num_bins; ++bin_index) {
+      offsets[bin_index] = offsets[bin_index - 1] + counts[bin_index - 1];
+    }
+
+    // Now build offsets for each thread and bin.
+    for (int64_t bin_index = 0; bin_index < num_bins; ++bin_index) {
+      offsets_per_thread[0][bin_index] = offsets[bin_index];
+    }
+    // Again not worth parallelizing. Either loop order OK.
+    for (int thread_index = 1; thread_index < num_threads; ++thread_index) {
+      for (int64_t bin_index = 0; bin_index < num_bins; ++bin_index) {
+        // Cumulative sum along threads axis.
+	      offsets_per_thread[thread_index][bin_index] = (
+            offsets_per_thread[thread_index - 1][bin_index] +
+            counts_per_thread[thread_index - 1][bin_index]);
+      }
+    }
+  }  // Scope frees up counts_per_thread here.
+
+  // Fill inverse map, in parallel.
+  std::vector<int64_t> inv(this->num_points_);
+  #pragma omp parallel num_threads(num_threads)
+  {
+    int thread_index = OMP_GET_THREAD_NUM();
+    for (int64_t i = break_points[thread_index];
+         i < break_points[thread_index + 1];
+         ++i) {
+      // Find the bin index (again, but better than using RAM).
+      int64_t bin_multi_index[3];
+      int64_t bin_index = 0;
+      for (int d = this->rank_ - 1; d >= 0; --d) {
+        bin_multi_index[d] = FOLD_AND_RESCALE(
+            this->points_[d][i], this->fine_dims_[d], pirange) / bin_dims[d];
+        bin_index = bin_multi_index[d] + box_dims[d] * bin_index;
+      }
+      // Get the offset for this NU point and thread.
+      inv[i] = offsets_per_thread[thread_index][bin_index];
+      // Each element only ever accessed by one thread, so read-write op is
+      // safe.
+      offsets_per_thread[thread_index][bin_index]++;
+    }
+  }
+
+  // Invert the map.
+  #pragma omp parallel for num_threads(num_threads) schedule(dynamic,10000)
+  for (int64_t i = 0; i < this->num_points_; ++i) {
+    this->binsort_indices_[inv[i]] = i;
+  }
+}
+
+template<typename FloatType>
 Status Plan<CPUDevice, FloatType>::spread_or_interp(DType* cj, DType* fk) {
   // Loop over batches.
   for (int batch_index = 0;
@@ -499,9 +695,9 @@ Status Plan<CPUDevice, FloatType>::spread_or_interp_sorted_batch(
   for (int i=0; i<batch_size; i++) {
     DType *fwi = fBatch + i*this->fine_size_;  // start of i'th fw array in wkspace
     DType *ci = cBatch + i*this->num_points_;            // start of i'th c array in cBatch
-    spreadinterpSorted(this->sort_indices_, grid_size_0, grid_size_1, grid_size_2,
+    spreadinterpSorted(this->binsort_indices_, grid_size_0, grid_size_1, grid_size_2,
                        (FloatType*)fwi, this->num_points_, this->points_[0], this->points_[1], this->points_[2],
-                       (FloatType*)ci, this->spread_params_, this->did_sort_);
+                       (FloatType*)ci, this->spread_params_, this->do_binsort_);
   }
   return OkStatus();
 }
@@ -799,234 +995,6 @@ Status check_spread_inputs(int64_t n1, int64_t n2, int64_t n3, int64_t num_point
   return OkStatus();
 }
 
-// This makes a decision whether or not to sort the NU pts (influenced by
-// opts.sort_points), and if yes, calls either single- or multi-threaded bin sort,
-// writing reordered index list to sort_indices. If decided not to sort, the
-// identity permutation is written to sort_indices.
-// The permutation is designed to make RAM access close to contiguous, to
-// speed up spreading/interpolation, in the case of disordered NU points.
-
-// Inputs:
-// num_points        - number of input NU points.
-// kx,ky,kz - length-num_points arrays of real coords of NU pts, in the domain
-//             for FOLD_AND_RESCALE, which includes [0,n1], [0,n2], [0,n3]
-//             respectively, if opts.pirange=0; or [-pi,pi] if opts.pirange=1.
-//             (only kz used in 1D, only kx and ky used in 2D.)
-// n1,n2,n3 - integer sizes of overall box (set n2=n3=1 for 1D, n3=1 for 2D).
-//             1 = x (fastest), 2 = y (medium), 3 = z (slowest).
-// opts     - spreading options struct, documented in ../include/SpreadParameters<FloatType>.h
-// Outputs:
-// sort_indices - a good permutation of NU points. (User must preallocate
-//                 to length num_points.) Ie, kx[sort_indices[j]], j=0,..,num_points-1, is a good
-//                 ordering for the x-coords of NU pts, etc.
-// returned value - true if sorting was done, false otherwise.
-
-// Barnett 2017; split out by Melody Shih, Jun 2018.
-// Called indexSort in original FINUFFT code.
-template<typename FloatType>
-bool bin_sort_points(int64_t* sort_indices, int64_t n1, int64_t n2, int64_t n3,
-                     int64_t num_points,  FloatType *kx, FloatType *ky,
-                     FloatType *kz, SpreadParameters<FloatType> opts) {
-  int rank = get_transform_rank(n1, n2, n3);
-  int64_t grid_size = n1 * n2 * n3;
-
-  // Heuristic binning box size for uniform grid... affects performance:
-  double bin_size_x = 16, bin_size_y = 4, bin_size_z = 4;
-  // Put in heuristics based on cache sizes (only useful for single-thread).
-  bool should_sort = !(rank == 1 && (opts.spread_direction == SpreadDirection::INTERP || (num_points > 1000 * n1)));  // 1D small-grid_size or dir=2 case: don't sort
-  bool did_sort = false;
-
-  int max_threads = OMP_GET_MAX_THREADS();
-  if (opts.num_threads > 0)  // user override up to max threads
-    max_threads = std::min(max_threads, opts.num_threads);
-
-  if (opts.sort_points == SortPoints::YES ||
-      (opts.sort_points == SortPoints::AUTO && should_sort)) {
-    // store a good permutation ordering of all NU pts (rank=1,2 or 3)
-    int sort_debug = (opts.verbosity>=2);   // show timing output?
-    int sort_threads = opts.sort_threads;   // choose # threads for sorting
-    if (sort_threads == 0)   // use auto choice: when grid_size >> num_points, one thread is better!
-      sort_threads = (10 * num_points > grid_size) ? max_threads : 1;
-    if (sort_threads == 1) {
-      bin_sort_singlethread(sort_indices, num_points, kx, ky, kz, n1, n2, n3,
-                            opts.pirange, bin_size_x, bin_size_y, bin_size_z,
-                            sort_debug);
-    }
-    else {
-      bin_sort_multithread(sort_indices, num_points, kx, ky, kz, n1, n2, n3,
-                           opts.pirange, bin_size_x, bin_size_y, bin_size_z,
-                           sort_debug, sort_threads);
-    }
-    did_sort = true;
-  } else {
-    // Set identity permutation. Here OMP helps Xeon, hinders i7.
-    #pragma omp parallel for num_threads(max_threads) schedule(static,1000000)
-    for (int64_t i = 0; i < num_points; i++)
-      sort_indices[i] = i;
-  }
-  return did_sort;
-}
-
-/* Returns permutation of all nonuniform points with good RAM access,
- * ie less cache misses for spreading, in 1D, 2D, or 3D. Single-threaded version
- *
- * This is achieved by binning into cuboids (of given bin_size within the
- * overall box domain), then reading out the indices within
- * these bins in a Cartesian cuboid ordering (x fastest, y med, z slowest).
- * Finally the permutation is inverted, so that the good ordering is: the
- * NU pt of index ret[0], the NU pt of index ret[1],..., NU pt of index ret[num_points-1]
- *
- * Inputs: num_points - number of input NU points.
- *         kx,ky,kz - length-num_points arrays of real coords of NU pts, in the domain
- *                    for FOLD_AND_RESCALE, which includes [0,n1], [0,n2], [0,n3]
- *                    respectively, if pirange=0; or [-pi,pi] if pirange=1.
- *         n1,n2,n3 - integer sizes of overall box (n2=n3=1 for 1D, n3=1 for 2D)
- *         bin_size_x,y,z - what binning box size to use in each dimension
- *                    (in rescaled coords where ranges are [0,Ni] ).
- *                    For 1D, only bin_size_x is used; for 2D, it & bin_size_y.
- * Output:
- *         writes to ret a vector list of indices, each in the range 0,..,num_points-1.
- *         Thus, ret must have been preallocated for num_points int64_ts.
- *
- * Notes: I compared RAM usage against declaring an internal vector and passing
- * back; the latter used more RAM and was slower.
- * Avoided the bins array, as in JFM's spreader of 2016,
- * tidied up, early 2017, Barnett.
- *
- * Timings (2017): 3s for num_points=1e8 NU pts on 1 core of i7; 5s on 1 core of xeon.
- */
-template<typename FloatType>
-void bin_sort_singlethread(
-    int64_t *ret, int64_t num_points, FloatType *kx, FloatType *ky, FloatType *kz,
-    int64_t n1, int64_t n2, int64_t n3, int pirange,
-    double bin_size_x, double bin_size_y, double bin_size_z, int debug) {
-  bool isky = (n2 > 1), iskz = (n3 > 1);  // ky,kz avail? (cannot access if not)
-  // here the +1 is needed to allow round-off error causing i1=n1/bin_size_x,
-  // for kx near +pi, ie foldrescale gives n1 (exact arith would be 0 to n1-1).
-  // Note that round-off near kx=-pi stably rounds negative to i1=0.
-  int64_t nbins1 = n1 / bin_size_x + 1, nbins2, nbins3;
-  nbins2 = isky ? n2 / bin_size_y + 1 : 1;
-  nbins3 = iskz ? n3 / bin_size_z + 1 : 1;
-  int64_t num_bins = nbins1 * nbins2 * nbins3;
-
-  std::vector<int64_t> counts(num_bins,0);  // count how many pts in each bin
-  for (int64_t i = 0; i < num_points; i++) {
-    // find the bin index in however many dims are needed
-    int64_t i1 = FOLD_AND_RESCALE(kx[i], n1, pirange) / bin_size_x, i2 = 0, i3 = 0;
-    if (isky) i2 = FOLD_AND_RESCALE(ky[i], n2, pirange) / bin_size_y;
-    if (iskz) i3 = FOLD_AND_RESCALE(kz[i], n3, pirange) / bin_size_z;
-    int64_t bin = i1 + nbins1 * (i2 + nbins2 * i3);
-    counts[bin]++;
-  }
-  std::vector<int64_t> offsets(num_bins);   // cumulative sum of bin counts
-  offsets[0] = 0;     // do: offsets = [0 cumsum(counts(1:end-1)]
-  for (int64_t i = 1; i < num_bins; i++) {
-    offsets[i] = offsets[i - 1] + counts[i-1];
-  }
-
-  std::vector<int64_t> inv(num_points);           // fill inverse map
-  for (int64_t i = 0; i < num_points; i++) {
-    // find the bin index (again! but better than using RAM)
-    int64_t i1 = FOLD_AND_RESCALE(kx[i], n1, pirange) / bin_size_x, i2 = 0, i3 = 0;
-    if (isky) i2 = FOLD_AND_RESCALE(ky[i], n2, pirange) / bin_size_y;
-    if (iskz) i3 = FOLD_AND_RESCALE(kz[i], n3, pirange) / bin_size_z;
-    int64_t bin = i1 + nbins1 * (i2 + nbins2 * i3);
-    int64_t offset = offsets[bin];
-    offsets[bin]++;
-    inv[i] = offset;
-  }
-  // invert the map, writing to output pointer (writing pattern is random)
-  for (int64_t i = 0; i < num_points; i++) {
-    ret[inv[i]] = i;
-  }
-}
-
-// Mostly-OpenMP'ed version of bin_sort_singlethread.
-// For documentation see: bin_sort_singlethread.
-// Caution: when num_points (# NU pts) << N (# U pts), is SLOWER than single-thread.
-// Barnett 2/8/18
-// Explicit #threads control argument 7/20/20.
-// Todo: if debug, print timing breakdowns.
-template<typename FloatType>
-void bin_sort_multithread(
-    int64_t *ret, int64_t num_points, FloatType *kx, FloatType *ky, FloatType *kz,
-    int64_t n1,int64_t n2,int64_t n3,int pirange,
-    double bin_size_x, double bin_size_y, double bin_size_z, int debug,
-    int num_threads) {
-
-  bool isky = (n2 > 1), iskz = (n3 > 1);  // ky,kz avail? (cannot access if not)
-  int64_t nbins1=n1 / bin_size_x + 1, nbins2, nbins3;  // see above note on why +1
-  nbins2 = isky ? n2 / bin_size_y + 1 : 1;
-  nbins3 = iskz ? n3 / bin_size_z + 1 : 1;
-  int64_t num_bins = nbins1 * nbins2 * nbins3;
-  if (num_threads == 0)
-    fprintf(stderr, "[%s] num_threads (%d) must be positive!\n",
-            __func__, num_threads);
-  // handle case of less points than threads
-  num_threads = std::min(num_points, (int64_t)num_threads);
-  std::vector<int64_t> brk(num_threads+1);    // list of start NU pt indices per thread
-
-  // distribute the NU pts to threads once & for all...
-  for (int thread_index = 0; thread_index <= num_threads; ++thread_index)
-    brk[thread_index] = (int64_t)(0.5 + num_points * thread_index / (double)num_threads);
-
-  std::vector<int64_t> counts(num_bins, 0);     // global counts: # pts in each bin
-  // offsets per thread, size num_threads * num_bins, init to 0 by copying the counts vec...
-  std::vector< std::vector<int64_t> > ot(num_threads, counts);
-  {    // scope for ct, the 2d array of counts in bins for each thread's NU pts
-    std::vector< std::vector<int64_t> > ct(num_threads, counts);   // num_threads * num_bins, init to 0
-
-    #pragma omp parallel num_threads(num_threads)
-    {  // parallel binning to each thread's count. Block done once per thread
-      int thread_index = OMP_GET_THREAD_NUM();
-      //printf("\tt=%d: [%d,%d]\n",thread_index,jlo[thread_index],jhi[thread_index]);
-      for (int64_t i = brk[thread_index]; i < brk[thread_index+1]; i++) {
-        // find the bin index in however many dims are needed
-        int64_t i1=FOLD_AND_RESCALE(kx[i],n1,pirange)/bin_size_x, i2=0, i3=0;
-        if (isky) i2 = FOLD_AND_RESCALE(ky[i],n2,pirange)/bin_size_y;
-        if (iskz) i3 = FOLD_AND_RESCALE(kz[i],n3,pirange)/bin_size_z;
-        int64_t bin = i1+nbins1*(i2+nbins2*i3);
-        ct[thread_index][bin]++;               // no clash btw threads
-      }
-    }
-    // sum along thread axis to get global counts
-    for (int64_t b = 0; b < num_bins; ++b)   // (not worth omp. Either loop order is ok)
-      for (int thread_index = 0; thread_index < num_threads; ++thread_index)
-	  counts[b] += ct[thread_index][b];
-
-    std::vector<int64_t> offsets(num_bins);   // cumulative sum of bin counts
-    // do: offsets = [0 cumsum(counts(1:end-1))] ...
-    offsets[0] = 0;
-    for (int64_t i = 1; i < num_bins; i++)
-      offsets[i] = offsets[i-1] + counts[i-1];
-
-    for (int64_t b = 0; b < num_bins; ++b)  // now build offsets for each thread & bin:
-      ot[0][b] = offsets[b];                     // init
-    for (int thread_index = 1; thread_index < num_threads; ++thread_index)   // (again not worth omp. Either loop order is ok)
-      for (int64_t b = 0; b < num_bins; ++b)
-	ot[thread_index][b] = ot[thread_index - 1][b]+ct[thread_index - 1][b];        // cumsum along thread_index axis
-
-  }  // scope frees up ct here, before inv alloc
-
-  std::vector<int64_t> inv(num_points);           // fill inverse map, in parallel
-  #pragma omp parallel num_threads(num_threads)
-  {
-    int thread_index = OMP_GET_THREAD_NUM();
-    for (int64_t i = brk[thread_index]; i < brk[thread_index+1]; i++) {
-      // find the bin index (again! but better than using RAM)
-      int64_t i1=FOLD_AND_RESCALE(kx[i], n1, pirange) / bin_size_x, i2=0, i3=0;
-      if (isky) i2 = FOLD_AND_RESCALE(ky[i], n2, pirange) / bin_size_y;
-      if (iskz) i3 = FOLD_AND_RESCALE(kz[i], n3, pirange) / bin_size_z;
-      int64_t bin = i1 + nbins1 * (i2 + nbins2 * i3);
-      inv[i] = ot[thread_index][bin];   // get the offset for this NU pt and thread
-      ot[thread_index][bin]++;               // no clash
-    }
-  }
-  // invert the map, writing to output pointer (writing pattern is random)
-  #pragma omp parallel for num_threads(num_threads) schedule(dynamic,10000)
-  for (int64_t i=0; i<num_points; i++)
-    ret[inv[i]]=i;
-}
 
 static int get_transform_rank(int64_t n1, int64_t n2, int64_t n3) {
   int rank = 1;

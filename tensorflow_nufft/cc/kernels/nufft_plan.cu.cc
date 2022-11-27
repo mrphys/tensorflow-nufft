@@ -1927,10 +1927,10 @@ Status Plan<GPUDevice, FloatType>::initialize(
     this->batch_size_ = this->options_.max_batch_size();
   }
 
-  if (this->type_ == TransformType::TYPE_1)
-    this->spread_params_.spread_direction = SpreadDirection::SPREAD;
-  if (this->type_ == TransformType::TYPE_2)
-    this->spread_params_.spread_direction = SpreadDirection::INTERP;
+  TF_RETURN_IF_ERROR(this->initialize_interpolator());
+
+  // TODO(jmontalt): Remove once spread_params_ has been refactored away.
+  this->spread_params_.spread_direction = this->spread_direction_;
 
   // Compute bin dimension sizes.
   this->bin_dims_[0] = this->options_.gpu_bin_size.x;

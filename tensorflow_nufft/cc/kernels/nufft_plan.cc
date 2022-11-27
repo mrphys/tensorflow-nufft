@@ -468,10 +468,10 @@ Status Plan<CPUDevice, FloatType>::spread_or_interp(DType* cj, DType* fk) {
         this->batch_size_);
 
     // Execute this batch.
-    this->spread_or_interp_sorted_batch(
+    TF_RETURN_IF_ERROR(this->spread_or_interp_sorted_batch(
         batch_size,
         cj + batch_index * this->batch_size_ * this->num_points_,
-        fk + batch_index * this->batch_size_ * this->grid_size_);
+        fk + batch_index * this->batch_size_ * this->grid_size_));
   }
 
   return OkStatus();

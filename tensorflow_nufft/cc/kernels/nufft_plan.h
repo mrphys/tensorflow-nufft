@@ -134,6 +134,7 @@ enum class SpreadDirection {
   INTERP   // uniform to non-uniform
 };
 
+// TODO(jmontalt): Remove this structure.
 template<typename FloatType>
 struct SpreadParameters {
   // The spread direction (U->NU or NU->U). See enum above.
@@ -221,7 +222,7 @@ class PlanBase {
   // evaluates spreading kernel coefficients, and instantiates the FFT plan.
   virtual Status initialize(TransformType type,
                             int rank,
-                            int* num_modes,
+                            int* grid_dims,
                             FftDirection fft_direction,
                             int num_transforms,
                             FloatType tol,
@@ -263,6 +264,10 @@ class PlanBase {
   // this->options_ is valid after calling this function.
   Status set_default_options();
 
+  // Initializes the interpolator and related quantities.
+  // Sets this->spread_direction_.
+  Status initialize_interpolator();
+
   // Initializes the fine grid dimension sizes and allocates the array.
   // Sets: fine_dims_, fine_size_, fine_tensor_, fine_data_ and
   //   options_.upsampling_factor.
@@ -279,6 +284,10 @@ class PlanBase {
 
   // Folds and rescales nonuniform points to the canonical range.
   Status fold_and_rescale_points();
+
+  // Computes permutation of all nonuniform points with improved RAM access,
+  // i.e. less cache misses for spreading.
+  virtual Status binsort_if_needed() = 0;
 
   // general
 
@@ -298,6 +307,9 @@ class PlanBase {
 
   // Direction of the FFT. See enum above.
   FftDirection fft_direction_;
+
+  // Direction of the spreading. See enum above.
+  SpreadDirection spread_direction_;
 
   // Relative user tol.
   FloatType tol_;
@@ -365,7 +377,7 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
 
   Status initialize(TransformType type,
                     int rank,
-                    int* num_modes,
+                    int* grid_dims,
                     FftDirection fft_direction,
                     int num_transforms,
                     FloatType tol,
@@ -434,11 +446,49 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // Sets this->fft_plan_.
   Status initialize_fft() override;
 
+  // Computes permutation of all nonuniform points with improved RAM access,
+  // i.e. less cache misses for spreading.
+  //
+  // Decides whether or not to sort the NU points (taking user options into
+  // account). If yes, do_binsort_ is set to true and either single- or
+  // multi-threaded bin-sort implementations are called, writing reordered
+  // index list to binsort_indices_. The permutation is designed to make RAM
+  // access close to contiguous, to speed up spreading/interpolation, in the
+  // case of disordered non-uniform points. If bin-sorting is deemed
+  // unnecessary, do_binsort_ is set to false and the identity permutation is
+  // written to binsort_indices_.
+  Status binsort_if_needed() override;
+
+  // Computes permutation of all nonuniform points with improved RAM access,
+  // i.e. less cache misses for spreading. Single-threaded implementation.
+  //
+  // This is achieved by binning into cuboids of a given bin size within the
+  // overall box domain, then reading out the indices within these bins in a
+  // Cartesian cuboid ordering (x fastest, z slowest changing). Finally the
+  // permutation is inverted and the result is written to binsort_indices_. The
+  // NU points can then be efficiently accessed with
+  // points_[d][binsort_indices_[i]].
+  void binsort_singlethread();
+
+  // Computes permutation of all nonuniform points with improved RAM access,
+  // i.e. less cache misses for spreading. Multi-threaded implementation.
+  //
+  // Note: when num_points_ << grid_size_, this function is slower than
+  // `binsort_singlethread`.
+  void binsort_multithread();
+
   // Retrieves the default Thrust execution policy.
   const ExecutionPolicyType execution_policy() const override {
     // TODO: consider using a multi-threaded policy.
     return thrust::cpp::par;
   }
+
+ private:
+  // Whether bin-sorting is used to reorder the NU points.
+  bool do_binsort_;
+
+  // Precomputed non-uniform point permutation, used to speed up spread/interp.
+  Tensor binsort_indices_;
 
  public:  // TODO(jmontalt): make private after refactoring FINUFFT.
 
@@ -455,10 +505,6 @@ class Plan<CPUDevice, FloatType> : public PlanBase<CPUDevice, FloatType> {
   // Convenience raw pointers to above tensors. Only the first `rank` pointers
   // are valid.
   FloatType* fseries_data_[3];
-  // Precomputed non-uniform point permutation, used to speed up spread/interp.
-  int64_t* sort_indices_;
-  // Whether bin-sorting was used.
-  bool did_sort_;
 };
 
 #if GOOGLE_CUDA
@@ -476,7 +522,7 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
 
   Status initialize(TransformType type,
                     int rank,
-                    int* num_modes,
+                    int* grid_dims,
                     FftDirection fft_direction,
                     int num_transforms,
                     FloatType tol,
@@ -506,10 +552,14 @@ class Plan<GPUDevice, FloatType> : public PlanBase<GPUDevice, FloatType> {
   // Initializes the FFT library and plan.
   Status initialize_fft() override;
 
+  // Computes permutation of all nonuniform points with improved RAM access,
+  // i.e. less cache misses for spreading.
+  Status binsort_if_needed() override;
+
+  // Initializes subproblems for subproblem-based interpolation/spreading.
+  Status initialize_subproblems();
+
  private:
-  Status init_spreader();
-  Status init_spreader_nupts_driven();
-  Status init_spreader_subproblem();
   Status spread_batch(int batch_size);
   Status interp_batch(int batch_size);
   Status spread_batch_nupts_driven(int batch_size);
@@ -728,6 +778,26 @@ Status PlanBase<Device, FloatType>::set_default_options() {
 
   return OkStatus();
 }
+
+
+template<typename Device, typename FloatType>
+Status PlanBase<Device, FloatType>::initialize_interpolator() {
+  switch (this->type_) {
+    case TransformType::TYPE_1: {  // spreading, NU -> U
+      this->spread_direction_ = SpreadDirection::SPREAD;
+      break;
+    }
+    case TransformType::TYPE_2: {  // interpolation, U -> NU
+      this->spread_direction_ = SpreadDirection::INTERP;
+      break;
+    }
+    default: {
+      LOG(FATAL) << "Invalid transform type.";
+    }
+  }
+
+  return OkStatus();
+};
 
 
 template<typename Device, typename FloatType>

@@ -84,12 +84,12 @@ class NUFFTOpsTest(tf.test.TestCase):
     self.assertAllClose(target1, target2, rtol=rtol, atol=atol)
 
 
-  @parameterized(grid_shape=[[6, 8], [4, 8, 6]],
+  @parameterized(grid_shape=[[8], [6, 8], [4, 8, 6]],
                  source_batch_shape=[[], [2, 4], [4]],
                  points_batch_shape=[[], [2, 1], [1, 4], [4]],
                  transform_type=['type_1', 'type_2'],
                  fft_direction=['forward', 'backward'],
-                 points_shift=[1, -1],
+                 # points_shift=[1, -1],
                  dtype=[tf.dtypes.complex64, tf.dtypes.complex128],
                  device=['/cpu:0', '/gpu:0'])
   def test_nufft(self,  # pylint: disable=missing-param-doc
@@ -98,7 +98,7 @@ class NUFFTOpsTest(tf.test.TestCase):
                  points_batch_shape=None,
                  transform_type=None,
                  fft_direction=None,
-                 points_shift=None,
+                 points_shift=0,
                  dtype=None,
                  device=None):
     """Test NUFFT op result and gradients against naive NUDFT results."""
@@ -144,11 +144,14 @@ class NUFFTOpsTest(tf.test.TestCase):
               target_shape, minval=-0.5, maxval=0.5, dtype=dtype.real_dtype))
 
       # Shift points by a multiple of 2 * pi for periodicity tests.
-      shifted_points = points + 2 * np.pi * points_shift
+      if points_shift != 0:
+        shifted_points = points + 2 * np.pi * points_shift
 
       with tf.GradientTape(persistent=True) as tape:
-
-        tape.watch([source, points, shifted_points])
+        watched_vars = [source, points]
+        if points_shift != 0:
+          watched_vars.append(shifted_points)
+        tape.watch(watched_vars)
 
         result_nufft = nufft_ops.nufft(
             source, points,
@@ -168,11 +171,12 @@ class NUFFTOpsTest(tf.test.TestCase):
         result_nudft_mult = result_nudft * multiplier
 
         # Compute NUFFT with points shifted by a multiple of 2 * pi.
-        result_nufft_shift = nufft_ops.nufft(
-            source, shifted_points,
-            grid_shape=grid_shape,
-            transform_type=transform_type,
-            fft_direction=fft_direction)
+        if points_shift != 0:
+          result_nufft_shift = nufft_ops.nufft(
+              source, shifted_points,
+              grid_shape=grid_shape,
+              transform_type=transform_type,
+              fft_direction=fft_direction)
 
       # Compute gradients.
       grad_source_nufft, grad_points_nufft = tape.gradient(
@@ -187,8 +191,9 @@ class NUFFTOpsTest(tf.test.TestCase):
           result_nudft_mult, [source, points])
 
       # Compute gradients with shifted points.
-      grad_source_nufft_shift, grad_points_nufft_shift = tape.gradient(
-          result_nufft_shift, [source, shifted_points])
+      if points_shift != 0:
+        grad_source_nufft_shift, grad_points_nufft_shift = tape.gradient(
+            result_nufft_shift, [source, shifted_points])
 
       if device == '/gpu:0':
         # TODO(jmontalt): look into precision issues on some GPU devices.
@@ -206,12 +211,13 @@ class NUFFTOpsTest(tf.test.TestCase):
       self.assertAllClose(grad_points_nufft_mult, grad_points_nudft_mult,
                           rtol=tol, atol=tol)
       # Check that shifting the points by 2*pi does not affect the result.
-      self.assertAllClose(result_nufft_shift, result_nudft,
-                          rtol=tol, atol=tol)
-      self.assertAllClose(grad_source_nufft_shift, grad_source_nudft,
-                          rtol=tol, atol=tol)
-      self.assertAllClose(grad_points_nufft_shift, grad_points_nudft,
-                          rtol=tol, atol=tol)
+      if points_shift != 0:
+        self.assertAllClose(result_nufft_shift, result_nudft,
+                            rtol=tol, atol=tol)
+        self.assertAllClose(grad_source_nufft_shift, grad_source_nudft,
+                            rtol=tol, atol=tol)
+        self.assertAllClose(grad_points_nufft_shift, grad_points_nudft,
+                            rtol=tol, atol=tol)
       self.assertAllEqual(result_nufft.shape, target_shape)
 
 
@@ -432,10 +438,6 @@ class NUFFTOpsTest(tf.test.TestCase):
   @parameterized(rank=[1, 2, 3], device=['/cpu:0', '/gpu:0'])
   def test_nufft_type_1_invalid_grid_shape_raises(self, rank, device):  # pylint: disable=missing-param-doc
     """Test that type-1 transform raises error when given invalid grid shape."""
-    # TODO(#14): Remove once 1D NUFFT has been implemented.
-    if rank == 1 and device == '/gpu:0':
-      self.skipTest("1D NUFFT not implemented on GPU")
-
     with tf.device(device):
       source = tf.complex(
           tf.random.normal(shape=(10,), dtype=tf.float32),

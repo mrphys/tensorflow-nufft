@@ -2,6 +2,14 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//build_deps/tf_dependency:tf_configure.bzl", "tf_configure")
 load("//build_deps/toolchains/gpu:cuda_configure.bzl", "cuda_configure")
 
+all_content = """\
+filegroup(
+    name = "all",
+    srcs = glob(["**"]),
+    visibility = ["//visibility:public"],
+)
+"""
+
 http_archive(
     name = "cub_archive",
     build_file = "//build_deps/toolchains/gpu:cub.BUILD",
@@ -43,3 +51,22 @@ tf_workspace1()
 load("@org_tensorflow//tensorflow:workspace0.bzl", "tf_workspace0")
 
 tf_workspace0()
+
+http_archive(
+    name = "rules_foreign_cc",
+    sha256 = "2a4d07cd64b0719b39a7c12218a3e507672b82a97b98c6a89d38565894cf7c51",
+    strip_prefix = "rules_foreign_cc-0.9.0",
+    url = "https://github.com/bazelbuild/rules_foreign_cc/archive/refs/tags/0.9.0.tar.gz",
+)
+
+load("@rules_foreign_cc//foreign_cc:repositories.bzl", "rules_foreign_cc_dependencies")
+
+rules_foreign_cc_dependencies()
+
+http_archive(
+   name = "fftw",
+   build_file_content = all_content,
+   sha256 = "56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467",
+   strip_prefix = "fftw-3.3.10",
+   url = "https://www.fftw.org/fftw-3.3.10.tar.gz",
+)

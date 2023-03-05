@@ -1,6 +1,7 @@
 #syntax=docker/dockerfile:1.1.5-experimental
-ARG PY_VERSION
-FROM tensorflow/build:2.11-python$PY_VERSION as base_install
+ARG PY_VERSION=3.8
+ARG TF_VERSION=2.11
+FROM tensorflow/build:$TF_VERSION-python$PY_VERSION as base_install
 
 ENV TF_NEED_CUDA="1"
 ARG PY_VERSION
@@ -11,6 +12,24 @@ ARG TF_VERSION
 RUN python -m pip uninstall -y keras-nightly
 
 RUN python -m pip install --default-timeout=1000 tensorflow==$TF_VERSION
+
+# # Install FFTW library.
+# ARG FFTW_VERSION=3.3.10
+# ARG PREFIX=/dt9/usr
+# ARG CC="${PREFIX}/bin/gcc"
+# ARG CXX="${PREFIX}/bin/g++"
+# ARG LIBDIR="${PREFIX}/lib"
+# ARG INCLUDEDIR="${PREFIX}/include"
+# ARG CFLAGS="-O3 -march=x86-64 -mtune=generic -fPIC"
+# RUN cd /opt && \
+#     curl -sL http://www.fftw.org/fftw-${FFTW_VERSION}.tar.gz | tar xz && \
+#     cd fftw-${FFTW_VERSION} && \
+#     ./configure CC="${CC}" CFLAGS="${CFLAGS}" --prefix ${PREFIX} --enable-openmp --enable-float && \
+#     make && \
+#     make install && \
+#     ./configure CC="${CC}" CFLAGS="${CFLAGS}" --prefix ${PREFIX} --enable-openmp && \
+#     make && \
+#     make install
 
 COPY tools/install_deps/ /install_deps
 RUN python -m pip install -r /install_deps/pytest.txt
@@ -31,7 +50,10 @@ ARG NIGHTLY_FLAG=
 ARG NIGHTLY_TIME=
 ARG SKIP_CUSTOM_OP_TESTS=
 
-# SKIP_CUSTOM_OP_TESTS is not supported.
+# NIGHTLY_FLAG, NIGHTLY_TIME and SKIP_CUSTOM_OP_TESTS are not currently
+# supported for TensorFlow NUFFT.
+RUN if [[ -n "$NIGHTLY_FLAG" ]] ; then exit 1 ; fi
+RUN if [[ -n "$NIGHTLY_TIME" ]] ; then exit 1 ; fi
 RUN if [[ -n "$SKIP_CUSTOM_OP_TESTS" ]] ; then exit 1 ; fi
 
 RUN python configure.py

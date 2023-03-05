@@ -9,7 +9,8 @@
 		"ms-vscode.makefile-tools",
 		"github.vscode-pull-request-github",
 		"github.copilot",
-		"zxh404.vscode-proto3"
+		"zxh404.vscode-proto3",
+		"BazelBuild.vscode-bazel"
 	],
 	// Enable GPUs.
 	"runArgs": [

@@ -9,6 +9,7 @@
 *.ipynb_checkpoints*
 __pycache__/
 artifacts/
+wheelhouse/
 docs/_*
 docs/api_docs/tfft/
 *_pb2.py

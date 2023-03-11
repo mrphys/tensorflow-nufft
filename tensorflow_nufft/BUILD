@@ -2,8 +2,7 @@ licenses(["notice"])  # Apache 2.0
 
 package(default_visibility = ["//visibility:public"])
 
-load("@rules_foreign_cc//foreign_cc:configure.bzl", "configure_make")
-
+load("@rules_proto//proto:defs.bzl", "proto_library")
 load("//tensorflow_nufft:tensorflow_nufft.bzl", "custom_op_library")
 
 config_setting(
@@ -22,6 +21,10 @@ py_library(
 custom_op_library(
     name = "python/ops/_nufft_ops.so",
     srcs = [
+        "cc/kernels/fftw_api.h",
+        "cc/kernels/omp_api.h",
+        "cc/kernels/kernel_horner_sigma2.inc",
+        "cc/kernels/kernel_horner_sigma125.inc",
         "cc/kernels/legendre_rule_fast.cc",
         "cc/kernels/legendre_rule_fast.h",
         "cc/kernels/nufft_kernels.cc",
@@ -45,15 +48,17 @@ custom_op_library(
         "cc/kernels/transpose_functor_gpu.cu.cc",
     ],
     deps = [
-        "fftw"
+        "@//build_deps/fftw3",
+        ":nufft_options_cc_proto",
     ],
 )
 
-configure_make(
-    name = "fftw",
-    configure_in_place = True,
-    lib_source = "@fftw//:all",
-    out_include_dir = "api",
-    out_lib_dir = ".libs",
-    out_static_libs = ["libfftw3.a"],
+cc_proto_library(
+    name = "nufft_options_cc_proto",
+    deps = [":nufft_options_proto"],
+)
+
+proto_library(
+    name = "nufft_options_proto",
+    srcs = ["proto/nufft_options.proto"],
 )

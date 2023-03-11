@@ -2,13 +2,17 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//build_deps/tf_dependency:tf_configure.bzl", "tf_configure")
 load("//build_deps/toolchains/gpu:cuda_configure.bzl", "cuda_configure")
 
-all_content = """\
+ALL_CONTENT = """\
 filegroup(
     name = "all",
     srcs = glob(["**"]),
     visibility = ["//visibility:public"],
 )
 """
+
+tf_configure(name = "local_config_tf")
+
+cuda_configure(name = "local_config_cuda")
 
 http_archive(
     name = "cub_archive",
@@ -20,12 +24,6 @@ http_archive(
         "https://github.com/NVlabs/cub/archive/1.8.0.zip",
     ],
 )
-
-tf_configure(
-    name = "local_config_tf",
-)
-
-cuda_configure(name = "local_config_cuda")
 
 http_archive(
     name = "org_tensorflow",
@@ -52,6 +50,22 @@ load("@org_tensorflow//tensorflow:workspace0.bzl", "tf_workspace0")
 
 tf_workspace0()
 
+# Compilation of protocol buffers.
+http_archive(
+    name = "rules_proto",
+    sha256 = "dc3fb206a2cb3441b485eb1e423165b231235a1ea9b031b4433cf7bc1fa460dd",
+    strip_prefix = "rules_proto-5.3.0-21.7",
+    urls = [
+        "https://github.com/bazelbuild/rules_proto/archive/refs/tags/5.3.0-21.7.tar.gz",
+    ],
+)
+
+load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
+
+rules_proto_dependencies()
+rules_proto_toolchains()
+
+# Compilation of non-Bazel C/C++ projects (e.g., FFTW3).
 http_archive(
     name = "rules_foreign_cc",
     sha256 = "2a4d07cd64b0719b39a7c12218a3e507672b82a97b98c6a89d38565894cf7c51",
@@ -64,9 +78,9 @@ load("@rules_foreign_cc//foreign_cc:repositories.bzl", "rules_foreign_cc_depende
 rules_foreign_cc_dependencies()
 
 http_archive(
-   name = "fftw",
-   build_file_content = all_content,
-   sha256 = "56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467",
-   strip_prefix = "fftw-3.3.10",
-   url = "https://www.fftw.org/fftw-3.3.10.tar.gz",
+    name = "fftw3_archive",
+    build_file_content = ALL_CONTENT,
+    sha256 = "56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467",
+    strip_prefix = "fftw-3.3.10",
+    url = "https://www.fftw.org/fftw-3.3.10.tar.gz",
 )

@@ -22,6 +22,7 @@ def cuda_is_configured():
     """Returns true if CUDA was enabled during the configure process."""
     return %{cuda_is_configured}
 
+
 def if_cuda_is_configured(x):
     """Tests if the CUDA was enabled during the configure process.
 
@@ -31,6 +32,7 @@ def if_cuda_is_configured(x):
     if cuda_is_configured():
       return x
     return []
+
 
 def cuda_header_library(
         name,
@@ -60,3 +62,8 @@ def cuda_header_library(
         deps = deps + [":%s_virtual" % name],
         **kwargs
     )
+
+
+def cuda_library(copts = [], **kwargs):
+    """Wrapper over cc_library which adds default CUDA options."""
+    native.cc_library(copts = cuda_default_copts() + copts, **kwargs)

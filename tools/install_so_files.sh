@@ -6,3 +6,4 @@ fi
 
 bazel build $CUDA_FLAG //tensorflow_nufft/...
 cp ./bazel-bin/tensorflow_nufft/python/ops/_nufft_ops.so ./tensorflow_nufft/python/ops/
+cp ./bazel-bin/tensorflow_nufft/proto/nufft_options_pb2.py ./tensorflow_nufft/proto/

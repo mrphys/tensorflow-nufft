@@ -2,6 +2,7 @@ licenses(["notice"])  # Apache 2.0
 
 package(default_visibility = ["//visibility:public"])
 
+load("@com_google_protobuf//:protobuf.bzl", "py_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 load("//tensorflow_nufft:tensorflow_nufft.bzl", "custom_op_library")
 
@@ -15,6 +16,7 @@ py_library(
     srcs = glob(["*.py"]),
     data = [
         ":python/ops/_nufft_ops.so",
+        ":nufft_options_py_proto",
     ],
 )
 
@@ -51,6 +53,11 @@ custom_op_library(
         "@//build_deps/fftw3",
         ":nufft_options_cc_proto",
     ],
+)
+
+py_proto_library(
+    name = "nufft_options_py_proto",
+    srcs = ["proto/nufft_options.proto"],
 )
 
 cc_proto_library(

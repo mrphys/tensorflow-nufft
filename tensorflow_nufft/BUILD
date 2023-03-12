@@ -50,7 +50,8 @@ custom_op_library(
         "cc/kernels/transpose_functor_gpu.cu.cc",
     ],
     deps = [
-        "@//build_deps/fftw3",
+        "@//build_deps/fftw3:fftw3",
+        "@//build_deps/fftw3:fftw3f",
         ":nufft_options_cc_proto",
     ],
 )

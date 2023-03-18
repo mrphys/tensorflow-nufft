@@ -18,9 +18,6 @@
 
 set -x -e
 
-SKIP_CUSTOM_OP_TESTS_FLAG=${1}
-
-python -m pip install -r tools/install_deps/pytest.txt -e ./
 python ./configure.py
 bash tools/install_so_files.sh
 python -c "import tensorflow as tf; print(tf.config.list_physical_devices())"
@@ -35,4 +32,4 @@ if ! [ -x "$(command -v nvidia-smi)" ]; then
 fi
 
 bazel clean
-python -m pytest -v --functions-durations=20 --modules-durations=5 $SKIP_CUSTOM_OP_TESTS_FLAG $EXTRA_ARGS ./tensorflow_nufft
+make test

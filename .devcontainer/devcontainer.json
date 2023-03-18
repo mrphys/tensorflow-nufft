@@ -2,7 +2,7 @@
 	"build": {
 		"dockerfile": "../Dockerfile",
 		"context": "..",
-		"target": "dev"
+		"target": "dev_container"
 	},
 	// Useful extensions.
 	"customizations": {

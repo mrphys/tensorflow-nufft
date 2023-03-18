@@ -13,53 +13,23 @@ RUN python -m pip uninstall -y keras-nightly
 
 RUN python -m pip install --default-timeout=1000 tensorflow==$TF_VERSION
 
-# # Install FFTW library.
-# ARG FFTW_VERSION=3.3.10
-# ARG PREFIX=/dt9/usr
-# ARG CC="${PREFIX}/bin/gcc"
-# ARG CXX="${PREFIX}/bin/g++"
-# ARG LIBDIR="${PREFIX}/lib"
-# ARG INCLUDEDIR="${PREFIX}/include"
-# ARG CFLAGS="-O3 -march=x86-64 -mtune=generic -fPIC"
-# RUN cd /opt && \
-#     curl -sL http://www.fftw.org/fftw-${FFTW_VERSION}.tar.gz | tar xz && \
-#     cd fftw-${FFTW_VERSION} && \
-#     ./configure CC="${CC}" CFLAGS="${CFLAGS}" --prefix ${PREFIX} --enable-openmp --enable-float && \
-#     make && \
-#     make install && \
-#     ./configure CC="${CC}" CFLAGS="${CFLAGS}" --prefix ${PREFIX} --enable-openmp && \
-#     make && \
-#     make install
-
-COPY tools/install_deps/ /install_deps
-RUN python -m pip install -r /install_deps/pytest.txt
-
 COPY requirements.txt .
 RUN python -m pip install -r requirements.txt
 
 COPY ./ /tensorflow-nufft
 WORKDIR /tensorflow-nufft
 
-# -------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 FROM base_install as tfa_gpu_tests
 CMD ["bash", "tools/testing/build_and_run_tests.sh"]
 
-# -------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 FROM base_install as make_wheel
-ARG NIGHTLY_FLAG=
-ARG NIGHTLY_TIME=
-ARG SKIP_CUSTOM_OP_TESTS=
-
-# NIGHTLY_FLAG, NIGHTLY_TIME and SKIP_CUSTOM_OP_TESTS are not currently
-# supported for TensorFlow NUFFT.
-RUN if [[ -n "$NIGHTLY_FLAG" ]] ; then exit 1 ; fi
-RUN if [[ -n "$NIGHTLY_TIME" ]] ; then exit 1 ; fi
-RUN if [[ -n "$SKIP_CUSTOM_OP_TESTS" ]] ; then exit 1 ; fi
 
 RUN python configure.py
 
-# Test Before Building
-RUN bash tools/testing/build_and_run_tests.sh $SKIP_CUSTOM_OP_TESTS
+# Test
+RUN bash tools/testing/build_and_run_tests.sh
 
 # Build
 RUN bazel build \

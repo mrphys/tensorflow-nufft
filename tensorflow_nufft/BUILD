@@ -54,6 +54,8 @@ custom_op_library(
         "@//build_deps/fftw3:fftw3f",
         ":nufft_options_cc_proto",
     ],
+    copts = ["-fopenmp"],
+    linkopts = ["-lgomp"],
 )
 
 py_proto_library(

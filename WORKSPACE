@@ -80,6 +80,7 @@ rules_foreign_cc_dependencies()
 http_archive(
     name = "fftw3_archive",
     build_file_content = ALL_CONTENT,
+    sha256 = "bf2c7ce40b04ae811af714deb512510cc2c17b9ab9d6ddcf49fe4487eea7af3d",
     strip_prefix = "fftw-3.3.9",
     url = "https://www.fftw.org/fftw-3.3.9.tar.gz",
 )

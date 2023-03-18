@@ -1,17 +1,23 @@
 {
-	"dockerFile": "./Dockerfile",
-	"context": "..",
-	"settings": {},
+	"build": {
+		"dockerfile": "../Dockerfile",
+		"context": "..",
+		"target": "dev"
+	},
 	// Useful extensions.
-	"extensions": [
-		"ms-python.python",
-		"ms-vscode.cpptools",
-		"ms-vscode.makefile-tools",
-		"github.vscode-pull-request-github",
-		"github.copilot",
-		"zxh404.vscode-proto3",
-		"BazelBuild.vscode-bazel"
-	],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-vscode.cpptools",
+				"ms-vscode.makefile-tools",
+				"github.vscode-pull-request-github",
+				"github.copilot",
+				"zxh404.vscode-proto3",
+				"BazelBuild.vscode-bazel"
+			]
+		}
+	},
 	// Enable GPUs.
 	"runArgs": [
 		"--gpus=all"

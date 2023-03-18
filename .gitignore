@@ -16,4 +16,6 @@ docs/api_docs/tfft/
 *.pb.h
 *.pb.cc
 
-.bazelrc
+# Bazel
+/.bazelrc
+/bazel-*

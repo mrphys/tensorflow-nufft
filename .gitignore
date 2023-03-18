@@ -15,3 +15,5 @@ docs/api_docs/tfft/
 *_pb2.py
 *.pb.h
 *.pb.cc
+
+.bazelrc

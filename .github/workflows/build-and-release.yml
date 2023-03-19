@@ -38,7 +38,7 @@ jobs:
         # https://github.com/bazelbuild/bazel/issues/14232#issuecomment-1011247429
         os: ['ubuntu-20.04'] # ['macos-12', 'windows-2019', 'ubuntu-20.04']
         py-version: ['3.8'] # ['3.7', '3.8', '3.9', '3.10']
-        tf-version: ['2.11.0']
+        tf-version: ['2.11']
         cpu: ['x86']
       #   include:
       #     - os: 'macos-12'

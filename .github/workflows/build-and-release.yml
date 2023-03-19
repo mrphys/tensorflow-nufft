@@ -125,7 +125,7 @@ jobs:
         run: make lint
 
   docs:
-    name: Documentation
+    name: Docs
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout code

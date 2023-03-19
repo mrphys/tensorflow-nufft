@@ -1,3 +1,6 @@
+.PHONY: test
+	python -m unittest discover -v -p *_test.py
+
 .PHONY: lint
 lint:
 	pylint --rcfile=pylintrc tensorflow_nufft/python

@@ -30,7 +30,7 @@ jobs:
   #         python configure.py
   #         bazel test -k --test_timeout 300,450,1200,3600 --test_output=errors //tensorflow_addons/...
   build:
-    name: Test and build wheels
+    name: Build
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -81,14 +81,6 @@ jobs:
         # Ubuntu bazel is run inside of the docker image
         run: bash tools/install_deps/install_bazelisk.sh ./
 
-      - name: Install requirements
-        run: |
-          pip install -r requirements.txt
-          pip install -r tools/install_deps/requirements.txt
-
-      - name: Lint code
-        run: make lint
-
       - name: Build wheels
         env:
           OS: ${{ runner.os }}
@@ -98,14 +90,122 @@ jobs:
         shell: bash
         run: bash ./tools/build/make_wheel_${OS}_${CPU}.sh
 
-      - name: Build docs
-        run: |
-          make docs PY_VERSION=${{ matrix.py_version }}
-
-      - uses: actions/upload-artifact@v1
+      - name: Upload wheels
+        if: startsWith(github.ref, 'refs/tags')
+        uses: actions/upload-artifact@v2
         with:
           name: ${{ runner.os }}-${{ matrix.py-version }}-tf${{ matrix.tf-version }}-${{ matrix.cpu }}-wheel
-          path: wheelhouse
+          path: ./wheelhouse
+
+      - name: Publish to Test PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
+          packages_dir: wheelhouse/
+          skip_existing: true
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Install requirements
+        run: |
+          pip install -r tools/install_deps/lint.txt
+
+      - name: Lint code
+        if: matrix.os == ubuntu-20.04 && matrix.py-version == 3.8
+        run: make lint
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Install requirements
+        run: |
+          pip install -r tools/install_deps/docs.txt
+
+      - name: Build docs
+        run: make docs
+
+      - name: Upload docs
+        if: startsWith(github.ref, 'refs/tags')
+        uses: actions/upload-artifact@v2
+        with:
+          name: docs
+          path: ./docs/_build/dirhtml
+
+  release:
+    name: Release
+    needs: [build, lint, docs]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags')
+
+    steps:
+      - name: Checkout docs branch
+        uses: actions/checkout@v2
+        with:
+          ref: docs
+
+      - name: Clean docs branch
+        run: |
+          rm -rf ./*
+
+      - name: Download docs
+        uses: actions/download-artifact@v2
+        with:
+          name: docs
+
+      - name: Publish docs to GitHub Pages
+        run: |
+          git config --global user.name mrphys
+          git config --global user.email mrphys@users.noreply.github.com
+          git add -A
+          git commit -m "Update docs [bot]" || echo "No changes to commit."
+          git push --force
+
+      - name: Checkout master
+        uses: actions/checkout@v2
+
+      - name: Get release tag
+        run: |
+          echo "release=${GITHUB_REF/refs\/tags\/v/}" >> $GITHUB_ENV
+
+      - name: Create a release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: TensorFlow NUFFT ${{ env.release }}
+          body_path: RELEASE.md
+          prerelease: ${{ contains(env.release, 'a') || contains(env.release, 'b') || contains(env.release, 'rc') }}
+          fail_on_unmatched_files: true
+
+      - name: Download wheels
+        uses: actions/download-artifact@v2
+        with:
+          name: wheels
+          path: artifacts/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages_dir: artifacts/
 
   # upload-wheels:
   #   name: Publish wheels to PyPi

@@ -437,7 +437,7 @@ def _validate_nudft_inputs(source,
     raise ValueError(
         f"Incompatible batch shapes for `source` and `points`. "
         f"The batch dimensions for `source` and `points` must be "
-        f"broadcastable. Received: {source.shape}, {points.shape}")
+        f"broadcastable. Received: {source.shape}, {points.shape}") from err
 
   source = tf.broadcast_to(source, batch_shape + source_shape)
   points = tf.broadcast_to(points, batch_shape + points_shape)

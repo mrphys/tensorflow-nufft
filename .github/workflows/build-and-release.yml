@@ -122,7 +122,6 @@ jobs:
           pip install -r tools/install_deps/lint.txt
 
       - name: Lint code
-        if: matrix.os == ubuntu-20.04 && matrix.py-version == 3.8
         run: make lint
 
   docs:

@@ -1,20 +1,27 @@
 {
-	"dockerFile": "./Dockerfile",
-	"context": "..",
-	"settings": {},
+	"build": {
+		"dockerfile": "../Dockerfile",
+		"context": "..",
+		"target": "dev_container"
+	},
 	// Useful extensions.
-	"extensions": [
-		"ms-python.python",
-		"ms-vscode.cpptools",
-		"ms-vscode.makefile-tools",
-		"github.vscode-pull-request-github",
-		"github.copilot",
-		"zxh404.vscode-proto3"
-	],
-	// Enable GPUs.
-	"runArgs": [
-		"--gpus=all"
-	],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-vscode.cpptools",
+				"ms-vscode.makefile-tools",
+				"github.vscode-pull-request-github",
+				"github.copilot",
+				"zxh404.vscode-proto3",
+				"BazelBuild.vscode-bazel"
+			]
+		}
+	},
+	// Uncomment below to enable GPU support within dev container.
+	// "runArgs": [
+	// 	"--gpus=all"
+	// ],
 	// Enable plotting.
 	"mounts": [
 		"type=bind,source=/tmp/.X11-unix,target=/tmp/.X11-unix"

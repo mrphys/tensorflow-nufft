@@ -369,35 +369,35 @@ def _validate_nudft_inputs(source,
   if transform_type == 'type_1':
 
     if not len(grid_shape) == rank:
-      raise ValueError((
-          "Invalid `grid_shape` argument: must represent a rank-{} "
-          "shape. Received: {}").format(rank, grid_shape))
+      raise ValueError(
+          f"Invalid `grid_shape` argument: must represent a rank-{rank} "
+          f"shape. Received: {grid_shape}")
 
   if expected_rank:
 
     if not rank == expected_rank:
-      raise ValueError((
-          "Invalid shape for `points` argument: "
-          "last dimension must be equal to expected rank, which is {}. "
-          "Received: {}").format(expected_rank, rank))
+      raise ValueError(
+          f"Invalid shape for `points` argument: "
+          f"last dimension mst be equal to expected rank, which is "
+          f"{expected_rank}. Received: {rank}")
 
   # Check that dtype for `source` matches the expected dtype.
   if expected_dtype:
 
     if not source.dtype == expected_dtype:
-      raise TypeError((
-          "Invalid dtype for `source` argument: "
-          "must match the expected dtype, which is {}. "
-          "Received: {}").format(expected_dtype, source.dtype))
+      raise TypeError(
+          f"Invalid dtype for `source` argument: "
+          f"must match the expected dtype, which is {expected_dtype}. "
+          f"Received: {source.dtype}")
 
   expected_dtype = source.dtype
 
   # Check that dtype for `points` matches the expected dtype.
   if not points.dtype == expected_dtype.real_dtype:
-    raise TypeError((
-        "Invalid dtype for `points` argument: "
-        "must match the real part of the expected dtype, which is {}. "
-        "Received: {}").format(expected_dtype.real_dtype, points.dtype))
+    raise TypeError(
+        f"Invalid dtype for `points` argument: "
+        f"must match the real part of the expected dtype, which is "
+        f"{expected_dtype.real_dtype}. Received: {points.dtype}")
 
   # Check that spatial dimensions of input `source` match the expected modes
   # shape.
@@ -405,18 +405,17 @@ def _validate_nudft_inputs(source,
 
     if transform_type == 'type_1':
       if not grid_shape == expected_grid_shape:
-        raise ValueError((
-            "Invalid `grid_shape` argument: "
-            "expected {}. Received: {}").format(
-                expected_grid_shape, grid_shape))
+        raise ValueError(
+            f"Invalid `grid_shape` argument: "
+            f"expected {expected_grid_shape}. Received: {grid_shape}")
 
     if transform_type == 'type_2':
       if not source.shape[-rank:] == expected_grid_shape:
-        raise ValueError((
-            "Invalid shape for `source` argument: "
-            "the modes shape (i.e., dimensions {}) must match "
-            "the expected modes shape, which is {}. Received: {}").format(
-                tuple(range(-rank, 0)), expected_grid_shape, source.shape))
+        raise ValueError(
+            f"Invalid shape for `source` argument: "
+            f"the modes shape (i.e., dimensions {tuple(range(-rank, 0))}) "
+            f"must match the expected modes shape, which is "
+            f"{expected_grid_shape}. Received: {source.shape}")
 
   # Check that batch shapes for `source` and `points` are broadcastable, and
   # broadcast them to a common shape.
@@ -435,11 +434,10 @@ def _validate_nudft_inputs(source,
       batch_shape_source, batch_shape_points)
 
   except ValueError as err:
-    raise ValueError((
-        "Incompatible batch shapes for `source` and `points`."
-        "The batch dimensions for `source` and `points` must be "
-        "broadcastable. Received: {}, {}").format(
-            source.shape, points.shape)) from err
+    raise ValueError(
+        f"Incompatible batch shapes for `source` and `points`. "
+        f"The batch dimensions for `source` and `points` must be "
+        f"broadcastable. Received: {source.shape}, {points.shape}") from err
 
   source = tf.broadcast_to(source, batch_shape + source_shape)
   points = tf.broadcast_to(points, batch_shape + points_shape)
@@ -463,9 +461,9 @@ def _validate_enum(value, valid_values, name):
     ValueError: If a value not in the list of valid values was passed.
   """
   if value not in valid_values:
-    raise ValueError((
-        "The `{}` argument must be one of {}. "
-        "Received: {}").format(name, valid_values, value))
+    raise ValueError(
+        f"Argument `{name}` must be one of {valid_values}. "
+        f"Received: {value}")
   return value
 
 

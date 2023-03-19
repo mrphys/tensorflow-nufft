@@ -1,0 +1,7 @@
+sphinx==4.5.0
+pydata-sphinx-theme==0.8.0
+ipython
+sphinx-sitemap==2.5.0
+myst-nb==0.17.1
+sphinx-book-theme==0.3.3
+pydot==1.4.2

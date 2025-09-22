@@ -41,10 +41,23 @@ limitations under the License.
 #include <thrust/execution_policy.h>
 #include <thrust/transform_reduce.h>
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
+// #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #if GOOGLE_CUDA
-#include "third_party/gpus/cuda/include/cuComplex.h"
-#include "third_party/gpus/cuda/include/cufft.h"
+
+// JAS #include "third_party/gpus/cuda/include/cufft.h"
+#if __has_include("third_party/gpus/cuda/include/cufft.h")
+  #include "third_party/gpus/cuda/include/cufft.h"
+#else
+  #include <cufft.h>
+#endif
+
+// JAS #include "third_party/gpus/cuda/include/cuComplex.h"
+#if __has_include("third_party/gpus/cuda/include/cuComplex.h")
+  #include "third_party/gpus/cuda/include/cuComplex.h"
+#else
+  #include <cuComplex.h>
+#endif
+
 #endif
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/platform/stream_executor.h"

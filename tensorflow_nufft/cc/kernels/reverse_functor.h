@@ -16,7 +16,7 @@ limitations under the License.
 #ifndef TENSORFLOW_NUFFT_CC_KERNELS_REVERSE_FUNCTOR_H_
 #define TENSORFLOW_NUFFT_CC_KERNELS_REVERSE_FUNCTOR_H_
 
-#include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
+// #include "third_party/eigen3/unsupported/Eigen/CXX11/Tensor"
 #include "tensorflow/core/framework/tensor.h"
 #include "tensorflow/core/framework/tensor_types.h"
 #include "tensorflow/core/lib/core/status.h"

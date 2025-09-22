@@ -28,17 +28,17 @@ jobs:
       PYTHON: python${{ matrix.py_version }}
 
     steps:
-      - name: Checkout code
+      - name: Checkout co
         uses: actions/checkout@v2
 
-      - name: Lint code
+      - name: Lint codee
         run: |
           make lint PY_VERSION=${{ matrix.py_version }}
         # JAS this works
 
       - name: Compile shared library
         run: |
-          make lib PY_VERSION=${{ matrix.py_version }} CXX=g++
+          make lib PY_VERSION=${{ matrix.py_version }} CXX=/usr/bin/g++
         # make lib PY_VERSION=${{ matrix.py_version }} CXX=/dt9/usr/bin/g++
 
       - name: Install required packages
